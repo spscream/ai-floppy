@@ -169,6 +169,13 @@ export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key '')"
 # checkout name, and a consumer whose workplace checkout lives elsewhere sets
 # workplace_memory_dir in .floppy/config rather than symlinking to match it.
 export FLOPPY_WORKPLACE_MEMORY_DIR="$(cfg_get workplace_memory_dir "$HOME/agents_memory")"
+# A fact about the harness, not about this project: its session loader
+# truncates the memory index past a size of its own and says nothing about the
+# tail it dropped. Shipped with the number measured on Claude Code and
+# overridden by a consumer whose harness cuts elsewhere. The per-corpus caps
+# (how many pointers, how long a pointer line, how big the memory) live in
+# quota.lock instead, inside the memory itself — see the memory-lint header.
+export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
 export FLOPPY_WATCHED_DIRS="$(cfg_get watched_dirs docs)"

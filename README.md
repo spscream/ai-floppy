@@ -152,6 +152,7 @@ these are the defaults when a key is absent.
 | `workplace_repo` | *(unset)* | git URL of a workplace-wide private memory repository; both this and `workplace_project_key` must be set to use `bash .floppy/run workplace` |
 | `workplace_project_key` | *(unset)* | this project's scope directory (`projects/<key>`) inside the workplace repository |
 | `workplace_memory_dir` | `$HOME/agents_memory` | where the workplace repository is (or should be) checked out on this machine |
+| `index_chars_max` | `24500` | character ceiling on the memory index, measured off the harness's session loader — it truncates past a limit of its own and never says which section it dropped. A fact about the harness, not this project: the per-corpus caps live in `quota.lock` instead |
 | `statuses_now` | `docs/statuses/NOW.md` | the current-state file `start` reads in full and `wrap` keeps up to date |
 | `statuses_now_chars_max` | `12000` | character ceiling on the current-state file; `wrap-guard` refuses a commit that pushes it over |
 | `watched_dirs` | `docs` | comma-separated directories, besides `memory_dir`, that `wrap` is allowed to commit |
@@ -202,9 +203,13 @@ visible rather than quietly writing into a directory nobody publishes.
 
 ## `quota.lock`
 
-A ratchet inside the memory directory — a total character budget, a
-per-note cap, a pointers-per-index cap — that bounds how large the memory is
-allowed to get. **It is not shipped by this plugin and never copied from one
+A ratchet inside the memory directory — `chars_max` (total character budget),
+`note_chars_max` (one note), `pointers_max` (pointers in one index) and
+`pointer_line_max` (one pointer line, default 170) — bounding how large the
+memory is allowed to get. All four are facts about *this* corpus, which is why
+they live with the memory rather than in `.floppy/config`; the one size limit
+that is a fact about the harness instead, `index_chars_max`, is in the config
+table above. **It is not shipped by this plugin and never copied from one
 project to another.** `init` deliberately does not create one: its
 numbers have to come from measuring *this* project's own corpus, and a
 ceiling copied from a different project is that project's ceiling, which

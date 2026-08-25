@@ -217,9 +217,45 @@ done
 # behaves the same in BSD awk (macOS) and gawk, while `wc -m` would need a
 # UTF-8 locale that a cron or CI shell does not always have.
 hr "index size"
-IDX_MAX=24500      # the loader cut in at ~24986 characters; stay below it
-IDX_WARN=23500     # trim or split the index before it reaches the cut
-LINE_MAX=170       # one pointer line; the cap is what keeps the total down
+
+# Two numbers, two homes, and the split is not tidiness — it is the same
+# question this project asks of a memory note: WHAT IS THIS A FACT ABOUT.
+#
+#   index_chars_max  is a fact about the HARNESS. Its session loader truncates
+#                    the index past a limit of its own; measured on Claude Code
+#                    2026-08-24, it cut in at ~24986 characters while reporting
+#                    "26.5KB (limit: 24.4KB)". That number is the same for every
+#                    project running in that harness and belongs to none of
+#                    them, so it ships as the plugin's default and is overridden
+#                    in .floppy/config by a consumer whose harness differs.
+#   pointer_line_max is a fact about THIS PROJECT's writing convention, the same
+#                    kind as pointers_max, so it lives beside it in quota.lock
+#                    and is measured off this corpus.
+#
+# The warning threshold is derived, not a third knob: two numbers that must be
+# kept in a fixed relation are two chances to set them wrong, and nobody has a
+# reason to want a warning at some other fraction.
+IDX_MAX="${FLOPPY_INDEX_CHARS_MAX:-24500}"
+case "$IDX_MAX" in
+  ''|*[!0-9]*) err "index_chars_max is '$IDX_MAX' in .floppy/config, expected a number — falling back to 24500"
+               IDX_MAX=24500 ;;
+esac
+IDX_WARN=$(( IDX_MAX * 96 / 100 ))
+
+# Read before the quota section below, because it is used here. Absent
+# quota.lock is normal on a fresh memory, so the default has to stand on its
+# own rather than turn the check off.
+LOCK="$MEM/quota.lock"
+lock_val() { sed -n "s/^$1=//p" "$LOCK" | head -n1; }
+LINE_MAX=170
+if [[ -f "$LOCK" ]]; then
+  __plm="$(lock_val pointer_line_max)"
+  case "$__plm" in
+    "") ;;
+    *[!0-9]*) err "quota.lock: pointer_line_max is '$__plm', expected a number — using $LINE_MAX" ;;
+    *) LINE_MAX="$__plm" ;;
+  esac
+fi
 
 for f in "${indexes[@]}"; do
   rel="${f#"$MEM"/}"
@@ -254,8 +290,9 @@ done
 # session loader started truncating the index in silence, and no invariant was
 # violated at any moment along the way.
 hr "quota"
-LOCK="$MEM/quota.lock"
-lock_val() { sed -n "s/^$1=//p" "$LOCK" | head -n1; }
+# LOCK and lock_val are defined in the index-size section above: pointer_line_max
+# is needed there, and one definition read from two sections beats two
+# definitions that can drift apart.
 
 if [[ ! -f "$LOCK" ]]; then
   # Not an error: a fresh memory has nothing to measure yet, and a ceiling

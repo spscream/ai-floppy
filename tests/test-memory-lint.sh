@@ -200,4 +200,59 @@ assert_contains "no memory layout: still explains what's missing" \
   "this repository does not use this memory layout" "$out7"
 rm -rf "$repo7"
 
+# ---------- the size caps come from two places, on purpose ----------
+# index_chars_max is a fact about the harness's session loader — the same for
+# every project running in it — so it lives in .floppy/config. pointer_line_max
+# is a fact about this corpus's writing convention, like pointers_max beside
+# it, so it lives in quota.lock. Merging them into one file would make every
+# project re-measure somebody else's tool.
+repo8="$(sandbox)"; cp shim/run "$repo8/.floppy/run"
+echo "memory_dir=brain" > "$repo8/.floppy/config"
+mkdir -p "$repo8/brain/half"
+cat > "$repo8/brain/half/a-note.md" <<'EOFN'
+---
+name: a-note
+description: a note
+metadata:
+  type: project
+  evidence: read
+---
+Body.
+EOFN
+printf '# Half\n- [A note](a-note.md) — pointer\n' > "$repo8/brain/half/INDEX.md"
+# A pointer line of 200 ASCII characters: over the 170 default, under a raised cap.
+long_line="- [x](half/INDEX.md) $(printf 'y%.0s' $(seq 1 179))"
+printf '# Index\n%s\n' "$long_line" > "$repo8/brain/MEMORY.md"
+
+lint8() { OUT8="$(cd "$repo8" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RC8=$?; }
+
+lint8
+assert_rc       "default pointer_line_max catches a long line" 1 "$RC8"
+assert_contains "and says how long it is"  "over 170" "$OUT8"
+
+# Raised in quota.lock — the same line must now pass. Without this the check
+# above would also pass on a linter that simply never read the file.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\npointer_line_max=250\ngrandfathered=\n' > "$repo8/brain/quota.lock"
+lint8
+assert_rc       "pointer_line_max from quota.lock is honoured" 0 "$RC8"
+
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\npointer_line_max=nope\ngrandfathered=\n' > "$repo8/brain/quota.lock"
+lint8
+assert_contains "a non-numeric pointer_line_max is named, not silently used" "pointer_line_max is 'nope'" "$OUT8"
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repo8/brain/quota.lock"
+
+# index_chars_max from .floppy/config. A tiny cap must fail the index; the
+# warning threshold is derived from it rather than being a second key.
+printf 'memory_dir=brain\nindex_chars_max=50\n' > "$repo8/.floppy/config"
+lint8
+assert_rc       "index_chars_max from the config is honoured" 1 "$RC8"
+assert_contains "and the message quotes the configured cap" "over the 50 cap" "$OUT8"
+
+printf 'memory_dir=brain\nindex_chars_max=oops\n' > "$repo8/.floppy/config"
+lint8
+assert_contains "a non-numeric index_chars_max is named" "index_chars_max is 'oops'" "$OUT8"
+assert_contains "and it falls back to the shipped default" "24500" "$OUT8"
+rm -rf "$repo8"
+
+
 summary

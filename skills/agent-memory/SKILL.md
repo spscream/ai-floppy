@@ -85,9 +85,16 @@ the file tree says.
 ## The `quota.lock` ratchet
 
 The memory directory can hold a `quota.lock` — plain `key=value` numbers
-(a total character budget, a per-note character cap, a pointers-per-index
-cap) that bound how large the memory is allowed to get before something has
-to give.
+(`chars_max` for the whole corpus, `note_chars_max` for one note,
+`pointers_max` for one index, `pointer_line_max` for one pointer line) that
+bound how large the memory is allowed to get before something has to give.
+
+All four are facts about **this** corpus, which is why they live with the
+memory. The one size limit that is not — the ceiling on the index the harness
+loads into every session, which it truncates in silence — is a fact about the
+harness and lives in `.floppy/config` as `index_chars_max`, with a default
+shipped by the plugin. Asking a project to measure that one would be asking it
+to measure somebody else's tool.
 
 **This file is not shipped by the plugin and not copied from one project to
 another.** Its numbers come from measuring the consumer's own corpus — a
