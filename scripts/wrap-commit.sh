@@ -22,16 +22,32 @@
 #   bash .floppy/run commit -m "message" <file> [file...]
 #   bash .floppy/run commit -m "message" --no-push <file> [file...]
 #
+# commit_push in .floppy/config (default "auto") picks what happens after the
+# commit: "auto" pulls --rebase then pushes, same as always; "never" skips
+# both — for a repository with no remote configured, "auto" fails the pull
+# every time (there is nothing to pull against), forever, with no way to
+# reach the push step at all. --no-push still works as a per-call override:
+# it skips only the push, not the pull, because it exists for the two-machine
+# workflow this was ported from, where staying in sync is wanted even on a
+# call that doesn't push yet.
+#
 # Runs on macOS bash 3.2: no mapfile, no declare -A, no GNU-only flags.
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
+
+# sync governs the whole pull+push tail; push governs only the push half of
+# it, and --no-push below overrides push alone, never sync — see the header.
+sync=1; push=1
+if [[ "${FLOPPY_COMMIT_PUSH:-auto}" == "never" ]]; then
+  sync=0; push=0
+fi
 
 # An array, not a string: a path with a space in it would otherwise split into
 # two arguments and stage something nobody named. bash 3.2 has ordinary arrays;
 # only the associative ones are missing.
 msg=""
-push=1
 files=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,7 +65,7 @@ if [[ -z "$msg" ]]; then
 fi
 if [[ ${#files[@]} -eq 0 ]]; then
   echo "no files: pass the files this session wrote, never a directory"
-  echo "  git add .agent-memory docs would stage a parallel session's half-written note"
+  echo "  git add $mem_dir docs would stage a parallel session's half-written note"
   exit 2
 fi
 
@@ -72,7 +88,18 @@ if ! bash "$here/memory-lint.sh" >/dev/null 2>&1; then
   exit 1
 fi
 guard_out="$(bash "$here/wrap-guard.sh" "${files[@]}" 2>&1)"
-if [[ $? -ne 0 ]]; then
+guard_rc=$?
+if [[ $guard_rc -ge 126 ]]; then
+  # 126/127 is bash's own "could not run the script at all" (missing,
+  # unreadable, not executable) — a broken installation, not a finding about
+  # the file list. Reported measured: with wrap-guard.sh absent, the message
+  # below used to print anyway, sending a human hunting for a session that
+  # never existed.
+  echo "  wrap-guard.sh could not run (exit $guard_rc) — the file list was not checked:"
+  echo "$guard_out" | sed 's/^/    /'
+  echo "  this is a broken plugin installation, not a parallel session"
+  exit 1
+elif [[ $guard_rc -ne 0 ]]; then
   echo "  the file list no longer matches the tree:"
   echo "$guard_out" | grep -E '^  x' | head -8
   echo "  (a parallel session may have written between check and commit)"
@@ -101,6 +128,10 @@ git log --oneline -1 | sed 's/^/  /'
 # In this order deliberately: see the header. With a commit of our own the pull
 # takes the rebase path and autoStash applies.
 hr "sync"
+if [[ $sync -eq 0 ]]; then
+  echo "  commit_push=never in .floppy/config: no remote configured, staying local."
+  exit 0
+fi
 if ! git pull --rebase --quiet; then
   echo "  pull --rebase failed or conflicted. The commit is made and safe locally."
   echo "  Resolve it by hand, then push. Not pushing now."
