@@ -135,6 +135,34 @@ EOF
 fi
 # quota.lock is deliberately never created here — see the header comment.
 
+# ---------- current-state file ----------
+# Seeded at the default statuses_now path (docs/statuses/NOW.md), not a flag
+# of its own: it is the same default the generated config above already
+# documents, so there is nothing to ask the human that init doesn't already
+# know. Without this, the first floppy:start on a freshly initialized
+# repository finds nothing to read (floppy:workstatus reports "! ... is
+# missing — nothing for /start to read") and the first floppy:wrap has
+# nothing to update — a dead end that looks like something is broken.
+now_file="$repo/docs/statuses/NOW.md"
+if [[ -f "$now_file" ]]; then
+  echo "ok docs/statuses/NOW.md already exists, left untouched"
+else
+  mkdir -p "$(dirname "$now_file")"
+  cat > "$now_file" <<EOF
+# Current state
+
+This is what \`floppy:start\` reads in full, rewritten in place rather than
+appended to — see \`floppy:agent-memory\` for how that differs from a dated
+journal entry.
+
+This repository was just set up with \`floppy:init\`. There is nothing to
+report yet: the first session that does real work here should replace this
+paragraph with what's actually true — where things stand, what's frozen,
+what's proposed, what's missing.
+EOF
+  echo "ok docs/statuses/NOW.md"
+fi
+
 # ---------- .gitignore ----------
 gi="$repo/.gitignore"
 # No trailing slash: this path becomes a symlink once memory-link/workplace

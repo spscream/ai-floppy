@@ -22,6 +22,12 @@ only says which of them to open and in what order.
    equivalent), not here. If the task doesn't name a half clearly, ask which
    one in a single short question rather than guessing.
 
+   A freshly initialized repository has no halves yet — everything lives
+   flat under the memory directory, one `MEMORY.md` and nothing to choose
+   between. That is not a dead end and not a question to ask: skip this step
+   and open `MEMORY.md` directly. Splitting into halves is worth doing once
+   the memory has grown enough to need routing, not before.
+
 2. **Read the current-state file whole.** Its path is `statuses_now` in
    `.floppy/config` (a repository default such as `docs/statuses/NOW.md`).
    This is the one status document read in full; it is rewritten in place, so

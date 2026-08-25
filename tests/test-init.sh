@@ -17,6 +17,12 @@ assert_eq "config placed"  "0" "$([[ -f "$repo/.floppy/config" ]] && echo 0 || e
 assert_eq "router placed"  "0" "$([[ -f "$repo/.agent-memory/MEMORY.md" ]] && echo 0 || echo 1)"
 assert_eq "no quota.lock"  "1" "$([[ -f "$repo/.agent-memory/quota.lock" ]] && echo 0 || echo 1)"
 
+# IMPORTANT 4: without this, the first floppy:start on a freshly initialized
+# repository has nothing to read and the first floppy:wrap has nothing to
+# update — a dead end that looks broken rather than a fresh repository.
+assert_eq "current-state file placed" "0" "$([[ -f "$repo/docs/statuses/NOW.md" ]] && echo 0 || echo 1)"
+assert_contains "current-state file names floppy:init" "floppy:init" "$(cat "$repo/docs/statuses/NOW.md")"
+
 assert_contains "config carries memory_dir"      "memory_dir=.agent-memory" "$(cat "$repo/.floppy/config")"
 assert_contains "config carries memory_language" "memory_language=en"      "$(cat "$repo/.floppy/config")"
 live_workplace_line="$(grep -v '^[[:space:]]*#' "$repo/.floppy/config" | grep '^workplace_repo=' || true)"
@@ -42,8 +48,18 @@ case "$out" in
   *) fail "missing ratchet is a warning line, not an x error" "! quota.lock is missing..." "$out" ;;
 esac
 
+# git-init the repo so `status` below has a HEAD to read git/origin state
+# from — it must not need that to find the current-state file it was seeded.
+git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit -qm seed
+status_out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+case "$status_out" in
+  *"nothing for /start to read"*)
+    fail "status finds the seeded current-state file" "no 'nothing for /start to read'" "$status_out" ;;
+  *) ok "status finds the seeded current-state file" ;;
+esac
+
 # ---------- idempotence: full status + checksums of every touched file ----------
-touched="$repo/.floppy/run $repo/.floppy/config $repo/.agent-memory/MEMORY.md $repo/.gitignore $repo/AGENTS.md"
+touched="$repo/.floppy/run $repo/.floppy/config $repo/.agent-memory/MEMORY.md $repo/.gitignore $repo/AGENTS.md $repo/docs/statuses/NOW.md"
 before_status="$(cd "$repo" && git status --porcelain)"
 before_sums=""
 for f in $touched; do before_sums="$before_sums$(md5_of "$f")"; done
