@@ -143,8 +143,10 @@ trim() {
 }
 
 # A markdown table row -> its metric name: first cell, trimmed, bold markers
-# stripped. Empty cells, the `---`/`:---:` separator row and the header row
-# ("показатель") are not metric names and the caller must filter them out.
+# stripped. Empty cells and the `---`/`:---:` separator row are not metric
+# names; the header row is filtered out by trend_row_names below, structurally
+# rather than by matching a word, so the caller only has those two to skip
+# itself.
 trend_row_name() {
   local cell
   cell="$(trim "${1#|}")"
@@ -154,16 +156,33 @@ trend_row_name() {
 }
 
 # All metric names in a trend table, one per line, read from stdin.
+#
+# The header row is not recognized by its text (it used to be, matching the
+# literal word "показатель" — one project's table-header word, so an English
+# consumer's header cell became a phantom trend row, and renaming their
+# column fired a false "trend row dropped"). A markdown table's header row is
+# structural instead: it is whatever row immediately precedes a separator
+# row. Detecting that needs one row of lookback, since a row only reveals
+# itself as a header once the next line turns out to be the separator — so
+# each candidate name is held for one iteration before being emitted, and is
+# dropped instead if the very next row is a separator.
 trend_row_names() {
-  local line name
+  local line name have_prev=0 prev=""
   while IFS= read -r line; do
     [[ "$line" == '|'* ]] || continue
     name="$(trend_row_name "$line")"
     [[ -z "$name" ]] && continue
-    [[ "$name" =~ ^[-:]+$ ]] && continue
-    [[ "$name" == "показатель" ]] && continue
-    printf '%s\n' "$name"
+    if [[ "$name" =~ ^[-:]+$ ]]; then
+      # Separator row: whatever was held is this table's header, not a
+      # metric — discard it rather than emitting it.
+      have_prev=0
+      continue
+    fi
+    [[ $have_prev -eq 1 ]] && printf '%s\n' "$prev"
+    prev="$name"
+    have_prev=1
   done
+  [[ $have_prev -eq 1 ]] && printf '%s\n' "$prev"
 }
 
 hr "NOW.md trend rows"

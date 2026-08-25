@@ -48,5 +48,25 @@ out5="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md
 assert_rc       "unchanged claimed file is refused (rc)" 1 "$rc5"
 assert_contains "unchanged claimed file is named"         "not changed" "$out5"
 
+# 6. header-row detection is structural, not lexical: renaming an English
+# header cell must not read as a dropped trend row, and an actual data row
+# disappearing must still be caught even though the header line also sits
+# right above a separator row.
+printf '| Metric | before | after |\n|---|---|---|\n| Latency | 10ms | 8ms |\n| Errors | 3 | 1 |\n' > "$repo/state/NOW.md"
+git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit -qm "table base"
+
+printf '| KPI | before | after |\n|---|---|---|\n| Latency | 10ms | 8ms |\n| Errors | 3 | 1 |\n' > "$repo/state/NOW.md"
+out6="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc6=$?
+assert_rc       "renamed header column is not flagged (rc)"        0 "$rc6"
+case "$out6" in
+  *"dropped from NOW.md"*) fail "renamed header column is not flagged" "no dropped-row error" "$out6" ;;
+  *) ok "renamed header column is not flagged" ;;
+esac
+
+printf '| KPI | before | after |\n|---|---|---|\n| Latency | 10ms | 8ms |\n' > "$repo/state/NOW.md"
+out7="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc7=$?
+assert_rc       "actual dropped data row is still caught (rc)" 1 "$rc7"
+assert_contains "actual dropped data row is named"              "Errors" "$out7"
+
 rm -rf "$repo"
 summary
