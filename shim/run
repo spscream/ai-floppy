@@ -10,6 +10,11 @@ export FLOPPY_REPO
 
 # The plugin cache path carries a version and changes on every update, so the
 # only stable handles are the harness variable and an explicit override.
+#
+# skills/init/SKILL.md duplicates this exact search rather than sourcing it
+# from here: `floppy:init` runs before this file exists in the target
+# repository (creating it is init's own first step), so it cannot read this
+# copy. Keep the two in sync by hand if this search ever changes.
 if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; then
   FLOPPY_ROOT="$CLAUDE_PLUGIN_ROOT"
 elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then

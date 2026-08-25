@@ -23,11 +23,33 @@ move later, and this only needs one short question.
 
 ## 2. Run the script
 
-Locate the plugin root from `CLAUDE_PLUGIN_ROOT` (set by the harness while
-this skill runs), or `AI_FLOPPY_HOME` during development, and run:
+Whether the harness sets `CLAUDE_PLUGIN_ROOT` while a skill runs has not been
+measured, so do not rely on it alone. Locate the plugin the same three ways
+`.floppy/run` locates itself once installed — `CLAUDE_PLUGIN_ROOT`, then
+`AI_FLOPPY_HOME` for development, then the newest checkout under the plugin
+cache — and fail loudly, naming the install command, if none resolves. This
+duplicates shim/run's search (shim/run:11-26) rather than reading it from
+there, because `.floppy/run` does not exist yet in this repository —
+creating it is the first thing the script below does — and that search
+normally lives in the one file this plugin copies into a consumer, which has
+to stay self-contained. Run:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-$AI_FLOPPY_HOME}/scripts/init.sh" \
+if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; then
+  floppy_root="$CLAUDE_PLUGIN_ROOT"
+elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then
+  floppy_root="$AI_FLOPPY_HOME"
+else
+  floppy_root="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
+fi
+
+if [[ -z "$floppy_root" || ! -d "$floppy_root/scripts" ]]; then
+  echo "x floppy plugin not found." >&2
+  echo "  Install it: /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
+  exit 1
+fi
+
+bash "$floppy_root/scripts/init.sh" \
   --repo . --memory-dir <their answer> --language <their answer>
 ```
 
