@@ -1,0 +1,156 @@
+---
+name: wrap
+description: Close a session — select the facts worth keeping into memory, update the current-state file, name what's left unfinished, then check and commit through the shim. Use when a session is ending, context is about to be cleared, or the user asks to wrap up.
+---
+
+# Wrap
+
+The session is ending and context is about to go away. The job is making
+sure the next session doesn't start from zero — and that means **selecting**
+what to keep, not dumping the transcript into memory. A memory buried in
+detail is worse than a short one.
+
+See `agent-memory` for what a note, an index, and `evidence` mean; this skill
+is about which facts earn a place in them and how the session closes.
+
+## 0. Take the lock
+
+```bash
+bash .floppy/run lock acquire "<the thread of work, one phrase>"
+```
+
+A parallel session writes into the same current-state file and the same
+memory index. Git does not arbitrate that — the second write simply
+overwrites the first. If the lock is held, write nothing: wait a minute, try
+once more, and if it's still held, tell the human another session is closing
+and leave the decision to them. Release it at the end of this skill; an
+abandoned lock ages out on its own.
+
+## 1. Select what's worth memory
+
+A candidate earns a note only if it passes all three:
+
+- **it cost work** — a measurement, an investigation, a rejected hypothesis,
+  a tool trap. Not something readable out of the code in a minute.
+- **it outlives the session** — useful in a week to someone who wasn't in
+  this conversation.
+- **it isn't derivable from the repository** — not code structure, not git
+  history, not a retelling of what's already written in the docs.
+
+Explicitly **not** saved: the reasoning trail, intermediate attempts ("tried
+this, then that"), a retelling of the commits.
+
+What's usually lost, and worth the most when it survives: **rejected
+hypotheses with their reason** ("this doesn't work because…"), and **numbers
+that turned out to mean something other than they first seemed**. Both of
+those are more valuable than a list of what got done — the list is already
+in the git log.
+
+## 2. Evidence, chosen on purpose
+
+Every note's `metadata.evidence` is one of four values, and they describe
+where the claim came from, not how important it is:
+
+| value | when it applies |
+|---|---|
+| `measured` | verified against reality — a run, a profile, an incident that happened |
+| `read` | taken from code, a spec, or docs — true until something runs and says otherwise |
+| `decided` | a choice or an agreement; evidence does not apply, a date and an author do |
+| `sourced` | an outside claim checked against its primary source, quoted and dated |
+
+**If unsure, write `read`**, and say in the note what a measurement would
+need. Marking `measured` something that was actually only read is the
+expensive mistake here — it hands the next session a guess dressed as fact.
+
+## 3. Update the current-state file, and journal only if there's something to journal
+
+Update the current-state file (`statuses_now` in `.floppy/config`) if this
+session changed anything that belongs in it — a metric, a freeze, a decision,
+a red or deferred item. A metric that got worse stays in, marked worse: a
+disappearing line is how a regression hides in a file that's rewritten rather
+than appended.
+
+Only add a dated journal entry when the session produced numbers or an
+analysis worth reconstructing a month from now. A small doc fix needs no
+journal entry — that would be noise — but may still need the current-state
+file updated on its own (a decision or a question taken off the table
+carries no number). Re-read both files immediately before editing: another
+session may have written to them since this one started.
+
+## 4. Name what's unfinished — more important than what's done
+
+State explicitly, in memory or the current-state file:
+
+- background jobs and uncommitted work (`bash .floppy/run status` gives
+  both in one call);
+- what's waiting on the human versus what can proceed without them;
+- what's broken or deferred — if it stays red, say so plainly.
+
+## 5. Check, see the diff, commit — two calls, not ten
+
+```bash
+bash .floppy/run check <files you wrote>
+```
+
+```bash
+bash .floppy/run commit -m "<what the facts are, not 'updated memory'>" <same files>
+```
+
+The whole read-only half of closing a session is that first call; the whole
+writing half is the second. Each one used to be several separate commands —
+the memory linter, a guard comparing the file list to what actually changed,
+`git status`, `git diff --stat`, then staging, committing, pulling, pushing,
+and releasing the lock. They were folded into two calls not to shorten the
+output, which was already short, but because the cost of ten small steps
+isn't in what they print — it's in the number of points where the model
+stops and decides between them. On a measured run that reasoning came to
+roughly 7.5k tokens across six tool calls for what is now one question,
+answered once. A skill that expands these back into ten separate commands
+undoes exactly that measurement — don't reconstruct the individual `git
+status` / `git diff` / lint calls by hand.
+
+The diff prints before the commit on purpose: closing happens right when the
+human has stopped watching closely, so the file list and the size of the
+change need to be visible in the conversation, not only in git history
+afterward.
+
+What a red `check` means:
+
+- **quota** — not a bug, the memory grew past the ceiling in `quota.lock`.
+  Raising the number is fine, but only in the same commit as the notes that
+  needed the room, with the reason in the commit message. Before raising it,
+  check whether something should be dropped instead — a note superseded by a
+  later measurement should go, not sit next to its replacement.
+- **someone else's note** — the linter reads the whole memory on disk, so it
+  goes red on a neighboring session's unfinished write too. **Fix only what
+  this session wrote.** Someone else's half-finished note is not yours to
+  repair blind — name it in the report and leave it exactly as found.
+- **this session's own file** — stop and fix it. The next session will not
+  find a note that never got written correctly.
+
+`git add -A` is never used — the tree can hold nested repositories and other
+people's working copies; stage by naming the files.
+
+## Workplace memory is a second repository
+
+If any of what got written lives in a workplace-wide private store (see
+`agent-memory` — facts private to this project but shared across a
+workplace's machines), that store is a **separate git repository**, and this
+project's own `git status` says nothing about it at all. `check` reports its
+state; commit and push it on its own, the same way as this repository — an
+unpushed note there blinds the other machine exactly as an unpushed commit
+here would, silently, with nothing in this repository's status to reveal it.
+
+## Report to the human
+
+Four short parts:
+
+1. **What got recorded** — one line per fact, with its file path.
+2. **What was deliberately not recorded**, and why — so they can object.
+3. **What's left unfinished** — background jobs, anything uncommitted,
+   anything waiting on a decision.
+4. **Where the next session should start** — one phrase, in `start` terms.
+
+If something looks like a scope decision — what can be shared, published, or
+shown outside this project — **ask, don't decide it here**: that call
+belongs to the project's owner.
