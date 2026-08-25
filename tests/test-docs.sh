@@ -20,11 +20,17 @@ assert_contains "README states the license"      "MIT"         "$readme"
 assert_contains "README covers install: marketplace add" "plugin marketplace add" "$readme"
 assert_contains "README covers install: plugin install"  "plugin install"        "$readme"
 assert_contains "README covers the Cursor equivalent"    "Cursor"                "$readme"
-assert_contains "README covers floppy:init"               "floppy:init"           "$readme"
 
 for skill in init agent-memory start workstatus wrap; do
-  assert_contains "README names skill floppy:$skill" "floppy:$skill" "$readme"
+  assert_contains "README names skill \`$skill\`" "\`$skill\`" "$readme"
 done
+
+# Claude Code namespaces skills by plugin name (floppy:start); Cursor lists
+# them flat (/start). The README states that difference exactly once, using
+# one skill as the example — everywhere else it must use the bare name,
+# since that's the only form true in both harnesses.
+floppy_prefixed_count="$(grep -oE 'floppy:(init|agent-memory|start|workstatus|wrap)' README.md | wc -l | tr -d ' ')"
+assert_eq "README uses the floppy: prefix form exactly once (the explanation)" "1" "$floppy_prefixed_count"
 
 # Every key shim/run's cfg_get resolves must be documented — a key read but
 # never documented is exactly the class of defect this fix wave was about.

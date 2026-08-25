@@ -1,6 +1,6 @@
 ---
 name: init
-description: Lay the floppy memory out in this repository — copy the shim to .floppy/run, write .floppy/config, create the memory skeleton, gitignore the local scope, and point AGENTS.md at floppy:agent-memory. Idempotent, safe to run again. Use once per repository, when setting the plugin up for the first time, or when the user asks to init, set up, or bootstrap floppy here.
+description: Lay the floppy memory out in this repository — copy the shim to .floppy/run, write .floppy/config, create the memory skeleton, gitignore the local scope, and point AGENTS.md at agent-memory. Idempotent, safe to run again. Use once per repository, when setting the plugin up for the first time, or when the user asks to init, set up, or bootstrap floppy here.
 ---
 
 # Init

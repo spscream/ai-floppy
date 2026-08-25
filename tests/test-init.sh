@@ -17,11 +17,20 @@ assert_eq "config placed"  "0" "$([[ -f "$repo/.floppy/config" ]] && echo 0 || e
 assert_eq "router placed"  "0" "$([[ -f "$repo/.agent-memory/MEMORY.md" ]] && echo 0 || echo 1)"
 assert_eq "no quota.lock"  "1" "$([[ -f "$repo/.agent-memory/quota.lock" ]] && echo 0 || echo 1)"
 
-# IMPORTANT 4: without this, the first floppy:start on a freshly initialized
-# repository has nothing to read and the first floppy:wrap has nothing to
+# IMPORTANT 4: without this, the first `start` on a freshly initialized
+# repository has nothing to read and the first `wrap` has nothing to
 # update — a dead end that looks broken rather than a fresh repository.
 assert_eq "current-state file placed" "0" "$([[ -f "$repo/docs/statuses/NOW.md" ]] && echo 0 || echo 1)"
-assert_contains "current-state file names floppy:init" "floppy:init" "$(cat "$repo/docs/statuses/NOW.md")"
+now_content="$(cat "$repo/docs/statuses/NOW.md")"
+assert_contains "current-state file names \`init\`" "\`init\`" "$now_content"
+# Generated content lands in a consumer's own repository, read through
+# whichever harness they use — Cursor does not namespace skills by plugin
+# name, so a floppy:-prefixed reference here would name a skill that does
+# not exist there.
+case "$now_content" in
+  *"floppy:"*) fail "current-state file has no floppy: prefixed skill reference" "no floppy:*" "$now_content" ;;
+  *) ok "current-state file has no floppy: prefixed skill reference" ;;
+esac
 
 assert_contains "config carries memory_dir"      "memory_dir=.agent-memory" "$(cat "$repo/.floppy/config")"
 assert_contains "config carries memory_language" "memory_language=en"      "$(cat "$repo/.floppy/config")"
@@ -37,8 +46,17 @@ esac
 gi_line="$(grep -x '/.agent-memory/local' "$repo/.gitignore")"
 assert_eq "gitignore line matches exactly" "/.agent-memory/local" "$gi_line"
 
-assert_contains "AGENTS.md names .floppy/"             ".floppy/"            "$(cat "$repo/AGENTS.md")"
-assert_contains "AGENTS.md points at agent-memory"     "floppy:agent-memory" "$(cat "$repo/AGENTS.md")"
+agents_content="$(cat "$repo/AGENTS.md")"
+assert_contains "AGENTS.md names .floppy/"             ".floppy/"      "$agents_content"
+assert_contains "AGENTS.md points at \`agent-memory\`"   "\`agent-memory\`" "$agents_content"
+# Same reasoning as the current-state file above: this section is read by a
+# stranger in their own repository, in whichever harness they use. The
+# agents-section marker (floppy:agents-section) is exempt — it's an
+# idempotency marker, not a skill reference.
+case "$(printf '%s\n' "$agents_content" | grep -v 'floppy:agents-section')" in
+  *"floppy:"*) fail "AGENTS.md section has no floppy: prefixed skill reference" "no floppy:*" "$agents_content" ;;
+  *) ok "AGENTS.md section has no floppy: prefixed skill reference" ;;
+esac
 
 out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc=$?
 assert_rc       "lint is green on empty memory"        0 "$rc"

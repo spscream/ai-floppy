@@ -12,7 +12,7 @@
 #                              rule matches directories only, so the symlink
 #                              would not be ignored and would get committed)
 #   AGENTS.md                 gains a section naming .floppy/ and pointing at
-#                              floppy:agent-memory
+#                              agent-memory
 #
 # What it deliberately does NOT create: <memory_dir>/quota.lock. On an empty
 # corpus there is nothing to measure, and a ceiling copied from another
@@ -87,8 +87,8 @@ if [[ -f "$cfg" ]]; then
   echo "ok .floppy/config already exists, left untouched"
 else
   cat > "$cfg" <<EOF
-# floppy config — flat key=value, one per line. See floppy:agent-memory for
-# what each key governs.
+# floppy config — flat key=value, one per line. See the agent-memory skill
+# for what each key governs.
 memory_dir=$mem_dir
 memory_language=$language
 
@@ -126,7 +126,7 @@ else
 # Memory index
 
 Router for this repository's durable memory — loaded at the start of every
-session, so it stays small on purpose. See \`floppy:agent-memory\` for what a
+session, so it stays small on purpose. See \`agent-memory\` for what a
 note, an index, and \`metadata.evidence\` mean.
 
 This index is empty. Add one pointer line per note as they are written.
@@ -139,9 +139,9 @@ fi
 # Seeded at the default statuses_now path (docs/statuses/NOW.md), not a flag
 # of its own: it is the same default the generated config above already
 # documents, so there is nothing to ask the human that init doesn't already
-# know. Without this, the first floppy:start on a freshly initialized
-# repository finds nothing to read (floppy:workstatus reports "! ... is
-# missing — nothing for /start to read") and the first floppy:wrap has
+# know. Without this, the first `start` on a freshly initialized
+# repository finds nothing to read (`workstatus` reports "! ... is
+# missing — nothing for /start to read") and the first `wrap` has
 # nothing to update — a dead end that looks like something is broken.
 now_file="$repo/docs/statuses/NOW.md"
 if [[ -f "$now_file" ]]; then
@@ -151,11 +151,11 @@ else
   cat > "$now_file" <<EOF
 # Current state
 
-This is what \`floppy:start\` reads in full, rewritten in place rather than
-appended to — see \`floppy:agent-memory\` for how that differs from a dated
+This is what \`start\` reads in full, rewritten in place rather than
+appended to — see \`agent-memory\` for how that differs from a dated
 journal entry.
 
-This repository was just set up with \`floppy:init\`. There is nothing to
+This repository was just set up with \`init\`. There is nothing to
 report yet: the first session that does real work here should replace this
 paragraph with what's actually true — where things stand, what's frozen,
 what's proposed, what's missing.
@@ -178,7 +178,7 @@ else
   if [[ -s "$gi" ]] && [[ "$(tail -c1 "$gi")" != "" ]]; then
     printf '\n' >> "$gi"
   fi
-  printf '\n# floppy: machine-bound memory scope, never committed (see floppy:agent-memory)\n%s\n' \
+  printf '\n# floppy: machine-bound memory scope, never committed (see agent-memory)\n%s\n' \
     "$ignore_line" >> "$gi"
   echo "ok .gitignore: $ignore_line"
 fi
@@ -199,9 +199,9 @@ $marker
 ## Agent memory
 
 This repository uses the \`floppy\` plugin for its session ritual and its
-durable memory. The entry point is \`.floppy/run\` — see \`floppy:agent-memory\`
+durable memory. The entry point is \`.floppy/run\` — see \`agent-memory\`
 for what a note looks like and how the memory is laid out, and
-\`floppy:start\` / \`floppy:workstatus\` / \`floppy:wrap\` for the three rites
+\`start\` / \`workstatus\` / \`wrap\` for the three rites
 built on top of it. Settings live in \`.floppy/config\`; the memory itself is
 under \`$mem_dir\`.
 EOF
