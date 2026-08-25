@@ -69,7 +69,7 @@ if [[ ! -d "$dir/.git" ]]; then
     exit 1
   fi
   echo "cloning $url"
-  git clone "$url" "$dir" || { echo "x clone failed — check the ssh key for the GitLab host"; exit 1; }
+  git clone "$url" "$dir" || { echo "x clone failed — check the ssh key for that host"; exit 1; }
 else
   dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
   if [[ "$dirty" != "0" ]]; then
