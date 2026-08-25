@@ -1,0 +1,16 @@
+{
+  "name": "floppy",
+  "owner": {
+    "name": "Alexander Malaev"
+  },
+  "metadata": {
+    "description": "Session ritual and durable agent memory"
+  },
+  "plugins": [
+    {
+      "name": "floppy",
+      "source": ".",
+      "description": "Session ritual for agent work: durable memory, a start rite, a wrap rite, and the guards that keep them honest"
+    }
+  ]
+}

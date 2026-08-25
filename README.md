@@ -19,8 +19,21 @@ claude plugin install floppy@floppy
 then `/plugin install floppy@floppy` — the marketplace and the plugin inside
 it are both named `floppy`, hence the repeated name)
 
-Cursor: Dashboard → Plugins → Add Marketplace → Import from Repo, pointing at
-`spscream/ai_floppy`; then Customize (sidebar) → find `floppy` → Install.
+Cursor, from the repository: Dashboard → Plugins → Add Marketplace → Import
+from Repo, pointing at `spscream/ai_floppy`; then Customize (sidebar) → find
+`floppy` → Install. This needs Cursor to be able to read the repository, so a
+private one has to be reachable by whatever account Cursor is signed in as.
+
+Cursor, from a local checkout — the documented way to try a plugin without a
+marketplace at all, and the one to use while developing:
+
+```
+mkdir -p ~/.cursor/plugins/local
+ln -s /path/to/ai_floppy ~/.cursor/plugins/local/floppy
+```
+
+Restart Cursor afterwards. Nothing else is needed: the manifest at
+`.cursor-plugin/plugin.json` is found from there, and `skills/` with it.
 
 Once installed, set the plugin up in a target repository with `floppy:init`
 (below). If you're developing the plugin itself rather than installing it,
