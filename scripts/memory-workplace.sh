@@ -63,37 +63,14 @@ echo "project scope:    projects/$project_key"
 echo
 
 # ---------- the repository itself ----------
-if [[ ! -d "$dir/.git" ]]; then
-  if [[ -e "$dir" ]]; then
-    echo "x $dir exists but is not a git repository — sort this out by hand"
-    exit 1
-  fi
-  echo "cloning $url"
-  git clone "$url" "$dir" || { echo "x clone failed — check the ssh key for that host"; exit 1; }
-else
-  dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
-  if [[ "$dirty" != "0" ]]; then
-    echo "! $dirty uncommitted change(s) in the workplace memory — pull skipped, commit them first"
-  elif git -C "$dir" pull --rebase --quiet 2>/dev/null; then
-    echo "ok pulled"
-  else
-    echo "! pull failed (offline, or the remote refused) — working with the local copy"
-  fi
-fi
-
-# ---------- the secret hook ----------
-# The repository carries .githooks/pre-commit; git does not enable it on clone,
-# and a hook nobody enabled is a rule nobody enforces.
-if [[ -x "$dir/.githooks/pre-commit" ]]; then
-  cur_hooks="$(git -C "$dir" config core.hooksPath || true)"
-  if [[ "$cur_hooks" == ".githooks" ]]; then
-    echo "ok secret hook enabled"
-  else
-    git -C "$dir" config core.hooksPath .githooks && echo "ok secret hook enabled: core.hooksPath=.githooks"
-  fi
-else
-  echo "! no executable .githooks/pre-commit in $dir — secrets are guarded by nothing but the human"
-fi
+# Refusals, clone or pull, and the secret hook are shared with `store`:
+# scripts/lib-checkout.sh. The origin check inside it is what keeps this verb
+# from wiring notes meant for a private workplace repository into whatever
+# repository happens to sit at that path.
+_lib="$(dirname "$0")/lib-checkout.sh"
+[[ -f "$_lib" ]] || _lib="${FLOPPY_ROOT:-}/scripts/lib-checkout.sh"
+. "$_lib"
+ensure_checkout "$url" "$dir" "workplace memory" || exit 1
 
 mkdir -p "$target"
 
@@ -208,6 +185,17 @@ else
   ln -s "$target" "$link"
   echo "ok linked: $mem_dir/local -> $target"
 fi
+
+# ---------- the link itself must not be committed ----------
+# With a store (`bash .floppy/run store`), memory_dir is already a symlink, so
+# this link is created INSIDE the store's working tree. It holds an absolute
+# path, and committed it dangles on any machine whose checkout lives at another
+# path — measured 2026-08-25, together with the recursion it opens
+# (projects/<key>/memory/local/memory/local/...). It is wiring, and wiring is
+# per machine: every machine runs this verb anyway. Silent in the ordinary
+# layout, where the link sits in the consumer repository and its own .gitignore
+# already covers it.
+ignore_wiring_link "$link"
 
 # ---------- does a write reach the repository? ----------
 probe="$link/.write-probe-$$"

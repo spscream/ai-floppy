@@ -77,37 +77,13 @@ if [[ $check_only -eq 1 ]]; then
 fi
 
 # ---------- the store itself ----------
-if [[ ! -d "$dir/.git" ]]; then
-  if [[ -e "$dir" ]]; then
-    echo "x $dir exists but is not a git repository — sort this out by hand"
-    exit 1
-  fi
-  echo "cloning $url"
-  git clone "$url" "$dir" || { echo "x clone failed — check the ssh key for that host"; exit 1; }
-else
-  dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
-  if [[ "$dirty" != "0" ]]; then
-    echo "! $dirty uncommitted change(s) in the store — pull skipped, commit them first"
-  elif git -C "$dir" pull --rebase --quiet 2>/dev/null; then
-    echo "ok pulled"
-  else
-    echo "! pull failed (offline, or the remote refused) — working with the local copy"
-  fi
-fi
-
-# ---------- the secret hook ----------
-# Same reasoning as memory-workplace.sh: a repository can ship
-# .githooks/pre-commit, git does not enable it on clone, and a hook nobody
-# enabled is a rule nobody enforces.
-if [[ -x "$dir/.githooks/pre-commit" ]]; then
-  if [[ "$(git -C "$dir" config core.hooksPath || true)" == ".githooks" ]]; then
-    echo "ok secret hook enabled"
-  else
-    git -C "$dir" config core.hooksPath .githooks && echo "ok secret hook enabled: core.hooksPath=.githooks"
-  fi
-else
-  echo "! no executable .githooks/pre-commit in $dir — secrets are guarded by nothing but the human"
-fi
+# Refusals, clone or pull, and the secret hook are shared with `workplace`:
+# scripts/lib-checkout.sh. The origin check inside it is the one that stops a
+# directory holding another repository from being adopted in silence.
+_lib="$(dirname "$0")/lib-checkout.sh"
+[[ -f "$_lib" ]] || _lib="${FLOPPY_ROOT:-}/scripts/lib-checkout.sh"
+. "$_lib"
+ensure_checkout "$url" "$dir" "store" || exit 1
 
 mkdir -p "$target"
 

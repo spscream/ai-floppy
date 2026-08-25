@@ -165,10 +165,54 @@ export FLOPPY_MEMORY_EXTERNAL FLOPPY_MEMORY_STORE
 export FLOPPY_MEMORY_REAL="$_mem_real"
 export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
 export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key '')"
-# $HOME/agents_memory is only a default, not a rule: it is one person's own
-# checkout name, and a consumer whose workplace checkout lives elsewhere sets
-# workplace_memory_dir in .floppy/config rather than symlinking to match it.
-export FLOPPY_WORKPLACE_MEMORY_DIR="$(cfg_get workplace_memory_dir "$HOME/agents_memory")"
+
+# ---------- where a memory checkout lives ----------
+# One PARENT directory holds one checkout per repository URL, and the checkout
+# directory is derived from the URL rather than configured.
+#
+# It used to be configured, once per purpose: memory_repo_dir for the store and
+# workplace_memory_dir for the workplace repository, both defaulting to
+# $HOME/agents_memory. Two keys with one default is a collision waiting for
+# somebody to configure both, and the collision was silent — measured
+# 2026-08-25: the first verb cloned its repository there, the second found a
+# .git, skipped its clone, never compared the remote, and reported "a write
+# through the link lands in the workplace repository" while the notes were
+# landing in the store and would have been pushed there.
+#
+# Deriving the directory from the URL removes the class rather than the case:
+# two URLs cannot name one directory, and one URL used for both purposes
+# deliberately shares a checkout, which is correct — two checkouts of one
+# repository on one machine fight over pulls instead.
+FLOPPY_AGENTS_MEMORY_DIR="$(cfg_get agents_memory_dir "$HOME/agents_memory")"
+export FLOPPY_AGENTS_MEMORY_DIR
+
+_origin_of() { git -C "$1" remote get-url origin 2>/dev/null || true; }
+
+# url, then the value of the legacy per-purpose key (empty if unset).
+_checkout_dir() {
+  _cd_url="$1"; _cd_explicit="$2"
+  # An explicit key still wins, exactly as before: a machine that already
+  # names its checkout must not be moved by an upgrade.
+  if [[ -n "$_cd_explicit" ]]; then printf '%s\n' "$_cd_explicit"; return; fi
+  # Nothing configured: the parent is the honest answer, and the verbs refuse
+  # on the missing URL rather than on a path.
+  if [[ -z "$_cd_url" ]]; then printf '%s\n' "$FLOPPY_AGENTS_MEMORY_DIR"; return; fi
+  _cd_slug="${_cd_url%/}"; _cd_slug="${_cd_slug##*/}"; _cd_slug="${_cd_slug%.git}"
+  _cd_derived="$FLOPPY_AGENTS_MEMORY_DIR/$_cd_slug"
+  if [[ -d "$_cd_derived/.git" ]]; then printf '%s\n' "$_cd_derived"; return; fi
+  # The layout from before this change: one checkout directly at the parent.
+  # Adopt it when its origin proves it is this very repository. Anything less
+  # than that proof would be the silent adoption this change exists to stop,
+  # so a directory holding some other repository falls through to the derived
+  # path and the verb's origin check has the last word.
+  if [[ -d "$FLOPPY_AGENTS_MEMORY_DIR/.git" ]] \
+     && [[ "$(_origin_of "$FLOPPY_AGENTS_MEMORY_DIR")" == "$_cd_url" ]]; then
+    printf '%s\n' "$FLOPPY_AGENTS_MEMORY_DIR"; return
+  fi
+  printf '%s\n' "$_cd_derived"
+}
+
+export FLOPPY_WORKPLACE_MEMORY_DIR="$(_checkout_dir "$FLOPPY_WORKPLACE_REPO" "$(cfg_get workplace_memory_dir '')")"
 # A fact about the harness, not about this project: its session loader
 # truncates the memory index past a size of its own and says nothing about the
 # tail it dropped. Shipped with the number measured on Claude Code and
@@ -184,7 +228,7 @@ export FLOPPY_MEMORY_LOCAL_DIR="$(cfg_get memory_local_dir local)"
 # layout from the filesystem instead.
 export FLOPPY_MEMORY_REPO="$(cfg_get memory_repo '')"
 export FLOPPY_MEMORY_PROJECT_KEY="$(cfg_get memory_project_key '')"
-export FLOPPY_MEMORY_REPO_DIR="$(cfg_get memory_repo_dir "$HOME/agents_memory")"
+export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get memory_repo_dir '')")"
 export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"

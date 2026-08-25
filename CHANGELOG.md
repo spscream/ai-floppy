@@ -14,6 +14,41 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.4.2 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (the shim resolves the checkout paths, and one
+new config key).
+
+Two defects, both found by asking what happens when `memory_repo_dir` and
+`workplace_memory_dir` name one directory, and both measured before they were
+fixed.
+
+- **Notes could be published to the wrong repository, with `ok` on every
+  line.** The configured URL was read only on the clone path. With a checkout
+  already at that directory, the second verb skipped its clone, never compared
+  the remote, wired the link, and reported "a write through the link lands in
+  the workplace repository" — while the notes landed in the store, where
+  `commit` would have pushed them. Now: the checkout directory is **derived
+  from the URL** under one parent (`agents_memory_dir`), so two repositories
+  cannot collide; and any existing checkout has its `origin` compared with the
+  configured URL, with a refusal naming both. That second check also catches an
+  unrelated repository sitting at the path, which never needed a collision.
+- **The wiring symlink was committed into the store.** With a store, `local/`
+  is created inside the store's working tree, holding an absolute path: on a
+  machine whose checkout lives elsewhere it is a dangling link, and the path
+  `projects/<key>/memory/local/memory/local/...` recurses without limit. It is
+  per-machine wiring, and every machine runs the verb anyway, so the store is
+  now told to ignore it.
+- New key `agents_memory_dir` (default `$HOME/agents_memory`). `memory_repo_dir`
+  and `workplace_memory_dir` remain as per-machine overrides. **Nothing to
+  migrate:** a checkout already sitting at the parent is adopted once its
+  `origin` matches, and the verb says so.
+- A clone that would land inside another checkout is refused, with the two
+  commands that undo the nesting. `scripts/lib-checkout.sh` now holds the half
+  of the two verbs that was duplicated — and had already drifted.
+
+402 asserts, up from 377.
+
 ## 0.4.1 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (the install hints it prints name the

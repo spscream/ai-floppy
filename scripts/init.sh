@@ -115,7 +115,7 @@ else
 # \"bash .floppy/run store\" once per machine and per worktree.
 # memory_repo=git@example.com:workplace/agents-memory.git
 # memory_project_key=your-project-key
-# memory_repo_dir defaults to \$HOME/agents_memory"
+# memory_repo_dir overrides the derived checkout path (agents_memory_dir/<repo name>)"
 fi
 
 cfg="$repo/.floppy/config"
@@ -133,8 +133,9 @@ $store_cfg
 # Set both to use "bash .floppy/run workplace".
 # workplace_repo=git@example.com:workplace/agents-memory.git
 # workplace_project_key=your-project-key
-# workplace_memory_dir defaults to $HOME/agents_memory, which is one
-# person's own checkout name, not a rule — set it if yours lives elsewhere.
+# Checkout paths are derived: agents_memory_dir (default $HOME/agents_memory)
+# holds one checkout per repository URL. workplace_memory_dir overrides that
+# for this repository only, and is rarely needed.
 # workplace_memory_dir=/path/to/your/workplace-memory-checkout
 
 # commit_push controls what "bash .floppy/run commit" does after committing:

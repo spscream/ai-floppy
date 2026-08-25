@@ -166,11 +166,12 @@ these are the defaults when a key is absent.
 | `memory_local_dir` | `local` | name of the machine-local scope inside the memory — written on one machine, never committed. Only the name is configurable; the rule is not, and the check that committed memory must never link into it follows this key |
 | `memory_repo` | *(unset)* | git URL of the store that holds this project's memory when the code repository cannot; set with `memory_project_key`, then run `bash .floppy/run store` once per machine and worktree |
 | `memory_project_key` | *(unset)* | this project's scope inside that store (`projects/<key>/memory`) |
-| `memory_repo_dir` | `$HOME/agents_memory` | where that store is (or should be) checked out on this machine |
+| `agents_memory_dir` | `$HOME/agents_memory` | the parent directory holding memory checkouts, one per repository URL: the checkout for a URL is `<parent>/<repository name>`, **derived rather than configured**, so two different repositories cannot end up in one directory. One URL used for both the store and the workplace deliberately shares a checkout. A checkout already sitting directly at the parent (the layout from before this key) is adopted when its `origin` proves it is that repository |
+| `memory_repo_dir` | *(derived)* | overrides the derived path for the store on this machine. Set it only where the checkout cannot live under the parent |
 | `memory_language` | `en` | the language memory notes are written in — a convention read from this file directly, not something any script acts on. Independent of the language a session replies to its human in, which is never configured here |
 | `workplace_repo` | *(unset)* | git URL of a workplace-wide private memory repository; both this and `workplace_project_key` must be set to use `bash .floppy/run workplace` |
 | `workplace_project_key` | *(unset)* | this project's scope directory (`projects/<key>`) inside the workplace repository |
-| `workplace_memory_dir` | `$HOME/agents_memory` | where the workplace repository is (or should be) checked out on this machine |
+| `workplace_memory_dir` | *(derived)* | the same override, for the workplace repository |
 | `index_chars_max` | `24500` | character ceiling on the memory index, measured off the harness's session loader — it truncates past a limit of its own and never says which section it dropped. A fact about the harness, not this project: the per-corpus caps live in `quota.lock` instead |
 | `statuses_now` | `docs/statuses/NOW.md` | the current-state file `start` reads in full and `wrap` keeps up to date |
 | `statuses_now_chars_max` | `12000` | character ceiling on the current-state file; `wrap-guard` refuses a commit that pushes it over |
@@ -182,6 +183,26 @@ these are the defaults when a key is absent.
 `workplace_repo` and `workplace_project_key` are deliberately never given a
 live default: a repository that never opted in must not silently write into
 somebody else's private memory.
+
+### Two memory repositories on one machine
+
+A project can use both `store` (its whole memory hosted elsewhere) and
+`workplace` (a shared scope at `<memory_dir>/local`), and they may be different
+repositories. Until 0.4.2 each had its own directory key with the same default,
+which meant configuring both pointed them at one directory — and the collision
+was silent. Measured 2026-08-25: the first verb cloned its repository there,
+the second found a `.git`, skipped its clone, never compared the remote, and
+reported `ok a write through the link lands in the workplace repository` while
+the notes were landing in the store and would have been pushed there.
+
+Two things prevent it now. The checkout directory is derived from the URL, so
+two URLs cannot name one directory; and whenever a checkout already exists, the
+verb compares its `origin` with the configured URL and refuses if they differ,
+naming both. The second half also covers the case that has nothing to do with
+collisions: an unrelated repository that happens to sit at that path.
+
+Nothing to migrate. A checkout already at the parent keeps being used, and the
+verb says it adopted it.
 
 ## Memory in a repository other than the code's
 
