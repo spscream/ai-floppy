@@ -83,6 +83,14 @@ assert_eq       "check does not stage"         ""        "$(git -C "$repo" diff 
 assert_eq       "check does not push"          "$remote_before" "$(git -C "$remote" rev-parse refs/heads/main)"
 assert_contains "check reports the file list"  "NOW.md"  "$out"
 
+# IMPORTANT 4: no workplace_repo in this repo's config — wrap-check.sh must
+# skip the "workplace memory" section entirely rather than nudge "bash
+# .floppy/run workplace", which then dead-ends on a missing project key.
+case "$out" in
+  *"-- workplace memory"*) fail "check: no workplace section without workplace_repo" "section absent" "$out" ;;
+  *)                       ok   "check: no workplace section without workplace_repo" ;;
+esac
+
 # check refuses a file outside the watched paths, and refuses loudly
 printf 'x\n' > "$repo/stray.txt"
 out2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check stray.txt 2>&1)"; rc2=$?
@@ -261,5 +269,76 @@ statusL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 
 assert_contains "success path: lock is free afterwards" "free" "$statusL3"
 
 rm -rf "$repoL2" "$remoteL"
+
+# ---------- MINOR 9: a guard that could not run is not "a parallel session" ----------
+# wrap-guard.sh missing entirely used to print the exact same "the file list
+# no longer matches the tree... a parallel session may have written" message
+# as an actual guard rejection — measured by removing the script. Point
+# AI_FLOPPY_HOME at a private copy of the plugin checkout with wrap-guard.sh
+# deleted, so the real plugin every other test in this file uses is untouched.
+fake_plugin="$(mktemp -d)"
+cp -R "$ROOT"/. "$fake_plugin"/ 2>/dev/null
+rm -rf "$fake_plugin/.git"
+rm -f "$fake_plugin/scripts/wrap-guard.sh"
+
+repoG="$(sandbox)"; cp shim/run "$repoG/.floppy/run"
+cat > "$repoG/.floppy/config" <<'EOFG'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFG
+mkdir -p "$repoG/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoG/state/NOW.md"
+write_clean_memory "$repoG"
+git -C "$repoG" add -A
+git -C "$repoG" -c user.email=t@t -c user.name=t commit -qm base
+
+printf 'edit\n' >> "$repoG/state/NOW.md"
+outG="$(cd "$repoG" && AI_FLOPPY_HOME="$fake_plugin" bash .floppy/run commit -m "should fail" state/NOW.md 2>&1)"; rcG=$?
+assert_rc       "missing wrap-guard.sh: commit refuses (rc)" 1 "$rcG"
+assert_contains "missing wrap-guard.sh: names it as a broken installation" \
+  "broken plugin installation" "$outG"
+case "$outG" in
+  *"a parallel session may have written"*)
+    fail "missing wrap-guard.sh: does not blame a parallel session" "no such message" "$outG" ;;
+  *) ok "missing wrap-guard.sh: does not blame a parallel session" ;;
+esac
+
+rm -rf "$repoG" "$fake_plugin"
+
+# ---------- IMPORTANT 6: commit_push=never skips the sync tail entirely ----------
+# Old code ran `git pull --rebase` unconditionally right after every commit,
+# so a repository with no remote configured at all failed that step on every
+# single call, regardless of --no-push (which only ever skipped the push
+# half). commit_push=never in .floppy/config opts a repository like that out
+# of the whole pull+push tail. Deliberately no `git remote add` here — this
+# is the "no upstream" repository the finding was about.
+repoNR="$(sandbox)"; cp shim/run "$repoNR/.floppy/run"
+cat > "$repoNR/.floppy/config" <<'EOFNR'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+commit_push=never
+EOFNR
+mkdir -p "$repoNR/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoNR/state/NOW.md"
+write_clean_memory "$repoNR"
+git -C "$repoNR" add -A
+git -C "$repoNR" -c user.email=t@t -c user.name=t commit -qm base
+
+printf 'edit\n' >> "$repoNR/state/NOW.md"
+before_nr="$(git -C "$repoNR" rev-parse HEAD)"
+outNR="$(cd "$repoNR" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "local only" state/NOW.md 2>&1)"; rcNR=$?
+after_nr="$(git -C "$repoNR" rev-parse HEAD)"
+assert_rc "commit_push=never: commit succeeds with no remote at all" 0 "$rcNR"
+case "$after_nr" in
+  "$before_nr") fail "commit_push=never: commit actually moved HEAD" "a new commit" "$after_nr (unchanged)" ;;
+  *)            ok   "commit_push=never: commit actually moved HEAD" ;;
+esac
+assert_contains "commit_push=never: says it is staying local" "staying local" "$outNR"
+
+rm -rf "$repoNR"
 
 summary

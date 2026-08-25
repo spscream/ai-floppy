@@ -67,5 +67,20 @@ assert_contains "cache fallback picks 0.10.0, not lexicographically-later 0.9.0"
   "FLOPPY_ROOT=$fake_home/.claude/plugins/cache/example/floppy/0.10.0" "$out7"
 rm -rf "$fake_home"
 
+# MINOR 8: a run outside any git repository must fail loudly, not silently
+# fall back to `pwd` and derive every downstream path from the wrong place.
+# Discriminates against the old code: `FLOPPY_REPO="$(git rev-parse
+# --show-toplevel 2>/dev/null || pwd)"` never fails, so the old shim would
+# print FLOPPY_REPO=<the plain dir> here with rc 0 instead of refusing.
+plain="$(mktemp -d)"; mkdir -p "$plain/.floppy"; cp shim/run "$plain/.floppy/run"
+out8="$(cd "$plain" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1)"; rc8=$?
+assert_rc       "outside a git repo: exits nonzero"      1 "$rc8"
+assert_contains "outside a git repo: names the problem"  "not inside a git repository" "$out8"
+case "$out8" in
+  *"FLOPPY_REPO="*) fail "outside a git repo: does not fall back to pwd" "no FLOPPY_REPO= line" "$out8" ;;
+  *) ok "outside a git repo: does not fall back to pwd" ;;
+esac
+rm -rf "$plain"
+
 rm -rf "$repo" "$repo2" "$repo4" "$repo5" "$repo6" "$repo7"
 summary
