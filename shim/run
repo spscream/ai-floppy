@@ -240,9 +240,19 @@ export FLOPPY_WORKPLACE_MEMORY_DIR="$(_checkout_dir "$FLOPPY_WORKPLACE_REPO" "$(
 # overridden by a consumer whose harness cuts elsewhere. The per-corpus caps
 # (how many pointers, how long a pointer line, how big the memory) live in
 # quota.lock instead, inside the memory itself — see the memory-lint header.
-# The machine-local scope inside the memory — written on one machine, never
-# committed here. Only its NAME is configurable; the rule is not.
-export FLOPPY_MEMORY_LOCAL_DIR="$(cfg_get memory_local_dir local)"
+# The private scope inside the memory: facts about this project that the code
+# repository must not carry — somebody else's checkout, an access note, a
+# reading of a client's source. It is NOT machine-local, which is what its old
+# name `local` said and what it stopped being when it became a symlink into a
+# shared repository. Machine facts live in machines/<name>/ of that repository
+# instead, where the other machine can read them.
+#
+# memory_local_dir still works, for a config written before 0.6.0. Only the
+# NAME is configurable; the rule that committed memory must not link into this
+# scope is not.
+export FLOPPY_MEMORY_PRIVATE_DIR="$(cfg_get memory_private_dir "$(cfg_get memory_local_dir private)")"
+# The old variable name, for a plugin script or a project hook still reading it.
+export FLOPPY_MEMORY_LOCAL_DIR="$FLOPPY_MEMORY_PRIVATE_DIR"
 # Where this project's memory is hosted when it cannot live in this repository.
 # No defaults, deliberately: a project that never opted in must not be pointed
 # at somebody else's store. Read by `store`; the rest of the rite derives the

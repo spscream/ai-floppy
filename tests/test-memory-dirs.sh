@@ -83,11 +83,11 @@ assert_eq "workplace checkout really is the workplace repository" "workplace" \
 
 # The measurement that matters: a note written to the workplace scope must be
 # in the workplace repository, not merely in some directory that exists.
-printf 'private\n' > "$repo1/.agent-memory/local/note.md"
-assert_eq "a note in local/ lands in the workplace checkout" "0" \
-  "$([[ -f "$w_dir/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
+printf 'private\n' > "$repo1/.agent-memory/private/note.md"
+assert_eq "a note in private/ lands in the workplace checkout" "0" \
+  "$([[ -f "$w_dir/projects/acme/private/note.md" ]] && echo 0 || echo 1)"
 assert_eq "and not in the store checkout" "1" \
-  "$([[ -f "$s_dir/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$s_dir/projects/acme/private/note.md" ]] && echo 0 || echo 1)"
 
 # ---------- 2. a checkout of the wrong repository is refused ----------
 W2="$(mktemp -d)"; H2="$W2/home"; mkdir -p "$H2/agents_memory"
@@ -107,7 +107,7 @@ assert_eq       "workplace: refuses a checkout of another repository (rc)" "1" "
 assert_contains "the refusal names the configured URL"   "$W2/wp.git"    "$OUT"
 assert_contains "the refusal names what is actually there" "$W2/store.git" "$OUT"
 assert_eq "nothing was linked into the wrong repository" "1" \
-  "$([[ -e "$repo2/.agent-memory/local" ]] && echo 0 || echo 1)"
+  "$([[ -e "$repo2/.agent-memory/private" ]] && echo 0 || echo 1)"
 
 # ---------- 3. the layout from before this change is adopted, not re-cloned ----------
 # One checkout directly at the parent, which is what every machine wired
@@ -127,9 +127,9 @@ assert_rc       "legacy layout: still wires up"            0 "$RC"
 assert_contains "and says the checkout was adopted"  "adopt" "$OUT"
 assert_eq "no second checkout was cloned underneath" "1" \
   "$([[ -d "$H3/agents_memory/.clones/wp/.git" ]] && echo 0 || echo 1)"
-printf 'private\n' > "$repo3/.agent-memory/local/note.md"
+printf 'private\n' > "$repo3/.agent-memory/private/note.md"
 assert_eq "the note lands in the adopted checkout" "0" \
-  "$([[ -f "$H3/agents_memory/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$H3/agents_memory/projects/acme/private/note.md" ]] && echo 0 || echo 1)"
 
 # ---------- 4. a clone that would nest inside a checkout is refused ----------
 # The hybrid of the two layouts above: the parent is itself a checkout, and a
@@ -171,13 +171,13 @@ run_verb "$repo5" "$H5" workplace
 assert_rc "combined: workplace wires up" 0 "$RC"
 
 s5="$H5/agents_memory/.clones/store"
-assert_eq "the local/ link was created inside the store checkout" "0" \
-  "$([[ -L "$s5/projects/acme/shared/local" ]] && echo 0 || echo 1)"
+assert_eq "the private/ link was created inside the store checkout" "0" \
+  "$([[ -L "$s5/projects/acme/shared/private" ]] && echo 0 || echo 1)"
 untracked="$(git -C "$s5" status --porcelain -uall 2>/dev/null | grep -c 'memory/local' | tr -d ' ')"
 assert_eq "the store repository ignores that link rather than committing it" "0" "$untracked"
-printf 'private\n' > "$repo5/.agent-memory/local/note.md"
+printf 'private\n' > "$repo5/.agent-memory/private/note.md"
 assert_eq "a note through it still reaches the workplace repository" "0" \
-  "$([[ -f "$H5/agents_memory/.clones/wp/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$H5/agents_memory/.clones/wp/projects/acme/private/note.md" ]] && echo 0 || echo 1)"
 
 # ---------- 6. the directory name comes from the repository, not the URL ----------
 # Resolution only: `env` prints what the shim derived and clones nothing, so
@@ -220,28 +220,28 @@ clone7="$H7/agents_memory/.clones/wp"
 # the link pointing at it.
 mkdir -p "$clone7/projects/acme"
 printf 'old\n' > "$clone7/projects/acme/note.md"
-rm -f "$repo7/.agent-memory/local"
-ln -s "$clone7/projects/acme" "$repo7/.agent-memory/local"
+rm -f "$repo7/.agent-memory/private"
+ln -s "$clone7/projects/acme" "$repo7/.agent-memory/private"
 # The verb must refuse while the notes are still in the old scope...
 run_verb "$repo7" "$H7" workplace
 assert_eq       "notes still in the old scope: refuses" "1" "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 assert_contains "and prints the move recipe"            "projects/acme.moving"  "$OUT"
 # ...and repoint the link once the notes have moved, without a manual rm.
-mkdir -p "$clone7/projects/acme/local"
-mv "$clone7/projects/acme/note.md" "$clone7/projects/acme/local/note.md"
+mkdir -p "$clone7/projects/acme/private"
+mv "$clone7/projects/acme/note.md" "$clone7/projects/acme/private/note.md"
 run_verb "$repo7" "$H7" workplace
 assert_rc       "after the move: wires up"              0 "$RC"
 assert_contains "and says it repointed the wiring" "repointed" "$OUT"
 assert_eq "the note is readable through the link again" "old" \
-  "$(cat "$repo7/.agent-memory/local/note.md" 2>/dev/null)"
+  "$(cat "$repo7/.agent-memory/private/note.md" 2>/dev/null)"
 
 # A link into another repository is still refused: that one may be a workplace
 # somebody else's machine wired, and this verb does not guess.
 mk_remote "$W7/other.git" other
 git clone -q "$W7/other.git" "$W7/other"
-mkdir -p "$W7/other/projects/acme/local"
-rm -f "$repo7/.agent-memory/local"
-ln -s "$W7/other/projects/acme/local" "$repo7/.agent-memory/local"
+mkdir -p "$W7/other/projects/acme/private"
+rm -f "$repo7/.agent-memory/private"
+ln -s "$W7/other/projects/acme/private" "$repo7/.agent-memory/private"
 run_verb "$repo7" "$H7" workplace
 assert_eq       "a link into another repository is refused" "1" "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 assert_contains "and says so"                    "points elsewhere" "$OUT"

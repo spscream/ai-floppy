@@ -212,9 +212,10 @@ does not contain it.
 | key | default | what it controls |
 |---|---|---|
 | `memory_dir` | `.agent-memory` | the directory of the memory of this repository |
-| `memory_local_dir` | `local` | the name of the machine-local scope in the memory. One machine writes these notes. Git never commits them. Only the name is a setting. The rule is not. Committed memory must not link into this scope, and the check uses this key |
+| `memory_private_dir` | `private` | the name of the private scope in the memory: facts about this project that the code repository must not carry, such as somebody else's checkout or an access note. The workplace repository holds them, so **other machines do read them**. Facts about one machine go to `machines/<name>/` of that repository instead. Only the name is a setting; the rule is not — committed memory must not link into this scope, and the check uses this key |
+| `memory_local_dir` | *(the value of `memory_private_dir`)* | the name this key had before 0.6.0. A config written earlier keeps working |
 | `memory_repo` | *(not set)* | the git URL of a store repository, if the code repository cannot hold the memory. Set `project_key` also. Then run `bash .floppy/run store` one time for each machine and each worktree |
-| `project_key` | *(not set)* | the name of this project in every memory repository it uses, and the name of its directory in `agents_memory_dir`. The scopes are `projects/<key>/shared` (in `memory_repo`) and `projects/<key>/local` (in `workplace_repo`) |
+| `project_key` | *(not set)* | the name of this project in every memory repository it uses, and the name of its directory in `agents_memory_dir`. The scopes are `projects/<key>/shared` (in `memory_repo`) and `projects/<key>/private` (in `workplace_repo`) |
 | `memory_project_key` | *(the value of `project_key`)* | use a different key in the store only. Needed when the same project has two names in two repositories |
 | `agents_memory_dir` | `$HOME/agents_memory` | holds one directory for each project, and the clones in `.clones/`. Each repository URL gets one clone. The name of the clone comes from the URL. floppy derives it; you do not set it. Two different repositories thus cannot use one clone directory. A clone from an earlier layout — under the parent directly, or at the parent itself — is used as it is, but only if its `origin` is the configured URL. See the example above |
 | `memory_repo_dir` | *(derived)* | replaces the derived path of the store on this machine. Set it only if that checkout cannot be below the parent directory |
@@ -255,24 +256,24 @@ The result on disk is:
 ```
 ~/agents_memory/
    acme/                      <- the project, named by project_key
-      shared -> ../.clones/notes-store/projects/acme/shared
-      local  -> ../.clones/agents-memory/projects/acme/local
+      shared  -> ../.clones/notes-store/projects/acme/shared
+      private -> ../.clones/agents-memory/projects/acme/private
    .clones/
       notes-store/            <- clone of memory_repo
       agents-memory/          <- clone of workplace_repo
 ```
 
-`shared` and `local` are symlinks. floppy makes them on each machine, and no
+`shared` and `private` are symlinks. floppy makes them on each machine, and no
 repository contains them. They are relative, so you can move
 `agents_memory_dir` as one directory.
 
 `<memory_dir>` in your repository points at `~/agents_memory/acme/shared`, and
-`<memory_dir>/local` points at `~/agents_memory/acme/local`. These two
+`<memory_dir>/private` points at `~/agents_memory/acme/private`. These two
 addresses stay the same if a repository URL changes.
 
 A second project uses the same two repositories in the same way. It gets its
 own directory `~/agents_memory/<other key>/`, and its own scopes
-`projects/<other key>/shared` and `projects/<other key>/local` inside the same
+`projects/<other key>/shared` and `projects/<other key>/private` inside the same
 two clones. There is one clone for each repository, never one for each project.
 
 If `memory_repo` and `workplace_repo` hold the same URL, there is one clone,
@@ -283,13 +284,17 @@ and both scopes are in it, beside each other.
 The scopes are now two directories beside each other:
 
 ```
-projects/<key>/shared     in memory_repo
-projects/<key>/local      in workplace_repo
+projects/<key>/shared      in memory_repo
+projects/<key>/private     in workplace_repo
 ```
 
 Before 0.5.0 they were `projects/<key>/memory` and `projects/<key>` itself. The
 second one contained the first whenever one repository served both, so the
-private notes and the shared memory were in one tree.
+private notes and the shared memory were in one tree. In 0.5.0 and 0.5.1 the
+second one was `projects/<key>/local`; 0.6.0 renamed it, because that name says
+"machine-local" and the scope is nothing of the sort. It is private to the
+project and every machine of the workplace reads it. Facts about ONE machine
+go to `machines/<name>/` of the workplace repository.
 
 If your repository still uses the old names, the verb stops and prints the
 `git mv` commands. It does not move the notes itself. Two reasons: these notes
@@ -301,7 +306,7 @@ every machine first, then move the scopes one time.
 
 A project can use `store` and `workplace` together. `store` moves all of the
 memory into a different repository. `workplace` attaches a shared scope at
-`<memory_dir>/local`. These can be two different repositories.
+`<memory_dir>/private`. These can be two different repositories.
 
 Before version 0.4.2, each of the two had its own directory key, and the two
 keys had the same default value. If you set both keys, they gave one directory.

@@ -261,8 +261,8 @@ rm -rf "$repo8"
 # protects against links that are dead on a second machine, and under any other
 # name it silently applied to nothing.
 repo9="$(sandbox)"; cp shim/run "$repo9/.floppy/run"
-printf 'memory_dir=brain\nmemory_local_dir=private\n' > "$repo9/.floppy/config"
-mkdir -p "$repo9/brain/half" "$repo9/brain/private"
+printf 'memory_dir=brain\nmemory_local_dir=mine\n' > "$repo9/.floppy/config"
+mkdir -p "$repo9/brain/half" "$repo9/brain/mine"
 printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$repo9/brain/MEMORY.md"
 printf '# Half\n- [A note](a-note.md) — pointer\n' > "$repo9/brain/half/INDEX.md"
 cat > "$repo9/brain/half/a-note.md" <<'EOFN'
@@ -277,7 +277,7 @@ Body.
 EOFN
 # A file in the machine-local scope with no frontmatter at all: linted as
 # committed memory it would fail on every field.
-printf 'scratch, not committed memory\n' > "$repo9/brain/private/scratch.md"
+printf 'scratch, not committed memory\n' > "$repo9/brain/mine/scratch.md"
 
 lint9() { OUT9="$(cd "$repo9" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RC9=$?; }
 lint9
@@ -290,14 +290,14 @@ assert_contains "and only the committed note is counted"            "1 notes" "$
 printf 'memory_dir=brain\n' > "$repo9/.floppy/config"
 lint9
 assert_rc       "under the default name the same file IS linted" 1 "$RC9"
-assert_contains "and it is the scratch file that fails"          "private/scratch.md" "$OUT9"
+assert_contains "and it is the scratch file that fails"          "mine/scratch.md" "$OUT9"
 
 # The link rule follows the configured name too.
-printf 'memory_dir=brain\nmemory_local_dir=private\n' > "$repo9/.floppy/config"
-printf 'See [that](private/scratch.md).\n' >> "$repo9/brain/half/a-note.md"
+printf 'memory_dir=brain\nmemory_local_dir=mine\n' > "$repo9/.floppy/config"
+printf 'See [that](mine/scratch.md).\n' >> "$repo9/brain/half/a-note.md"
 lint9
 assert_rc       "a link into the renamed scope is caught"  1 "$RC9"
-assert_contains "and names the scope as configured"        "link into private/" "$OUT9"
+assert_contains "and names the scope as configured"        "link into mine/" "$OUT9"
 
 # A name that would be read as a regex must be refused, not matched wrongly.
 printf 'memory_dir=brain\nmemory_local_dir=.*\n' > "$repo9/.floppy/config"

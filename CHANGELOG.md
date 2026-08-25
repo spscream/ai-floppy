@@ -14,6 +14,27 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.6.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (new key name). **The private scope is renamed —
+migrate it the same way as 0.5.0, and read why first.**
+
+- **`local` became `private`,** in the scope (`projects/<key>/private`), in the
+  link inside your repository (`<memory_dir>/private`), in the view, and in the
+  config key (`memory_private_dir`; `memory_local_dir` still works).
+  The name was left over from the days when that directory really was
+  machine-local and gitignored. It has been neither since it became a symlink
+  into a repository shared by a workplace's machines — and the name kept saying
+  otherwise, convincingly enough that the owner of the corpus read it as "facts
+  about this machine" and asked where those go. They go to `machines/<name>/`
+  of the workplace repository, which is synced like everything else: that scope
+  answers "where is this true", not "who may see it".
+- The old scope is refused with the `git mv` printed, exactly as in 0.5.0 and
+  for the same reason. A link left pointing at any earlier scope of the same
+  repository is repointed without a manual `rm` (0.5.1).
+
+415 asserts, up from 414.
+
 ## 0.5.1 — 2026-08-25
 
 **Refresh `.floppy/run`: no.** Take it before migrating a second machine.

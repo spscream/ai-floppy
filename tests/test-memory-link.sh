@@ -46,7 +46,7 @@ out5="$(cd "$repo3" && HOME="$home3" AI_FLOPPY_HOME="$ROOT" bash .floppy/run wor
 assert_rc       "workplace refuses without project key" 1 "$rc5"
 assert_contains "refusal names the config key"           "workplace_project_key" "$out5"
 assert_eq       "nothing cloned before the refusal"      "absent" "$([[ -e "$home3/agents_memory" ]] && echo exists || echo absent)"
-assert_eq       "no local symlink created either"        "absent" "$([[ -e "$repo3/.agent-memory/local" ]] && echo exists || echo absent)"
+assert_eq       "no local symlink created either"        "absent" "$([[ -e "$repo3/.agent-memory/private" ]] && echo exists || echo absent)"
 
 # even with a project key, an unset repository URL must also refuse before
 # any clone — the second required value guards a different side effect.
@@ -100,7 +100,7 @@ out9="$(cd "$repo5" && HOME="$home5" FLOPPY_REPO="$repo5" \
   FLOPPY_WORKPLACE_PROJECT_KEY="direct-test" FLOPPY_WORKPLACE_REPO="$wrepo/remote.git" \
   bash "$ROOT/scripts/memory-workplace.sh" 2>&1)"; rc9=$?
 assert_rc       "direct memory-workplace wires without the var" 0 "$rc9"
-assert_contains "direct memory-workplace names .agent-memory"   "ok linked: .agent-memory/local -> " "$out9"
+assert_contains "direct memory-workplace names .agent-memory"   "ok linked: .agent-memory/private -> " "$out9"
 case "$out9" in
   *"unbound variable"*) fail "direct memory-workplace does not abort" "no 'unbound variable'" "$out9" ;;
   *) ok "direct memory-workplace does not abort" ;;

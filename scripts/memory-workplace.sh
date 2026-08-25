@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Attach .agent-memory/local to the workplace memory repository.
+# Attach <memory_dir>/private to the workplace memory repository.
 #
 # Why a script: `local/` used to be a plain gitignored directory, and that
 # quietly conflated two different things — "true only on this machine" and
@@ -54,11 +54,12 @@ repo="$(pwd)"
 project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set project_key in .floppy/config (or workplace_project_key to override it)}"
 url="${FLOPPY_WORKPLACE_REPO:?set workplace_repo in .floppy/config}"
 dir="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
-scope="projects/$project_key/local"
+priv="${FLOPPY_MEMORY_PRIVATE_DIR:-private}"
+scope="projects/$project_key/$priv"
 target="$dir/$scope"
-view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/local"
+view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/$priv"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
-link="$repo/$mem_dir/local"
+link="$repo/$mem_dir/$priv"
 
 echo "workplace memory: $dir"
 echo "project scope:    $scope"
@@ -89,8 +90,19 @@ if [[ -d "$dir/projects/$project_key" ]]; then
   fi
 fi
 
+# 0.5.0 and 0.5.1 called this scope leaf `local`, from the days when the
+# directory really was machine-local and gitignored. It has not been either
+# since it became a symlink into a shared repository, and the name kept
+# saying otherwise — the owner read it as "facts about this machine" and
+# asked where those go. They go to machines/<name>/ of the same repository.
+if [[ "$priv" != "local" && -d "$dir/projects/$project_key/local" ]]; then
+  refuse_old_scope "$dir" "projects/$project_key/local" "$scope" \
+    "git -C \"$dir\" mv \"projects/$project_key/local\" \"$scope\""
+  exit 1
+fi
+
 mkdir -p "$target"
-view_link "$project_key" "$dir" "$scope" local || exit 1
+view_link "$project_key" "$dir" "$scope" "$priv" || exit 1
 
 # ---------- the symlink ----------
 if [[ -L "$link" ]]; then
@@ -99,9 +111,11 @@ if [[ -L "$link" ]]; then
   if [[ -d "$link" ]]; then cur="$(cd "$link" && pwd -P)"; else cur="$(readlink "$link")"; fi
   want="$(cd "$target" && pwd -P)"
   old_scope="$(cd "$dir" && pwd -P)/projects/$project_key"
+  old_leaf="$old_scope/local"
+  old_view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/local"
   if [[ "$cur" == "$want" ]]; then
-    echo "ok already configured: $mem_dir/local -> $target"
-  elif [[ "$cur" == "$old_scope" ]]; then
+    echo "ok already configured: $mem_dir/$priv -> $target"
+  elif [[ "$cur" == "$old_scope" || "$cur" == "$old_leaf" || "$cur" == "$old_view" ]]; then
     # Wiring left by a pre-0.5.0 run of this same verb, pointing at the scope
     # this project used to have in this same repository. The notes moved; this
     # link did not. Repointing it is this verb's job: it is wiring, it holds no
@@ -110,7 +124,7 @@ if [[ -L "$link" ]]; then
     # repository, which may be another workplace.
     rm -f "$link"
     ln -s "$view" "$link"
-    echo "ok repointed $mem_dir/local from the pre-0.5.0 scope to $view"
+    echo "ok repointed $mem_dir/$priv from an earlier scope to $view"
   else
     echo "x the symlink points elsewhere: $link -> $cur"
     echo "  expected $target. Sort this out by hand: it may be another workplace."
@@ -133,7 +147,7 @@ elif [[ -e "$link" ]]; then
   # printed "nothing was deleted" while saying it. Content decides, not names:
   # a file already in the scope byte for byte came from another machine
   # earlier, and the copy here is redundant.
-  echo "-- migrating $mem_dir/local -> $target"
+  echo "-- migrating $mem_dir/$priv -> $target"
   [[ $apply -eq 0 ]] && echo "   (plan only — nothing is moved without --apply)"
   echo
   plan=""
@@ -212,10 +226,10 @@ elif [[ -e "$link" ]]; then
   fi
   echo "ok local/ migrated and removed"
   ln -s "$view" "$link"
-  echo "ok linked: $mem_dir/local -> $view"
+  echo "ok linked: $mem_dir/$priv -> $view"
 else
   ln -s "$view" "$link"
-  echo "ok linked: $mem_dir/local -> $view"
+  echo "ok linked: $mem_dir/$priv -> $view"
 fi
 
 # ---------- the link itself must not be committed ----------
