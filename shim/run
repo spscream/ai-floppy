@@ -107,6 +107,11 @@ export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
 export FLOPPY_WATCHED_DIRS="$(cfg_get watched_dirs docs)"
 export FLOPPY_WATCHED_FILES="$(cfg_get watched_files AGENTS.md)"
+# Where a repository keeps the rite as command files in its own language, if it
+# keeps them at all. Only `parity` reads this; a repository that invokes the
+# English skills directly has no such directory and that verb says so instead
+# of failing.
+export FLOPPY_COMMANDS_DIR="$(cfg_get commands_dir .claude/commands)"
 # auto: pull --rebase then push, same as always. never: wrap-commit stays
 # local — commits but does not touch a remote at all. For a repository with
 # no upstream configured, "auto" fails the sync step every time (there is
@@ -122,17 +127,50 @@ export FLOPPY_COMMIT_PUSH="$(cfg_get commit_push auto)"
 # see wrap-commit.sh.
 name_repo() { printf 'repo: %s\n' "$FLOPPY_REPO"; }
 
+# The mirror of the unknown-verb case below, and it travels the other way. This
+# file is committed in the consumer repository, so it reaches a second machine
+# with `git pull` — while the plugin it dispatches into is installed per
+# machine and does not. A verb added upstream therefore arrives here first and
+# finds no script behind it, and `exec` alone would report that as a bare "No
+# such file or directory" naming a path inside a plugin cache, which reads like
+# a broken install rather than an un-updated one.
+run_script() { # script-name, then its args
+  local s="$FLOPPY_ROOT/scripts/$1"; shift
+  if [[ ! -f "$s" ]]; then
+    echo "x this repository's .floppy/run knows verb '$verb', but the installed plugin has no $(basename "$s")" >&2
+    echo "  The shim travels with the repository (git); the plugin is installed per machine." >&2
+    echo "  This machine's plugin is behind: update it, and remember that \`plugin update\`" >&2
+    echo "  is a no-op while the version string is unchanged." >&2
+    echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
+    exit 1
+  fi
+  exec bash "$s" "$@"
+}
+
 verb="${1:-}"; shift 2>/dev/null || true
 case "$verb" in
   env)       env | grep '^FLOPPY_' | sort ;;
-  lint)      name_repo; exec bash "$FLOPPY_ROOT/scripts/memory-lint.sh"      "$@" ;;
-  link)      name_repo; exec bash "$FLOPPY_ROOT/scripts/memory-link.sh"      "$@" ;;
-  workplace) name_repo; exec bash "$FLOPPY_ROOT/scripts/memory-workplace.sh" "$@" ;;
-  guard)     name_repo; exec bash "$FLOPPY_ROOT/scripts/wrap-guard.sh"       "$@" ;;
-  lock)      exec bash "$FLOPPY_ROOT/scripts/wrap-lock.sh"        "$@" ;;
-  status)    name_repo; exec bash "$FLOPPY_ROOT/scripts/workstatus.sh"       "$@" ;;
-  check)     name_repo; exec bash "$FLOPPY_ROOT/scripts/wrap-check.sh"       "$@" ;;
-  commit)    name_repo; exec bash "$FLOPPY_ROOT/scripts/wrap-commit.sh"      "$@" ;;
-  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|guard|lock|status|check|commit}" ;;
-  *)         echo "x unknown verb: $verb" >&2; exit 2 ;;
+  lint)      name_repo; run_script memory-lint.sh      "$@" ;;
+  link)      name_repo; run_script memory-link.sh      "$@" ;;
+  workplace) name_repo; run_script memory-workplace.sh "$@" ;;
+  guard)     name_repo; run_script wrap-guard.sh       "$@" ;;
+  lock)                 run_script wrap-lock.sh        "$@" ;;
+  status)    name_repo; run_script workstatus.sh       "$@" ;;
+  parity)    name_repo; run_script parity.sh           "$@" ;;
+  check)     name_repo; run_script wrap-check.sh       "$@" ;;
+  commit)    name_repo; run_script wrap-commit.sh      "$@" ;;
+  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|guard|lock|status|parity|check|commit}" ;;
+  # A verb this copy has never heard of is as likely to mean a stale shim as a
+  # typo, and the two look identical from here. `.floppy/run` is the one file
+  # this plugin puts in a consumer repository, so it does NOT arrive with
+  # `plugin update` the way scripts/ and skills/ do: a verb added upstream
+  # stays unreachable until the copy is refreshed. Measured the first time a
+  # verb was added after extraction (`parity`, 2026-08-25) — the plugin was
+  # current, the repository's shim was not, and the error said only "unknown".
+  *)         echo "x unknown verb: $verb" >&2
+             echo "  known: env lint link workplace guard lock status parity check commit" >&2
+             echo "  If it exists upstream, this copy of .floppy/run is behind — it is a" >&2
+             echo "  copy, not a link, and \`plugin update\` does not touch it. Refresh it:" >&2
+             echo "    cp \"\$FLOPPY_ROOT/shim/run\" .floppy/run   (or re-run the init skill)" >&2
+             exit 2 ;;
 esac

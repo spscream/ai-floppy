@@ -197,4 +197,44 @@ assert_contains "cache with one script resolves" \
   "FLOPPY_ROOT=$home_stale/.claude/plugins/cache/mp/floppy/0.1.0" "$out_filled"
 rm -rf "$repoStale" "$home_stale"
 
+
+# ---------- an unknown verb points at the likeliest cause ----------
+# The shim is a COPY in the consumer repository, so a verb added upstream is
+# unreachable until that copy is refreshed — and from inside the shim a stale
+# copy and a typo are the same event. Measured when `parity` was added: the
+# plugin was current, the repository's shim was not, and "unknown verb" alone
+# sent the reader looking in the wrong place.
+repoU="$(sandbox)"
+cp shim/run "$repoU/.floppy/run"
+unknown="$(cd "$repoU" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run nosuchverb 2>&1)"
+assert_contains "unknown verb names the verb"            "unknown verb: nosuchverb" "$unknown"
+assert_contains "unknown verb lists the known ones"      "parity"                   "$unknown"
+assert_contains "unknown verb names the stale-copy case" "copy, not a link"         "$unknown"
+assert_contains "unknown verb says how to refresh"       "cp "                      "$unknown"
+
+
+# ---------- a verb the installed plugin is too old for ----------
+# The reverse of the case above, and it travels the other way: the shim is
+# committed in the consumer repository, so `git pull` carries a new verb to a
+# second machine while the plugin there — installed per machine — stays behind.
+# `exec` alone reported that as "No such file or directory" naming a path
+# inside a plugin cache, which reads as a broken install rather than an
+# un-updated one.
+oldroot="$(cd "$(mktemp -d)" && pwd -P)"
+mkdir -p "$oldroot/scripts"
+cp scripts/memory-lint.sh "$oldroot/scripts/"   # enough to resolve as a plugin
+repoO="$(sandbox)"
+cp shim/run "$repoO/.floppy/run"
+behind="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run parity 2>&1)"
+behind_rc=$?
+assert_eq       "old plugin: the verb fails"                "1" "$behind_rc"
+assert_contains "old plugin: names the missing script"      "parity.sh"          "$behind"
+assert_contains "old plugin: says which side is behind"     "plugin is behind"   "$behind"
+assert_contains "old plugin: names the resolved root"       "$oldroot"           "$behind"
+# A verb the old plugin DOES have must still work — the guard is per script,
+# not a blanket refusal on a version mismatch it has no way to detect.
+still="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1; echo "rc=$?")"
+assert_contains "old plugin: a verb it does have still runs" "repo: $repoO" "$still"
+rm -rf "$oldroot" "$repoO"
+
 summary

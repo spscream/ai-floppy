@@ -97,6 +97,35 @@ including the rest of this document — a skill is named by its bare name,
   guard + diff) followed by `bash .floppy/run commit` (stage, commit, sync,
   release the lock).
 
+## `parity` — when the rite is also kept in another language
+
+A repository may keep the rite twice: these skills in English, and command
+files in the language its people actually read (`.claude/commands/wrap.md`
+beside `skills/wrap/SKILL.md`). Two copies of a procedure drift, and they
+drift silently — what gets lost is not meaning but a **step**.
+
+```
+bash .floppy/run parity
+```
+
+It compares only what survives translation: the set of
+`bash .floppy/run <verb>` calls each file makes, and the sequence of numbered
+headings. Nothing about wording, section titles, or length — a translation
+legitimately folds a tail section into the last step or adds a
+project-specific table, and asserting that would produce red nobody acts on.
+The English skill is the source of truth; a divergence means the command
+needs the step, not the other way round.
+
+`wrap`'s `check` runs this automatically and goes red on a divergence, so the
+drift surfaces when a session closes rather than when someone happens to look.
+A repository with no such command files gets no such section — using the
+skills directly is the normal case.
+
+The measurement that motivated it, on the project this plugin was extracted
+from: the `workstatus` skill documented `bash .floppy/run status --flow` and
+when to use it, while the same repository's `/workstatus` command never
+mentioned the flag. Nothing was red anywhere.
+
 ## `.floppy/config`
 
 Flat `key=value`, one per line, read by the shim (`.floppy/run`) and
@@ -114,6 +143,7 @@ these are the defaults when a key is absent.
 | `statuses_now_chars_max` | `12000` | character ceiling on the current-state file; `wrap-guard` refuses a commit that pushes it over |
 | `watched_dirs` | `docs` | comma-separated directories, besides `memory_dir`, that `wrap` is allowed to commit |
 | `watched_files` | `AGENTS.md` | comma-separated single files (exact match, patterns allowed) `wrap` is allowed to commit |
+| `commands_dir` | `.claude/commands` | where a repository keeps the rite as command files in its own language, if it keeps them at all; read only by `bash .floppy/run parity` |
 | `commit_push` | `auto` | `auto` pulls `--rebase` then pushes after every commit, same as always; `never` skips that whole tail — set this on a repository with no remote configured, since `auto` would fail the pull every time there. A single call can skip just the push with `--no-push` without changing this default |
 
 `workplace_repo` and `workplace_project_key` are deliberately never given a
