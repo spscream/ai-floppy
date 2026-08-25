@@ -14,6 +14,28 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.9.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes.** The shim reads one new config key.
+
+`statuses_regress_marks` — the words that mark a regression in the direction
+cell of a trend table, in the consumer's own language. With the key set,
+`wrap-guard` protects only the rows carrying one of those words; any other row
+may be deleted.
+
+Why: the guard was stricter than the rule it enforces. Both `AGENTS.md` and
+`docs/statuses/README.md` of the first consumer say "a metric marked *worse* is
+not deleted", and the reason given is that a vanished bad number is how a
+regression hides. The guard protected every row instead, which made each one
+immortal — including one-time "done" facts that can never move again. A
+rewritten state file then grows exactly like the append-only journal it was
+split away from: the first consumer hit its character cap with 24 of 40 process
+rows being finished facts rather than live indicators.
+
+An unset key keeps the old behaviour, so no consumer loses a guard by updating.
+The words are configured rather than built in because this file already learned
+that matching one language's word breaks every other consumer.
+
 ## 0.8.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (the config parser no longer reads three keys).

@@ -276,6 +276,10 @@ export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get 
 export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
+# Words that mark a regression in a trend table's direction cell, comma
+# separated and in the project's own language. Unset means every trend row is
+# protected from deletion, which is what the guard did before this key existed.
+export FLOPPY_STATUSES_REGRESS_MARKS="$(cfg_get statuses_regress_marks '')"
 export FLOPPY_WATCHED_DIRS="$(cfg_get watched_dirs docs)"
 export FLOPPY_WATCHED_FILES="$(cfg_get watched_files AGENTS.md)"
 # Where a repository keeps the rite as command files in its own language, if it

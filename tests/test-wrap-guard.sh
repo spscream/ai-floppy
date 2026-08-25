@@ -68,5 +68,35 @@ out7="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md
 assert_rc       "actual dropped data row is still caught (rc)" 1 "$rc7"
 assert_contains "actual dropped data row is named"              "Errors" "$out7"
 
+# 7. statuses_regress_marks: only a row marked as a regression is immortal.
+# Without the key every row stays protected (checked by cases 2 and 6 above),
+# so this block sets it and then asserts both directions.
+cat >> "$repo/.floppy/config" <<'EOF'
+statuses_regress_marks=worse,хуже
+EOF
+printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Latency | 10ms | 8ms | better |\n| Errors | 1 | 3 | worse |\n| Shipped | no | yes | done |\n' > "$repo/state/NOW.md"
+git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit -qm "marked table"
+
+# an improved row and a one-time "done" row may both go
+printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Errors | 1 | 3 | worse |\n' > "$repo/state/NOW.md"
+out8="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc8=$?
+assert_rc "unmarked rows may be dropped (rc)" 0 "$rc8"
+case "$out8" in
+  *"dropped from NOW.md"*) fail "unmarked rows may be dropped" "no dropped-row error" "$out8" ;;
+  *) ok "unmarked rows may be dropped" ;;
+esac
+
+# the row marked as a regression may not, and the guard still names it
+printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Latency | 10ms | 8ms | better |\n| Shipped | no | yes | done |\n' > "$repo/state/NOW.md"
+out9="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc9=$?
+assert_rc       "dropped regression row is still caught (rc)" 1 "$rc9"
+assert_contains "dropped regression row is named"              "Errors" "$out9"
+
+# a row that stopped being a regression counts as present, not as dropped:
+# the new side is unfiltered on purpose
+printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Errors | 3 | 1 | better |\n' > "$repo/state/NOW.md"
+out10="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc10=$?
+assert_rc "recovered row is not read as dropped (rc)" 0 "$rc10"
+
 rm -rf "$repo"
 summary

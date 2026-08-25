@@ -227,6 +227,7 @@ does not contain it.
 | `index_chars_max` | `24500` | the maximum number of characters in the memory index. The value comes from the session loader of the agent application. That loader removes text above a limit and does not report the removed section. This is a fact about the application, not about your project. The limits for the corpus are in `quota.lock` |
 | `statuses_now` | `docs/statuses/NOW.md` | the state file. `start` reads all of it. `wrap` keeps it correct |
 | `statuses_now_chars_max` | `12000` | the maximum number of characters in the state file. `wrap-guard` refuses a commit above this limit |
+| `statuses_regress_marks` | *(empty)* | the words that mark a regression in the direction cell of a trend table, in your own language. Use a comma between them. `wrap-guard` then refuses to delete only the rows carrying one of these words. While the key is empty, no trend row may be deleted at all — safe, but it makes a rewritten file grow like an append-only one, because a one-time "done" row can never leave |
 | `watched_dirs` | `docs` | the directories, in addition to `memory_dir`, that `wrap` can commit. Use a comma between the names |
 | `watched_files` | `AGENTS.md` | the single files that `wrap` can commit. Patterns are permitted. Use a comma between the names |
 | `commands_dir` | `.claude/commands` | the directory of the command files, if the repository has them in its own language. Only `bash .floppy/run parity` reads this key |

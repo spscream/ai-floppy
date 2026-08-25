@@ -27,6 +27,7 @@ cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
 now_file="${FLOPPY_STATUSES_NOW:-docs/statuses/NOW.md}"
 now_chars_max="${FLOPPY_STATUSES_NOW_CHARS_MAX:-12000}"
+regress_marks="${FLOPPY_STATUSES_REGRESS_MARKS:-}"
 statuses_dir="${now_file%/*}"
 
 # Directories: everything below them counts. The memory directory is watched
@@ -236,7 +237,45 @@ trend_row_name() {
   printf '%s' "$cell"
 }
 
-# All metric names in a trend table, one per line, read from stdin.
+# A markdown table row -> its direction cell, i.e. the last one. That is where
+# a table says whether the number moved the wrong way.
+trend_row_direction() {
+  local s="$1"
+  s="${s%|}"
+  s="${s##*|}"
+  printf '%s' "$(trim "$s")"
+}
+
+# Is this row one the rule protects from deletion?
+#
+# The rule the projects actually wrote down is narrower than "no row may ever
+# go": it is "a metric marked as a regression is not deleted", because a
+# vanished bad number is how a regression hides. A metric that improved, or a
+# one-time "done" fact, has no such reason to be immortal — and protecting
+# everything turns a rewritten file into an append-only one, which is the
+# genre it was split away from.
+#
+# Which word marks a regression is the project's, not ours: this file already
+# learned once that matching one language's word breaks every other consumer
+# (see trend_row_names below). So the marks come from config, and an unset
+# statuses_regress_marks keeps the old behaviour — every row protected — so
+# that a consumer who never heard of this key does not silently lose a guard.
+row_is_protected() {
+  local dir="$1" rest mark
+  [[ -z "$regress_marks" ]] && return 0
+  rest="$regress_marks"
+  while [[ -n "$rest" ]]; do
+    mark="${rest%%,*}"
+    if [[ "$rest" == *,* ]]; then rest="${rest#*,}"; else rest=""; fi
+    mark="$(trim "$mark")"
+    [[ -z "$mark" ]] && continue
+    [[ "$dir" == *"$mark"* ]] && return 0
+  done
+  return 1
+}
+
+# All metric names in a trend table, one per line, read from stdin. With
+# "protected" as the argument, only the rows the rule above protects.
 #
 # The header row is not recognized by its text (it used to be, matching the
 # literal word "показатель" — one project's table-header word, so an English
@@ -248,7 +287,13 @@ trend_row_name() {
 # each candidate name is held for one iteration before being emitted, and is
 # dropped instead if the very next row is a separator.
 trend_row_names() {
-  local line name have_prev=0 prev=""
+  local filter="${1:-}"
+  local line name have_prev=0 prev="" prev_dir=""
+  emit_held() {
+    [[ $have_prev -eq 1 ]] || return 0
+    [[ "$filter" == protected ]] && { row_is_protected "$prev_dir" || return 0; }
+    printf '%s\n' "$prev"
+  }
   while IFS= read -r line; do
     [[ "$line" == '|'* ]] || continue
     name="$(trend_row_name "$line")"
@@ -259,16 +304,19 @@ trend_row_names() {
       have_prev=0
       continue
     fi
-    [[ $have_prev -eq 1 ]] && printf '%s\n' "$prev"
+    emit_held
     prev="$name"
+    prev_dir="$(trend_row_direction "$line")"
     have_prev=1
   done
-  [[ $have_prev -eq 1 ]] && printf '%s\n' "$prev"
+  emit_held
 }
 
 hr "NOW.md trend rows"
 if [[ -f "$now_file" ]] && git cat-file -e HEAD:"$now_file" 2>/dev/null; then
-  old_names="$(git show HEAD:"$now_file" | trend_row_names)"
+  # Only protected rows are required to survive; the new side lists every row,
+  # so a row that stopped being a regression still counts as present.
+  old_names="$(git show HEAD:"$now_file" | trend_row_names protected)"
   new_names="$(trend_row_names < "$now_file")"
   while IFS= read -r name; do
     [[ -z "$name" ]] && continue
