@@ -63,7 +63,7 @@ assert_contains "it adds the ignore line"             ".gitignore" "$OUT"
 # while a write lands somewhere other than the store.
 assert_contains "it verifies a write reaches the store" "lands in the store" "$OUT"
 [[ -L "$repo/.agent-memory" ]] && ok "the memory is a symlink" || fail "the memory is a symlink" "symlink" "not a symlink"
-assert_eq "it points into the project's own scope" "$checkout/projects/acme/shared" \
+assert_eq "it points into the project's own scope" "$checkout/public/projects/acme" \
   "$(cd "$repo/.agent-memory" && pwd -P)"
 assert_eq "the code repository ignores it" "0" \
   "$(cd "$repo" && git check-ignore -q -- .agent-memory; echo $?)"
@@ -81,7 +81,7 @@ assert_eq "the ignore line is not duplicated" "1" \
 # ---------- --check reports without changing ----------
 run_store "$repo" --check
 assert_eq       "--check passes on a wired machine" "0" "$RC"
-assert_contains "and names the link target"         "projects/acme/shared" "$OUT"
+assert_contains "and names the link target"         "public/projects/acme" "$OUT"
 
 # ---------- it never decides the fate of memory somebody wrote ----------
 # A real directory where the symlink belongs is the lagging-machine case, and
@@ -142,7 +142,7 @@ assert_contains "it wires the store"                "linked" "$init_out"
 # MEMORY.md must be created THROUGH the link, so it lands in the store rather
 # than in a directory that would have blocked the symlink.
 assert_eq "the index landed in the store" "0" \
-  "$([[ -f "$checkout2/projects/beta/shared/MEMORY.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$checkout2/public/projects/beta/MEMORY.md" ]] && echo 0 || echo 1)"
 assert_contains "the config records where the store is" "memory_repo=$remote" "$(cat "$repo4/.floppy/config")"
 assert_contains "and the scope"                         "memory_project_key=beta" "$(cat "$repo4/.floppy/config")"
 

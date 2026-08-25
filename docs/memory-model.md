@@ -1,7 +1,9 @@
 # The memory model: two namespaces, two axes
 
-**Status: design, not implemented.** Written 2026-08-25, against plugin 0.6.1.
-Nothing in `scripts/` follows this document yet. It exists because the layout
+**Status: implemented in 0.7.0** for the namespace and subject levels; the
+validity level (`workplaces/`, `machines/`) is directories only — no verb
+creates or reads them yet. Written 2026-08-25 against 0.6.1, revised on
+implementation. It exists because the layout
 was renamed three times in one day — `projects/<key>`, then `/memory` and
 `/local`, then `/shared` and `/private` — and each rename was a correction to a
 model nobody had written down. The names kept saying the wrong thing because
@@ -59,10 +61,15 @@ Three decisions inside that shape, each with its reason:
 2. **"True everywhere" has no directory of its own.** Those notes sit directly
    in `projects/<key>/` or `common/`. It is the most frequent case and it should
    not cost a level. This is also what the current layout already does.
-3. **`public/` and `private/` are directories, not only repositories.** The same
-   grammar then describes all three deployments: two repositories with one
-   namespace each, one repository holding both, and the ordinary case where the
-   public half is simply `.agent-memory/` in the project's own repository.
+3. **`public/` and `private/` are always directories.** The first draft said a
+   single-namespace repository could keep its scopes at the root, and
+   implementing it showed why not: the plugin blesses one URL serving both
+   roles, and then both scopes would be `projects/<key>` and collide. Making
+   the level conditional on "are the two URLs equal" would mean the path
+   changes when a config line changes. One level always, no condition. The
+   ordinary case is untouched: the public half of a project that can hold its
+   own memory is `.agent-memory/` in the project's repository, and this grammar
+   only governs memory kept in a repository of its own.
 
 ## The six cells, with real examples
 

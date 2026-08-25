@@ -163,7 +163,13 @@ if [[ "$FLOPPY_MEMORY_EXTERNAL" == "1" && -d "$_mem_real" ]]; then
 fi
 export FLOPPY_MEMORY_EXTERNAL FLOPPY_MEMORY_STORE
 export FLOPPY_MEMORY_REAL="$_mem_real"
-export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
+# private_repo/public_repo, 0.7.0. The old names paired an audience with a
+# validity value and made two independent questions look like one axis:
+# `memory_repo` is "public, but not in the code repository", and
+# `workplace_repo` is "private" — neither name says so. Both old keys are read
+# as a fallback, so a config written earlier keeps working.
+export FLOPPY_PRIVATE_REPO="$(cfg_get private_repo "$(cfg_get workplace_repo '')")"
+export FLOPPY_WORKPLACE_REPO="$FLOPPY_PRIVATE_REPO"
 # One key names this project in every memory repository it uses, and it is
 # also the directory a human opens under agents_memory_dir. The two older,
 # per-purpose keys stay as overrides, for the project whose scope really is
@@ -171,6 +177,12 @@ export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
 # they are not simply deleted, but it is not the common one and it should not
 # be what a fresh config asks about.
 export FLOPPY_PROJECT_KEY="$(cfg_get project_key '')"
+# Where a note is true, as two names a human chose. `hostname` cannot serve:
+# on one of these machines it is WIN-GVR0V5UPOD7, which no note should have to
+# carry. Both are optional — a validity directory is only created when a note
+# needs it, and most notes are true everywhere.
+export FLOPPY_MACHINE_KEY="$(cfg_get machine_key '')"
+export FLOPPY_WORKPLACE_KEY="$(cfg_get workplace_key '')"
 export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key "$FLOPPY_PROJECT_KEY")"
 
 # ---------- where a memory checkout lives ----------
@@ -257,7 +269,8 @@ export FLOPPY_MEMORY_LOCAL_DIR="$FLOPPY_MEMORY_PRIVATE_DIR"
 # No defaults, deliberately: a project that never opted in must not be pointed
 # at somebody else's store. Read by `store`; the rest of the rite derives the
 # layout from the filesystem instead.
-export FLOPPY_MEMORY_REPO="$(cfg_get memory_repo '')"
+export FLOPPY_PUBLIC_REPO="$(cfg_get public_repo "$(cfg_get memory_repo '')")"
+export FLOPPY_MEMORY_REPO="$FLOPPY_PUBLIC_REPO"
 export FLOPPY_MEMORY_PROJECT_KEY="$(cfg_get memory_project_key "$FLOPPY_PROJECT_KEY")"
 export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get memory_repo_dir '')")"
 export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"

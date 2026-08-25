@@ -54,8 +54,13 @@ repo="$(pwd)"
 project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set project_key in .floppy/config (or workplace_project_key to override it)}"
 url="${FLOPPY_WORKPLACE_REPO:?set workplace_repo in .floppy/config}"
 dir="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
+# 0.7.0: the audience is a namespace directory at the top of the memory
+# repository, and the scope below it answers only "what is this about". The
+# leaf that used to repeat the audience (`local`, then `private`) is gone: it
+# existed because one repository could serve both roles, which the namespace
+# now expresses without making the path depend on whether two URLs are equal.
 priv="${FLOPPY_MEMORY_PRIVATE_DIR:-private}"
-scope="projects/$project_key/$priv"
+scope="private/projects/$project_key"
 target="$dir/$scope"
 view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/$priv"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
@@ -95,11 +100,13 @@ fi
 # since it became a symlink into a shared repository, and the name kept
 # saying otherwise — the owner read it as "facts about this machine" and
 # asked where those go. They go to machines/<name>/ of the same repository.
-if [[ "$priv" != "local" && -d "$dir/projects/$project_key/local" ]]; then
-  refuse_old_scope "$dir" "projects/$project_key/local" "$scope" \
-    "git -C \"$dir\" mv \"projects/$project_key/local\" \"$scope\""
+for old in "projects/$project_key/local" "projects/$project_key/private"; do
+  [[ -d "$dir/$old" ]] || continue
+  refuse_old_scope "$dir" "$old" "$scope" \
+    "mkdir -p \"$dir/private/projects\"" \
+    "git -C \"$dir\" mv \"$old\" \"$scope\""
   exit 1
-fi
+done
 
 mkdir -p "$target"
 view_link "$project_key" "$dir" "$scope" "$priv" || exit 1

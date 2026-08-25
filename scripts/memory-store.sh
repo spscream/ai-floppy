@@ -51,7 +51,7 @@ if [[ -z "$url" || -z "$key" ]]; then
   exit 2
 fi
 
-scope="projects/$key/shared"
+scope="public/projects/$key"
 target="$dir/$scope"
 view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$key/shared"
 link="$repo/$mem_dir"
@@ -92,11 +92,13 @@ ensure_checkout "$url" "$dir" "store" || exit 1
 # workplace scope was projects/<key> itself — so with one repository serving
 # both, the second contained the first. Siblings end that, but the notes have
 # to be moved by a human on one machine, once.
-if [[ -e "$dir/projects/$key/memory" ]]; then
-  refuse_old_scope "$dir" "projects/$key/memory" "$scope" \
-    "git -C \"$dir\" mv \"projects/$key/memory\" \"$scope\""
+for old in "projects/$key/memory" "projects/$key/shared"; do
+  [[ -e "$dir/$old" ]] || continue
+  refuse_old_scope "$dir" "$old" "$scope" \
+    "mkdir -p \"$dir/public/projects\"" \
+    "git -C \"$dir\" mv \"$old\" \"$scope\""
   exit 1
-fi
+done
 
 mkdir -p "$target"
 view_link "$key" "$dir" "$scope" shared || exit 1
@@ -104,7 +106,7 @@ view_link "$key" "$dir" "$scope" shared || exit 1
 # ---------- the symlink ----------
 if [[ -L "$link" ]]; then
   if [[ -d "$link" ]]; then cur="$(cd "$link" && pwd -P)"; else cur="$(readlink "$link")"; fi
-  old_scope="$(cd "$dir" && pwd -P)/projects/$key/memory"
+  old_scope="$(cd "$dir" && pwd -P)/projects/$key/shared"
   if [[ "$cur" == "$(cd "$target" && pwd -P)" ]]; then
     echo "ok already wired: $mem_dir -> $target"
   elif [[ "$cur" == "$old_scope" ]]; then

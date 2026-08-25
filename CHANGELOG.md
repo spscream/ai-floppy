@@ -14,6 +14,32 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.7.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (four new keys). **The scopes moved under a
+namespace directory — the old ones are refused with the `git mv` printed.**
+
+The model is written down now: [docs/memory-model.md](docs/memory-model.md).
+Three questions per note, independent — who may read it (a repository
+boundary), what it is about (`projects/<key>` or `common`), and where it is
+true (everywhere, one workplace, one machine). The layout had been renamed
+three times in a day because that model existed only in whoever was editing.
+
+- **Scopes are `public/projects/<key>` and `private/projects/<key>`.** The leaf
+  that repeated the audience (`shared`, `private`) is gone. The namespace
+  directory is always present, including in a repository that holds only one:
+  the alternative makes the path depend on whether two config URLs are equal.
+- **New keys `public_repo` and `private_repo`,** replacing `memory_repo` and
+  `workplace_repo`, which are still read. The old pair named an audience with a
+  validity word and made two independent questions look like one axis.
+- **New keys `machine_key` and `workplace_key`.** They name the validity
+  directories `machines/<machine>/` and `workplaces/<place>/` inside a scope,
+  for a note that is not true everywhere — the cell no earlier layout could
+  express. Both are optional and nothing creates the directories yet.
+- Migration is refused, not performed, exactly as in 0.5.0 and 0.6.0: the verb
+  prints the `git mv`. Wiring left pointing at an earlier scope is repointed
+  without a manual `rm`.
+
 ## 0.6.2 — 2026-08-25
 
 **Refresh `.floppy/run`: no.** Take it on any machine that has migrated to
