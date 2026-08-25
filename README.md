@@ -6,6 +6,21 @@ closes one, and the guards that keep both honest (a file-list gate, a memory
 linter, a per-session lock). Ships as a plugin for both Claude Code and
 Cursor.
 
+## Requirements
+
+- **A harness that loads plugins** — Claude Code or Cursor. Nothing here is a
+  standalone tool: the rites are skills, and the scripts exist to be called by
+  them.
+- **`bash` and `git`, and a git repository.** Every verb derives its paths from
+  the repository root and refuses to run outside one rather than guessing.
+- **macOS or Linux.** The suite runs on both in CI, and the macOS job is
+  pinned to `/bin/bash` — 3.2.57 — because the scripts are required to work
+  there: no `mapfile`, no `declare -A`, no GNU-only flags. Windows is used only
+  through WSL, which is a Linux shell as far as these scripts are concerned;
+  nothing is tested against a native Windows one.
+- Nothing else. No runtime beyond the shell, no network access except the
+  `git` calls you can read in the scripts.
+
 ## Install
 
 Claude Code:
