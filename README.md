@@ -417,6 +417,15 @@ different project describes that project, and controls nothing here.
 While the file is absent, `bash .floppy/run lint` gives a warning. It does not
 fail.
 
+## The memory model
+
+[docs/memory-model.md](docs/memory-model.md) — the design the paths are moving
+towards: two namespaces (who may read it), and two independent axes below them
+(what it is about, where it is true). **It is a design, not the current state.**
+Read it before changing any path in the scripts. It exists because the layout
+was renamed three times in one day, and each rename corrected a model that
+nobody had written down.
+
 ## Releases
 
 See [CHANGELOG.md](CHANGELOG.md). For each release it answers one question that
