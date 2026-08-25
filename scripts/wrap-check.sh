@@ -100,6 +100,30 @@ git diff --stat -- "$@" | tail -20 | sed 's/^/  /'
 staged=$(git diff --cached --numstat -- "$@" | wc -l | tr -d ' ')
 [[ "${staged:-0}" != "0" ]] && echo "  note: $staged file(s) are already staged"
 
+# ---------- the memory's own repository, when it is not this one ----------
+# Distinct from the workplace section below: that one is a store SHARED across
+# projects, this one is this project's own memory, merely hosted elsewhere.
+# Reported unconditionally in that layout, because `going out` above is
+# structurally blind to it — the memory path is gitignored here, so the diff
+# the human is shown before committing would otherwise omit every note the
+# session wrote.
+if [[ "${FLOPPY_MEMORY_EXTERNAL:-0}" == "1" ]]; then
+  hr "memory store"
+  st="${FLOPPY_MEMORY_STORE:-}"
+  if [[ -z "$st" ]]; then
+    rc=1
+    echo "  x ${FLOPPY_MEMORY_DIR:-.agent-memory} resolves outside this repository and outside any git repository"
+    echo "    (${FLOPPY_MEMORY_REAL:-?}) — nothing can publish these notes"
+  else
+    echo "  $st"
+    git -C "$st" status --short | head -20 | sed 's/^/  /'
+    st_ahead=$(git -C "$st" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
+    [[ "$st_ahead" != "0" && "$st_ahead" != "?" ]] && echo "  $st_ahead commit(s) unpushed there"
+    # `commit` closes it too, so this is information, not a chore for the human.
+    echo "  (bash .floppy/run commit closes this store as well as this repository)"
+  fi
+fi
+
 # ---------- the second repository ----------
 # <mem_dir>/local is a symlink into the workplace memory repository, and this
 # project's git does not look there at all: `git status` here stays clean

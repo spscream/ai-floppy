@@ -118,6 +118,22 @@ prevent: a fact can be private to a workplace and still need to sync between
 that workplace's machines, which a plain `.gitignore`'d local directory
 cannot do.
 
+## The memory may not live in this repository at all
+
+Where `memory_dir` points is a layout decision, not something to assume. Some
+repositories cannot hold agent notes — a checkout the team does not own, or a
+policy separating notes from code — so `memory_dir` is a symlink into a
+separate git repository and is gitignored here. The first scope above is then
+hosted elsewhere; it is still this project's memory, not the workplace store.
+
+Nothing about writing a note changes: same paths, same index, same frontmatter.
+Two things about **closing** a session do, and the shim handles both — `check`
+prints a `memory store` section, because this repository's own diff cannot see
+the notes, and `commit` commits and pushes that store from the same file list.
+What you must not do is conclude from a clean `git status` here that the
+session left nothing behind: in this layout that is exactly what a clean status
+looks like while every note is still uncommitted.
+
 ## Two status genres — and why they stay two files
 
 A repository following this convention keeps two documents about its current

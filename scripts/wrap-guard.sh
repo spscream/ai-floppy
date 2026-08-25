@@ -43,6 +43,30 @@ IFS="$_IFS_SAVE"
 WATCHED=("${WATCHED_DIRS[@]}" "${WATCHED_FILES[@]}")
 fail=0
 
+# ---------- memory hosted in another repository ----------
+# A consumer that cannot keep memory next to the code (a checkout it does not
+# own, a policy against agent notes in the code repository) points memory_dir
+# at a symlink into a separate git repository. The invariants below do not
+# change — the list must match what actually changed, nothing of somebody
+# else's may be staged — but half of them now have to be asked of that other
+# repository, because this one's `git status` is silent about it by design.
+#
+# PROJECT_WATCHED is what this repository is scanned for; the memory path is
+# taken out of it, since a gitignored symlink produces nothing here anyway and
+# an un-ignored one would be reported as an untracked file nobody claimed.
+external="${FLOPPY_MEMORY_EXTERNAL:-0}"
+store="${FLOPPY_MEMORY_STORE:-}"
+mem_real="${FLOPPY_MEMORY_REAL:-}"
+mem_prefix=""
+PROJECT_WATCHED=("${WATCHED[@]}")
+if [[ "$external" == "1" ]]; then
+  PROJECT_WATCHED=()
+  for w in "${WATCHED[@]}"; do
+    [[ "$w" == "$mem_dir" ]] || PROJECT_WATCHED+=("$w")
+  done
+  [[ -n "$store" && "$mem_real" != "$store" ]] && mem_prefix="${mem_real#"$store"/}"
+fi
+
 err() { printf '  x %s\n' "$1"; fail=1; }
 hr() { printf '%s\n' "-- $1"; }
 
@@ -86,7 +110,29 @@ while IFS= read -r line; do
   path="${path%\"}"; path="${path#\"}"
   changed_set="$changed_set$path
 "
-done < <(git status --porcelain --untracked-files=all -- "${WATCHED[@]}" 2>/dev/null)
+done < <(git status --porcelain --untracked-files=all -- "${PROJECT_WATCHED[@]}" 2>/dev/null)
+
+# The same question, asked of the store, with the answers translated back into
+# the paths this session actually typed. A note is written as
+# `.agent-memory/flow/x.md` through the symlink; the store calls the same file
+# `projects/<key>/memory/flow/x.md`. Reporting the store's vocabulary here
+# would name files the human cannot find in their own tree.
+if [[ "$external" == "1" && -n "$store" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    path="${line:3}"
+    [[ "$path" == *" -> "* ]] && path="${path##* -> }"
+    path="${path%\"}"; path="${path#\"}"
+    if [[ -n "$mem_prefix" ]]; then
+      case "$path" in
+        "$mem_prefix"/*) path="${path#"$mem_prefix"/}" ;;
+        *) continue ;;   # something else in the store, not this project's memory
+      esac
+    fi
+    changed_set="$changed_set$mem_dir/$path
+"
+  done < <(git -C "$store" status --porcelain --untracked-files=all -- "${mem_prefix:-.}" 2>/dev/null)
+fi
 
 # ---------- other people's work in flight ----------
 hr "changed but not yours"
@@ -113,6 +159,25 @@ for f in "${claimed[@]}"; do
   fi
   in_set "$f" "$changed_set" || err "$f — not changed: wrong path, or the edit was lost"
 done
+
+# ---------- the external memory is actually wired to publish ----------
+# Two ways this setup fails, and both are silent while notes keep getting
+# written and read on this machine.
+if [[ "$external" == "1" ]]; then
+  hr "memory store"
+  if [[ -z "$store" ]]; then
+    err "$mem_dir resolves to $mem_real, outside this repository and outside any git repository — nothing will ever publish those notes"
+  else
+    echo "  memory lives in $store, committed there, not here"
+  fi
+  # An un-ignored symlink means the code repository is about to receive the
+  # memory after all — which is the one thing this layout exists to prevent.
+  # Checked here rather than trusted: the ignore line is added by hand at
+  # setup, and a setup step done by hand is a setup step that gets skipped.
+  if ! git check-ignore -q -- "$mem_dir" 2>/dev/null; then
+    err "$mem_dir is not ignored by this repository: the memory is hosted elsewhere on purpose, but git here can still stage it — add \"/$mem_dir\" to .gitignore (no trailing slash, or the symlink is not matched)"
+  fi
+fi
 
 # ---------- journal written, current state left stale ----------
 # docs/statuses/NOW.md is what /start reads; a dated *_status.md entry is the

@@ -163,6 +163,43 @@ these are the defaults when a key is absent.
 live default: a repository that never opted in must not silently write into
 somebody else's private memory.
 
+## Memory in a repository other than the code's
+
+Some consumers cannot commit agent notes next to the code: a client's checkout
+they do not own, or a policy that keeps them apart. Point `memory_dir` at a
+symlink into a separate git repository and gitignore it — the code repository
+then carries only `.floppy/run` and `.floppy/config`, about 110 lines that
+review in a minute:
+
+```
+git clone <store-url> ~/agents_memory
+mkdir -p ~/agents_memory/projects/<key>/memory
+ln -s ~/agents_memory/projects/<key>/memory .agent-memory
+printf '/.agent-memory\n' >> .gitignore     # no trailing slash: it is a symlink
+bash .floppy/run link
+```
+
+Nothing has to be declared in the config. The layout is **derived** from where
+`memory_dir` resolves to, because a boolean in a config file would disagree
+with the filesystem exactly when it matters — a symlink that failed to be
+created would still read as "external" while every write landed in an ignored
+directory inside the code repository, where nothing would ever publish it.
+
+From there the rite closes two repositories instead of one:
+`guard` asks the store what changed and answers in the paths you typed,
+`check` shows the notes going out (this repository's diff is blind to them by
+construction), and `commit` commits and pushes both from one file list. A store
+that cannot be pushed makes `commit` fail loudly rather than print "session
+closed" over unpublished notes, and a `memory_dir` that resolves outside git
+altogether is named as such — it works for reading and writing and publishes
+nothing.
+
+Two costs worth knowing before choosing this. The memory stops being reviewed
+alongside the code, which for the in-repo layout is free. And the setup steps
+above are per machine and per worktree, done by hand; `bash .floppy/run status`
+reports the store's state in its own section so a machine that skipped them is
+visible rather than quietly writing into a directory nobody publishes.
+
 ## `quota.lock`
 
 A ratchet inside the memory directory — a total character budget, a

@@ -123,6 +123,28 @@ else
   echo "  ${link_out#x }"
 fi
 
+# ---------- memory hosted in another repository ----------
+# The "git" section above cannot see it: the memory path is gitignored here on
+# purpose. Without this section /start reports a clean tree while the session's
+# notes sit uncommitted somewhere else — the exact blindness the section exists
+# to remove.
+if [[ "${FLOPPY_MEMORY_EXTERNAL:-0}" == "1" ]]; then
+  hr "memory store"
+  st="${FLOPPY_MEMORY_STORE:-}"
+  if [[ -z "$st" ]]; then
+    echo "  $mem_dir -> ${FLOPPY_MEMORY_REAL:-?}, which is in no git repository — notes cannot be published"
+  else
+    st_dirty=$(git -C "$st" status --porcelain | wc -l | tr -d ' ')
+    st_ahead=$(git -C "$st" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
+    if [[ "$st_dirty" == "0" && "$st_ahead" == "0" ]]; then
+      echo "  $st — clean and pushed"
+    else
+      [[ "$st_dirty" != "0" ]] && echo "  $st_dirty uncommitted in $st"
+      [[ "$st_ahead" != "0" && "$st_ahead" != "?" ]] && echo "  $st_ahead unpushed in $st — the next machine cannot see them"
+    fi
+  fi
+fi
+
 # ---------- workplace memory ----------
 # A second repository this project's git does not see at all: $mem_dir/local
 # is a symlink into it. An unpushed note there blinds a second machine the

@@ -124,6 +124,45 @@ cfg_get() { # key default
 # .floppy/config directly (see floppy:agent-memory) — no script here acts on
 # it. An env var nothing consumes is worse than no var: it looks wired.
 export FLOPPY_MEMORY_DIR="$(cfg_get memory_dir .agent-memory)"
+
+# Is the memory inside this repository, or hosted in another one?
+#
+# Some consumers cannot commit memory next to the code — a client's checkout
+# they do not own, or a policy against agent notes in the code repository. For
+# those, memory_dir is a symlink (or an absolute path) into a separate git
+# repository, and the whole rite has to close two repositories instead of one.
+#
+# DERIVED, never configured. A boolean in .floppy/config would be a second
+# source of truth about a thing the filesystem already knows, and the two would
+# disagree exactly when it matters: a symlink that failed to get created reads
+# as "external" in the config while every write lands in an ordinary directory
+# inside the repository, where the ignore rule then hides it. Resolving the
+# path cannot be wrong about where a write goes.
+#
+# `cd && pwd -P` rather than `realpath`/`readlink -f`: macOS ships neither in
+# the form used here (BSD readlink has no -f), and this must run on bash 3.2.
+case "$FLOPPY_MEMORY_DIR" in
+  /*) _mem_abs="$FLOPPY_MEMORY_DIR" ;;
+  *)  _mem_abs="$FLOPPY_REPO/$FLOPPY_MEMORY_DIR" ;;
+esac
+if [[ -d "$_mem_abs" ]]; then _mem_real="$(cd "$_mem_abs" && pwd -P)"; else _mem_real="$_mem_abs"; fi
+_repo_real="$(cd "$FLOPPY_REPO" && pwd -P)"
+case "$_mem_real/" in
+  "$_repo_real"/*) FLOPPY_MEMORY_EXTERNAL=0 ;;
+  *)               FLOPPY_MEMORY_EXTERNAL=1 ;;
+esac
+# The store's own git root, not the memory directory: a memory hosted at
+# projects/<key>/memory inside a bigger repository is committed at that
+# repository's root. Empty when the memory is internal, and empty too when the
+# resolved path is outside this repository but not in any git repository at
+# all — which is a real setup (a plain directory in $HOME) that the rite must
+# report rather than pretend it can push.
+FLOPPY_MEMORY_STORE=""
+if [[ "$FLOPPY_MEMORY_EXTERNAL" == "1" && -d "$_mem_real" ]]; then
+  FLOPPY_MEMORY_STORE="$(git -C "$_mem_real" rev-parse --show-toplevel 2>/dev/null || true)"
+fi
+export FLOPPY_MEMORY_EXTERNAL FLOPPY_MEMORY_STORE
+export FLOPPY_MEMORY_REAL="$_mem_real"
 export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
 export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key '')"
 # $HOME/agents_memory is only a default, not a rule: it is one person's own

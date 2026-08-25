@@ -127,6 +127,83 @@ elif [[ $guard_rc -ne 0 ]]; then
 fi
 echo "  memory clean, file list matches"
 
+# ---------- memory hosted in another repository ----------
+# When memory_dir resolves outside this repository, the session wrote into two
+# git repositories and closing one of them is not closing the session: an
+# unpushed note in the store blinds the next machine exactly as an unpushed
+# commit here would, and this repository's `git status` says nothing about it.
+#
+# The list is split rather than asked for twice. The caller passes the files it
+# wrote, in the paths it wrote them — `.agent-memory/flow/x.md` — and this
+# translates the memory half into the store's own vocabulary. Requiring two
+# lists would mean the rite's text has to know which layout the consumer chose.
+external="${FLOPPY_MEMORY_EXTERNAL:-0}"
+store="${FLOPPY_MEMORY_STORE:-}"
+mem_real="${FLOPPY_MEMORY_REAL:-}"
+store_files=()
+proj_files=()
+if [[ "$external" == "1" ]]; then
+  mem_prefix=""
+  [[ -n "$store" && "$mem_real" != "$store" ]] && mem_prefix="${mem_real#"$store"/}"
+  for f in "${files[@]}"; do
+    f="${f#./}"
+    case "$f" in
+      "$mem_dir"/*) rel="${f#"$mem_dir"/}"
+                    store_files+=("${mem_prefix:+$mem_prefix/}$rel") ;;
+      *)            proj_files+=("$f") ;;
+    esac
+  done
+else
+  proj_files=("${files[@]}")
+fi
+
+store_unpushed=0
+if [[ ${#store_files[@]} -gt 0 ]]; then
+  hr "memory store"
+  if [[ -z "$store" ]]; then
+    echo "  $mem_dir is outside this repository but in no git repository at all."
+    echo "  Those notes cannot be published by anything. Nothing was committed."
+    exit 1
+  fi
+  echo "  repo:   $store"
+  git -C "$store" add -- "${store_files[@]}" || { echo "  git add failed in the store"; exit 1; }
+  sn=$(git -C "$store" diff --cached --name-only | wc -l | tr -d ' ')
+  if [[ "$sn" == "0" ]]; then
+    echo "  nothing to commit there (already committed by a parallel session?)"
+  elif ! git -C "$store" commit -q -m "$msg"; then
+    echo "  commit failed in the store — nothing committed here either"
+    exit 1
+  else
+    echo "  staged $sn file(s), $(git -C "$store" log --oneline -1)"
+  fi
+  # Pushed BEFORE this repository's commit is even made, for the same reason
+  # the project's own pull comes after its commit: a rebase wants local commits
+  # to replay. A failure here is loud but not fatal — the notes are committed
+  # and safe, and stopping the whole rite would leave the session half closed
+  # for a network problem.
+  if [[ $sync -eq 1 ]]; then
+    if git -C "$store" pull --rebase --quiet && { [[ $push -eq 0 ]] || git -C "$store" push --quiet; }; then
+      [[ $push -eq 1 ]] && echo "  pushed" || echo "  --no-push: memory commit stays local"
+    else
+      store_unpushed=1
+      echo "  ! sync failed — the memory is committed in $store but NOT pushed."
+      echo "    The next machine will not see these notes: git -C $store push"
+    fi
+  fi
+fi
+
+if [[ ${#proj_files[@]} -eq 0 ]]; then
+  hr "this repository"
+  echo "  nothing outside the memory was written — no commit here"
+  hr "lock"
+  bash "$here/wrap-lock.sh" release | sed 's/^/  /'
+  [[ $store_unpushed -eq 1 ]] && { printf '\nsession closed, but the memory store is NOT pushed.\n'; exit 1; }
+  printf '\nsession closed. Memory is committed and pushed in %s.\n' "$store"
+  exit 0
+fi
+set -- "${proj_files[@]}"
+files=("$@")
+
 # ---------- stage ----------
 # Enumerated, never a directory, and never `git add -A`: this tree holds nested
 # repositories and other people's working copies.
@@ -172,4 +249,8 @@ echo "  pushed to $(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}
 hr "lock"
 bash "$here/wrap-lock.sh" release | sed 's/^/  /'
 
+if [[ $store_unpushed -eq 1 ]]; then
+  printf '\nthis repository is closed, but the memory store is NOT pushed: git -C %s push\n' "$store"
+  exit 1
+fi
 printf '\nsession closed. Memory, slice and procedure are committed and pushed.\n'
