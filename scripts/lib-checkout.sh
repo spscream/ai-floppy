@@ -148,21 +148,22 @@ view_link() {
 }
 
 # refuse_old_scope <clone> <old-relative> <new-relative> [recipe-line...]
-# The scope names changed in 0.5.0. Migrating them behind the human's back is
+# The scope names have changed twice (0.5.0, 0.6.0). Migrating them behind the
+# human's back is
 # exactly what this plugin refuses to do with memory, and doing it on ONE
 # machine is worse than not doing it: until the other machine also runs 0.5.0,
 # one writes the old path while the other reads the new one, and the memory
 # forks with nothing red anywhere. So: refuse, and print the commands.
 refuse_old_scope() {
   ro_clone="$1"; ro_old="$2"; ro_new="$3"; shift 3
-  echo "x $ro_clone still uses the scope layout from before 0.5.0"
+  echo "x $ro_clone still uses an earlier scope layout"
   echo "    found:    $ro_old"
   echo "    expected: $ro_new"
   echo "  Update every machine that writes this repository FIRST. A half-migrated"
   echo "  pair of machines writes two scopes and neither one is complete."
   echo "  Then, once, on any of them:"
   for ro_line in "$@"; do echo "      $ro_line"; done
-  echo "      git -C \"$ro_clone\" commit -m 'memory scopes: <key>/shared and <key>/local'"
+  echo "      git -C \"$ro_clone\" commit -m 'memory scope: $ro_new'"
   echo "      git -C \"$ro_clone\" push"
   echo "  Nothing was changed here."
   return 1
