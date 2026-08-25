@@ -54,10 +54,16 @@ if [[ ${#files[@]} -eq 0 ]]; then
 fi
 
 hr() { printf '%s\n' "-- $1"; }
-# The lock is released on every exit path below, including a failed push: a
-# lock left behind by a finished session makes the next one wait half an hour
-# for a stale entry.
+# Released via a trap on EXIT, not by calling unlock at each exit path: a lock
+# left behind by a finished session makes the next one wait half an hour for a
+# stale entry, and an explicit call at every exit is exactly the shape that
+# already went missing once — four early gate/stage/commit failures skipped
+# it. A trap cannot be forgotten by a later edit that adds a fifth. Idempotent:
+# wrap-lock.sh release on an already-released lock is a no-op, so the visible
+# release printed at the end of a successful run and the trap's silent
+# safety-net call never conflict.
 unlock() { bash "$here/wrap-lock.sh" release >/dev/null 2>&1; }
+trap unlock EXIT
 
 # ---------- gates ----------
 hr "gates"
@@ -98,18 +104,15 @@ hr "sync"
 if ! git pull --rebase --quiet; then
   echo "  pull --rebase failed or conflicted. The commit is made and safe locally."
   echo "  Resolve it by hand, then push. Not pushing now."
-  unlock
   exit 1
 fi
 if [[ $push -eq 0 ]]; then
   echo "  --no-push: commit stays local. Two machines read master, so push soon."
-  unlock
   exit 0
 fi
 if ! git push --quiet; then
   echo "  push failed (network/VPN?). The commit is local; the second machine cannot see it."
   echo "  Retry: git push"
-  unlock
   exit 1
 fi
 echo "  pushed to $(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"

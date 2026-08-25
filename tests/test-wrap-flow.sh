@@ -4,6 +4,33 @@ cd "$(dirname "$0")/.."
 . tests/lib.sh
 ROOT="$(pwd)"
 
+# A minimal clean memory tree, for sandboxes built after the first one: every
+# `commit` call re-runs memory-lint.sh as its first gate, and a memory dir
+# with no MEMORY.md, or no notes at all, fails that gate before the commit
+# machinery is even reached.
+write_clean_memory() { # $1 = repo path
+  mkdir -p "$1/brain/half"
+  cat > "$1/brain/MEMORY.md" <<'EOFM'
+# Index
+- [Half](half/INDEX.md) — pointer
+EOFM
+  cat > "$1/brain/half/INDEX.md" <<'EOFM'
+# Half
+- [A note](a-note.md) — pointer
+EOFM
+  cat > "$1/brain/half/a-note.md" <<'EOFM'
+---
+name: a-note
+description: a note
+metadata:
+  type: project
+  evidence: read
+---
+Body.
+EOFM
+  printf 'notes_max=10\nchars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$1/brain/quota.lock"
+}
+
 # A bare repository stands in for the remote. Never a real one: this script
 # pushes, and a test that reaches a real remote is a test that publishes.
 remote="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare "$remote"
@@ -48,8 +75,9 @@ remote_before="$(git -C "$remote" rev-parse refs/heads/main)"
 # repository where everything is otherwise in order.
 printf 'edit\n' >> "$repo/state/NOW.md"
 before="$(git -C "$repo" rev-parse HEAD)"
-out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check state/NOW.md 2>&1)"
+out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check state/NOW.md 2>&1)"; rc1=$?
 after="$(git -C "$repo" rev-parse HEAD)"
+assert_rc       "check succeeds"               0         "$rc1"
 assert_eq       "check does not commit"        "$before" "$after"
 assert_eq       "check does not stage"         ""        "$(git -C "$repo" diff --cached --name-only)"
 assert_eq       "check does not push"          "$remote_before" "$(git -C "$remote" rev-parse refs/heads/main)"
@@ -157,4 +185,81 @@ assert_contains "pull-after-commit: the other machine's edit survived" "line1-fr
 assert_contains "pull-after-commit: this session's edit survived"      "line3-from-this-session"   "$final"
 
 rm -rf "$repoA" "$repoB" "$remote2"
+
+# ---------- the lock is released on every exit path, not just three of seven ----------
+# wrap-commit.sh used to call `unlock` only from the pull/push tail: a
+# memory-lint failure, a guard failure, a failed `git add` or a failed
+# `git commit` all skipped it, leaving a lock a finished session never
+# cleaned up. That gap was invisible while wrap-lock.sh's staleness check was
+# broken on macOS (fixed in Task 5a) — every leftover lock read as abandoned
+# and the next acquire just took it over. Fixing that check turned a dormant
+# leak into a real 30-minute block on every failed gate. Assert on the actual
+# `lock status` text, not just on exit code: a test that only checks rc would
+# not have caught this.
+repoL="$(sandbox)"; cp shim/run "$repoL/.floppy/run"
+cat > "$repoL/.floppy/config" <<'EOFLa'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFLa
+mkdir -p "$repoL/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoL/state/NOW.md"
+write_clean_memory "$repoL"
+git -C "$repoL" add -A
+git -C "$repoL" -c user.email=t@t -c user.name=t commit -qm base
+
+# 1. guard-red path: an unwatched file makes wrap-guard.sh fail.
+acqL1="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock acquire "guard-red-test" 2>&1)"
+assert_contains "lock-release setup: lock acquired before guard-red run" "ok lock acquired" "$acqL1"
+
+printf 'x\n' > "$repoL/stray.txt"
+outL1="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should fail" stray.txt 2>&1)"; rcL1=$?
+assert_rc "guard-red commit fails" 1 "$rcL1"
+statusL1="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 2>&1)"
+assert_contains "guard-red path: lock is free afterwards" "free" "$statusL1"
+rm -f "$repoL/stray.txt"
+
+# 2. memory-lint-red path: an index pointer to a note that no longer exists.
+rm -f "$repoL/brain/half/a-note.md"
+acqL2="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock acquire "lint-red-test" 2>&1)"
+assert_contains "lock-release setup: lock acquired before lint-red run" "ok lock acquired" "$acqL2"
+
+outL2="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should fail" state/NOW.md 2>&1)"; rcL2=$?
+assert_rc "memory-lint-red commit fails" 1 "$rcL2"
+statusL2="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 2>&1)"
+assert_contains "memory-lint-red path: lock is free afterwards" "free" "$statusL2"
+
+rm -rf "$repoL"
+
+# 3. the success path still releases exactly once, and still tells the human.
+remoteL="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare "$remoteL"
+repoL2="$(sandbox)"; cp shim/run "$repoL2/.floppy/run"
+cat > "$repoL2/.floppy/config" <<'EOFLb'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFLb
+mkdir -p "$repoL2/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoL2/state/NOW.md"
+write_clean_memory "$repoL2"
+git -C "$repoL2" add -A
+git -C "$repoL2" -c user.email=t@t -c user.name=t commit -qm base
+git -C "$repoL2" remote add origin "$remoteL"
+git -C "$repoL2" push -q -u origin main
+
+printf 'edit\n' >> "$repoL2/state/NOW.md"
+acqL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock acquire "success-test" 2>&1)"
+assert_contains "lock-release setup: lock acquired before success run" "ok lock acquired" "$acqL3"
+
+outL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "ok" state/NOW.md 2>&1)"; rcL3=$?
+assert_rc "success path commit succeeds" 0 "$rcL3"
+n_reports="$(printf '%s\n' "$outL3" | grep -c 'ok lock released')"
+assert_eq "success path reports the release exactly once" "1" "$n_reports"
+statusL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 2>&1)"
+assert_contains "success path: lock is free afterwards" "free" "$statusL3"
+
+rm -rf "$repoL2" "$remoteL"
+
 summary
