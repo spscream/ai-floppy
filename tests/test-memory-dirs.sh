@@ -248,5 +248,47 @@ assert_contains "and says so"                    "points elsewhere" "$OUT"
 
 rm -rf "$W7"
 
+
+# ---------- 8. wiring left under the pre-0.6.0 name is removed when it dangles ----------
+# The rename from `local` to `private` leaves the old link behind, pointing at
+# a path the git mv emptied. Two links where one is broken is a puzzle for
+# whoever opens the directory next; a dangling symlink this verb created has
+# nothing behind it to lose.
+W8="$(mktemp -d)"; H8="$W8/home"; mkdir -p "$H8"
+mk_remote "$W8/wp.git" workplace
+repo8="$(mk_consumer "memory_dir=.agent-memory
+agents_memory_dir=$H8/agents_memory
+project_key=acme
+workplace_repo=$W8/wp.git")"
+mkdir -p "$repo8/.agent-memory"
+run_verb "$repo8" "$H8" workplace
+assert_rc "wires up under the new name" 0 "$RC"
+
+# The two links a 0.5.x machine would have, both now pointing nowhere.
+ln -s "$H8/agents_memory/.clones/wp/projects/acme/local" "$repo8/.agent-memory/local"
+ln -s "../.clones/wp/projects/acme/local" "$H8/agents_memory/acme/local"
+assert_eq "setup: the old links dangle" "2" \
+  "$(( $([[ -L "$repo8/.agent-memory/local" && ! -e "$repo8/.agent-memory/local" ]] && echo 1 || echo 0) + $([[ -L "$H8/agents_memory/acme/local" && ! -e "$H8/agents_memory/acme/local" ]] && echo 1 || echo 0) ))"
+
+run_verb "$repo8" "$H8" workplace
+assert_rc       "a second run still succeeds"        0 "$RC"
+assert_contains "and says it removed them" "removed the dangling" "$OUT"
+assert_eq "the old link in the repository is gone" "1" \
+  "$([[ -e "$repo8/.agent-memory/local" || -L "$repo8/.agent-memory/local" ]] && echo 0 || echo 1)"
+assert_eq "the old link in the view is gone"       "1" \
+  "$([[ -e "$H8/agents_memory/acme/local" || -L "$H8/agents_memory/acme/local" ]] && echo 0 || echo 1)"
+assert_eq "the new link still works"          "0" \
+  "$([[ -d "$repo8/.agent-memory/private" ]] && echo 0 || echo 1)"
+
+# A link under the old name that still RESOLVES is not touched: it points at
+# something real, and this verb does not decide what that is.
+mkdir -p "$W8/somewhere"
+ln -s "$W8/somewhere" "$repo8/.agent-memory/local"
+run_verb "$repo8" "$H8" workplace
+assert_eq "a live link under the old name is left alone" "0" \
+  "$([[ -L "$repo8/.agent-memory/local" ]] && echo 0 || echo 1)"
+
+rm -rf "$W8"
+
 rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
 summary

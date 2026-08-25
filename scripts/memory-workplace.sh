@@ -232,6 +232,24 @@ else
   echo "ok linked: $mem_dir/$priv -> $view"
 fi
 
+# ---------- wiring left under an earlier name ----------
+# The rename left two links where one is broken: this verb created the old one
+# under the name the scope had then, and after the move it points at a path
+# that no longer exists. Removing a DANGLING symlink is not deciding the fate
+# of memory — there is nothing behind it, and this verb made it. A link that
+# still resolves is left alone: it points at something real, and what that is
+# is not this script's call.
+for legacy_name in local; do
+  [[ "$legacy_name" == "$priv" ]] && continue
+  for legacy_path in "$repo/$mem_dir/$legacy_name" \
+                     "${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/$legacy_name"; do
+    if [[ -L "$legacy_path" && ! -e "$legacy_path" ]]; then
+      rm -f "$legacy_path"
+      echo "ok removed the dangling $legacy_name link left by the rename: $legacy_path"
+    fi
+  done
+done
+
 # ---------- the link itself must not be committed ----------
 # With a store (`bash .floppy/run store`), memory_dir is already a symlink, so
 # this link is created INSIDE the store's working tree. It holds an absolute

@@ -14,6 +14,23 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.6.1 — 2026-08-25
+
+**Refresh `.floppy/run`: no.**
+
+- The rename left the old `local` link behind, pointing at a path the `git mv`
+  had emptied — two links in the memory directory, one of them broken, on every
+  machine that migrates. `workplace` now removes it, but only while it dangles:
+  there is nothing behind a dangling symlink this verb created itself. A link
+  under the old name that still resolves points at something real and is left
+  alone.
+- The refusal named the layout by the version it predates ("before 0.5.0")
+  while refusing a 0.5.1 layout, and the commit line it suggested still spelled
+  the old scope. Both were read on a live migration a minute after the release
+  that made them wrong.
+
+423 asserts, up from 415.
+
 ## 0.6.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (new key name). **The private scope is renamed —
