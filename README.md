@@ -233,6 +233,36 @@ does not contain it.
 deliberate. With a default, a repository could write into the private memory of
 a different person.
 
+### Where the checkouts are
+
+`agents_memory_dir` is one directory that contains the checkouts. It is not a
+checkout itself. Each memory repository gets one directory below it, and the
+name of that directory is the name of the repository in its URL.
+
+An example. The configuration is:
+
+```
+agents_memory_dir=$HOME/agents_memory
+memory_repo=git@example.com:team/notes-store.git
+memory_project_key=acme
+workplace_repo=git@example.com:workplace/agents-memory.git
+workplace_project_key=acme
+```
+
+The result on disk is:
+
+```
+~/agents_memory/                     <- agents_memory_dir
+   notes-store/                      <- clone of memory_repo
+      projects/acme/memory/          <- memory_project_key, and <memory_dir> points here
+   agents-memory/                    <- clone of workplace_repo
+      projects/acme/                 <- workplace_project_key, and <memory_dir>/local points here
+```
+
+You write no path in this tree. floppy makes each directory name from the URL
+above it. If both keys hold the same URL, there is one clone, and both scopes
+are in it.
+
 ### Two memory repositories on one machine
 
 A project can use `store` and `workplace` together. `store` moves all of the

@@ -197,7 +197,11 @@ _checkout_dir() {
   # Nothing configured: the parent is the honest answer, and the verbs refuse
   # on the missing URL rather than on a path.
   if [[ -z "$_cd_url" ]]; then printf '%s\n' "$FLOPPY_AGENTS_MEMORY_DIR"; return; fi
-  _cd_slug="${_cd_url%/}"; _cd_slug="${_cd_slug##*/}"; _cd_slug="${_cd_slug%.git}"
+  # Name the directory after the repository in the URL. The colon strip is for
+  # the scp-style form with no path segment (git@host:repo.git), where cutting
+  # at the last slash alone would leave "git@host:repo" as a directory name.
+  _cd_slug="${_cd_url%/}"; _cd_slug="${_cd_slug##*/}"; _cd_slug="${_cd_slug##*:}"
+  _cd_slug="${_cd_slug%.git}"
   _cd_derived="$FLOPPY_AGENTS_MEMORY_DIR/$_cd_slug"
   if [[ -d "$_cd_derived/.git" ]]; then printf '%s\n' "$_cd_derived"; return; fi
   # The layout from before this change: one checkout directly at the parent.

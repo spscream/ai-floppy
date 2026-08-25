@@ -39,7 +39,9 @@ fixed.
   `projects/<key>/memory/local/memory/local/...` recurses without limit. It is
   per-machine wiring, and every machine runs the verb anyway, so the store is
   now told to ignore it.
-- New key `agents_memory_dir` (default `$HOME/agents_memory`). `memory_repo_dir`
+- New key `agents_memory_dir` (default `$HOME/agents_memory`), with a worked
+  example of the resulting tree in the README — the layout was described in
+  words only, and "the parent" named nothing a reader could point at. `memory_repo_dir`
   and `workplace_memory_dir` remain as per-machine overrides. **Nothing to
   migrate:** a checkout already sitting at the parent is adopted once its
   `origin` matches, and the verb says so.
@@ -47,7 +49,7 @@ fixed.
   commands that undo the nesting. `scripts/lib-checkout.sh` now holds the half
   of the two verbs that was duplicated — and had already drifted.
 
-402 asserts, up from 377.
+405 asserts, up from 377.
 
 ## 0.4.1 — 2026-08-25
 

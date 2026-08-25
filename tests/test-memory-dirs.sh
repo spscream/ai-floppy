@@ -179,5 +179,24 @@ printf 'private\n' > "$repo5/.agent-memory/local/note.md"
 assert_eq "a note through it still reaches the workplace repository" "0" \
   "$([[ -f "$H5/agents_memory/wp/projects/acme/note.md" ]] && echo 0 || echo 1)"
 
-rm -rf "$W1" "$W2" "$W3" "$W4" "$W5"
+# ---------- 6. the directory name comes from the repository, not the URL ----------
+# Resolution only: `env` prints what the shim derived and clones nothing, so
+# this can use URL shapes no test could clone — including the scp-style form
+# with no path segment, where cutting at the last slash alone would name the
+# directory "git@example.com:repo".
+W6="$(mktemp -d)"; H6="$W6/home"; mkdir -p "$H6"
+for u in "git@example.com:team/notes-store.git=notes-store" \
+         "https://example.com/team/notes-store=notes-store" \
+         "git@example.com:repo.git=repo"; do
+  url="${u%=*}"; want="${u#*=}"
+  r="$(mk_consumer "memory_dir=.agent-memory
+agents_memory_dir=$H6/agents_memory
+workplace_repo=$url
+workplace_project_key=acme")"
+  got="$(cd "$r" && HOME="$H6" AI_FLOPPY_HOME="$ROOT" CLAUDE_PLUGIN_ROOT= \
+    bash .floppy/run env 2>/dev/null | sed -n 's/^FLOPPY_WORKPLACE_MEMORY_DIR=//p')"
+  assert_eq "checkout for $url is named $want" "$H6/agents_memory/$want" "$got"
+done
+
+rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
 summary
