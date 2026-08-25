@@ -33,7 +33,7 @@ EOFM
 
 # A bare repository stands in for the remote. Never a real one: this script
 # pushes, and a test that reaches a real remote is a test that publishes.
-remote="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare "$remote"
+remote="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remote"
 repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
 cat > "$repo/.floppy/config" <<'EOF2'
 memory_dir=brain
@@ -137,7 +137,7 @@ rm -rf "$repo" "$remote"
 # two machines edit different lines of the same file, the other one pushes
 # first, and this session's edit is still sitting uncommitted when `commit`
 # runs.
-remote2="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare "$remote2"
+remote2="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remote2"
 repoA="$(sandbox)"; cp shim/run "$repoA/.floppy/run"
 cat > "$repoA/.floppy/config" <<'EOF3'
 memory_dir=brain
@@ -241,7 +241,7 @@ assert_contains "memory-lint-red path: lock is free afterwards" "free" "$statusL
 rm -rf "$repoL"
 
 # 3. the success path still releases exactly once, and still tells the human.
-remoteL="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare "$remoteL"
+remoteL="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remoteL"
 repoL2="$(sandbox)"; cp shim/run "$repoL2/.floppy/run"
 cat > "$repoL2/.floppy/config" <<'EOFLb'
 memory_dir=brain

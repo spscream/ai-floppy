@@ -85,7 +85,7 @@ rm -rf "$repo4" "$home4"
 
 # same check for memory-workplace.sh, which needs a real git remote to clone.
 wrepo="$(mktemp -d)"
-git init -q --bare "$wrepo/remote.git"
+git init -q --bare -b main "$wrepo/remote.git"
 seed="$(mktemp -d)"
 git -C "$seed" init -q -b main
 git -C "$seed" -c user.email=a@b.c -c user.name=a commit -q --allow-empty -m init
