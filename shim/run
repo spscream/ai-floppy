@@ -294,6 +294,30 @@ export FLOPPY_WORKPLACE_MEMORY_DIR="$(_checkout_dir "$FLOPPY_WORKPLACE_REPO" "$(
 export FLOPPY_MEMORY_PRIVATE_DIR="$(cfg_get memory_private_dir private)"
 # The old variable name, for a plugin script or a project hook still reading it.
 export FLOPPY_MEMORY_LOCAL_DIR="$FLOPPY_MEMORY_PRIVATE_DIR"
+
+# The private scope can be a symlink into the workplace repository while the
+# rest of the memory sits in this one — the common shape, and a SECOND foreign
+# repository. Nothing derived it before, so the gates asked this repository's
+# `git status` about a path this repository ignores by design, were told
+# "unchanged", and refused the commit as "wrong path, or the edit was lost".
+#
+# Derived, never configured, for the same reason FLOPPY_MEMORY_EXTERNAL is: a
+# key in a file would disagree with the filesystem exactly when the symlink is
+# the thing that failed to be created.
+FLOPPY_PRIVATE_REAL=""
+FLOPPY_PRIVATE_STORE=""
+_priv="$FLOPPY_MEMORY_REAL/$FLOPPY_MEMORY_PRIVATE_DIR"
+if [[ -d "$_priv" ]]; then
+  FLOPPY_PRIVATE_REAL="$(cd "$_priv" && pwd -P)"
+  _priv_top="$(git -C "$FLOPPY_PRIVATE_REAL" rev-parse --show-toplevel 2>/dev/null || true)"
+  # Only a DIFFERENT repository counts. A plain private/ directory inside the
+  # committed memory is this repository's own business, already covered by
+  # every gate here, and giving it a second one would double-report it.
+  if [[ -n "$_priv_top" && "$_priv_top" != "$_repo_real" && "$_priv_top" != "$FLOPPY_MEMORY_STORE" ]]; then
+    FLOPPY_PRIVATE_STORE="$_priv_top"
+  fi
+fi
+export FLOPPY_PRIVATE_REAL FLOPPY_PRIVATE_STORE
 # Where this project's memory is hosted when it cannot live in this repository.
 # No defaults, deliberately: a project that never opted in must not be pointed
 # at somebody else's store. Read by `store`; the rest of the rite derives the

@@ -213,4 +213,91 @@ run_in "$repo2" status
 assert_contains "status says nothing can publish it" "no git repository" "$OUT"
 
 rm -rf "$repo" "$store" "$storeremote" "$plain" "$loose" "$repo2"
+
+# ---------- the OTHER two-repository shape: memory here, private scope there ----------
+# Reported by the owner on a Linux machine: /wrap could not commit a note
+# written into the private memory. Everything above covers the shape where the
+# WHOLE memory is foreign. This is the common one instead — the memory lives in
+# the code repository and only <memory_dir>/<private_dir> is a symlink into the
+# workplace repository — and no gate knew about it. wrap-guard asked THIS
+# repository's `git status` about a path this repository ignores by design, was
+# told nothing had changed, and refused with "not changed: wrong path, or the
+# edit was lost" while the note sat on disk and `workplace` had just reported
+# that a write through the link lands in the workplace repository.
+B="$(cd "$(mktemp -d)" && pwd -P)"
+wpremote="$B/wp.git"; git init -q --bare -b main "$wpremote"
+git clone -q "$wpremote" "$B/seed" 2>/dev/null
+mkdir -p "$B/seed/private/projects/acme"
+printf -- '---\nname: seed\ndescription: seed\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$B/seed/private/projects/acme/seed.md"
+git -C "$B/seed" add -A
+git -C "$B/seed" -c user.email=t@t -c user.name=t commit -qm seed
+git -C "$B/seed" push -q origin main
+
+pr="$B/repo"; mkdir -p "$pr/.floppy" "$pr/.agent-memory/half" "$pr/docs/statuses" "$B/am"
+git -C "$pr" init -q -b main .
+cp shim/run "$pr/.floppy/run"
+printf 'project_key=acme\nprivate_repo=%s\nagents_memory_dir=%s\nstatuses_now=docs/statuses/NOW.md\ncommit_push=auto\n' \
+  "$wpremote" "$B/am" > "$pr/.floppy/config"
+printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$pr/.agent-memory/MEMORY.md"
+printf '# Half\n- [A note](a-note.md) — pointer\n' > "$pr/.agent-memory/half/INDEX.md"
+printf -- '---\nname: a-note\ndescription: a note\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$pr/.agent-memory/half/a-note.md"
+printf '| Notes | 1 | 2 | up |\n' > "$pr/docs/statuses/NOW.md"
+printf '/.agent-memory/private\n' > "$pr/.gitignore"
+git -C "$pr" add -A
+git -C "$pr" -c user.email=t@t -c user.name=t commit -qm base
+git init -q --bare -b main "$B/code.git"
+git -C "$pr" remote add origin "$B/code.git"; git -C "$pr" push -q -u origin main
+
+(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run workplace >/dev/null 2>&1)
+assert_eq "the private scope is wired as a symlink" "link" \
+  "$([[ -L "$pr/.agent-memory/private" ]] && echo link || echo no)"
+
+printf -- '---\nname: private-fact\ndescription: a private fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$pr/.agent-memory/private/private-fact.md"
+
+outP="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check .agent-memory/private/private-fact.md 2>&1)"; rcP=$?
+assert_rc       "check accepts a note written into the private scope" 0 "$rcP"
+case "$outP" in
+  *"not changed: wrong path"*) fail "and does not call it unchanged" "no such line" "$outP" ;;
+  *)                           ok   "and does not call it unchanged" ;;
+esac
+
+outC="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "a private fact" .agent-memory/private/private-fact.md 2>&1)"; rcC=$?
+assert_rc       "commit closes the workplace repository (rc)" 0 "$rcC"
+assert_contains "and says which repository took it"  "workplace memory" "$outC"
+assert_contains "and reports the push"               "pushed" "$outC"
+assert_contains "the note is in the workplace remote" "private/projects/acme/private-fact.md" \
+  "$(git --git-dir="$wpremote" ls-tree -r --name-only main)"
+assert_eq       "and the code repository gained no commit" "base" \
+  "$(git -C "$pr" log --format=%s -1)"
+assert_eq       "and its tree is clean"                    "" \
+  "$(git -C "$pr" status --porcelain)"
+
+# A change in the workplace repository that this session did not claim belongs
+# to the other machine or another session, and the guard has to see it — that
+# is the whole reason it asks that repository at all.
+printf 'stray\n' > "$pr/.agent-memory/private/not-mine.md"
+outS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard .agent-memory/half/a-note.md 2>&1)"; rcS=$?
+assert_rc       "an unclaimed private note is caught (rc)" 1 "$rcS"
+assert_contains "and is named in the path the human typed" \
+  ".agent-memory/private/not-mine.md" "$outS"
+rm -f "$pr/.agent-memory/private/not-mine.md"
+
+# One call, two repositories: each file goes to the one that owns it.
+printf -- '---\nname: second\ndescription: another private fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$pr/.agent-memory/private/second.md"
+printf '| Notes | 1 | 3 | up |\n' > "$pr/docs/statuses/NOW.md"
+outM="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "both at once" \
+  .agent-memory/private/second.md docs/statuses/NOW.md 2>&1)"; rcM=$?
+assert_rc       "a mixed commit succeeds (rc)" 0 "$rcM"
+assert_contains "the private note is in the workplace remote" "private/projects/acme/second.md" \
+  "$(git --git-dir="$wpremote" ls-tree -r --name-only main)"
+assert_eq       "the project file is committed here" "both at once" \
+  "$(git -C "$pr" log --format=%s -1)"
+assert_eq       "and the private note is NOT in this repository" "" \
+  "$(git -C "$pr" ls-tree -r --name-only HEAD | grep private || true)"
+rm -rf "$B"
+
 summary

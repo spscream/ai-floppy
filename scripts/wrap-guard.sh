@@ -135,6 +135,34 @@ if [[ "$external" == "1" && -n "$store" ]]; then
   done < <(git -C "$store" status --porcelain --untracked-files=all -- "${mem_prefix:-.}" 2>/dev/null)
 fi
 
+# The same question again, of the workplace repository, when the private scope
+# is a symlink into it. This one is not covered by the block above: there the
+# WHOLE memory is foreign, here only the private scope is, and the two shapes
+# coexist. Answers are translated back into the path the human typed —
+# `.agent-memory/private/x.md`, not `private/projects/<key>/x.md`, which names
+# a file they cannot find in their own tree.
+priv_store="${FLOPPY_PRIVATE_STORE:-}"
+priv_real="${FLOPPY_PRIVATE_REAL:-}"
+priv_dir="${FLOPPY_MEMORY_PRIVATE_DIR:-private}"
+priv_prefix=""
+[[ -n "$priv_store" && "$priv_real" != "$priv_store" ]] && priv_prefix="${priv_real#"$priv_store"/}"
+if [[ -n "$priv_store" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    path="${line:3}"
+    [[ "$path" == *" -> "* ]] && path="${path##* -> }"
+    path="${path%\"}"; path="${path#\"}"
+    if [[ -n "$priv_prefix" ]]; then
+      case "$path" in
+        "$priv_prefix"/*) path="${path#"$priv_prefix"/}" ;;
+        *) continue ;;   # another project's scope in the same repository
+      esac
+    fi
+    changed_set="$changed_set$mem_dir/$priv_dir/$path
+"
+  done < <(git -C "$priv_store" status --porcelain --untracked-files=all -- "${priv_prefix:-.}" 2>/dev/null)
+fi
+
 # ---------- other people's work in flight ----------
 hr "changed but not yours"
 while IFS= read -r path; do

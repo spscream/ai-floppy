@@ -157,7 +157,10 @@ if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
     if [[ "$wp_dirty" == "0" && "$wp_ahead" == "0" ]]; then
       echo "  clean and pushed"
     else
-      [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) in $wp — commit them there separately"
+      # "separately" was true until commit learned to close this repository
+      # too; leaving it would send the human to do by hand what the next call
+      # does for them — and, worse, to commit notes this session never claimed.
+      [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) in $wp — name them in your file list and commit closes them too"
       [[ "$wp_ahead" != "0" && "$wp_ahead" != "?" ]] && echo "  $wp_ahead commit(s) unpushed — the second machine cannot see them"
     fi
   fi

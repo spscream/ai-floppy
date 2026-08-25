@@ -162,10 +162,34 @@ store="${FLOPPY_MEMORY_STORE:-}"
 mem_real="${FLOPPY_MEMORY_REAL:-}"
 store_files=()
 proj_files=()
+
+# The private scope first, because its paths also match "$mem_dir"/* below and
+# the split there would send them to the wrong repository. Only when the scope
+# really is a symlink into another repository: a plain private/ directory in
+# the committed memory belongs to this one and falls through untouched.
+priv_store="${FLOPPY_PRIVATE_STORE:-}"
+priv_real="${FLOPPY_PRIVATE_REAL:-}"
+priv_dir="${FLOPPY_MEMORY_PRIVATE_DIR:-private}"
+priv_prefix=""
+[[ -n "$priv_store" && "$priv_real" != "$priv_store" ]] && priv_prefix="${priv_real#"$priv_store"/}"
+priv_files=()
+if [[ -n "$priv_store" ]]; then
+  _rest=()
+  for f in "${files[@]+"${files[@]}"}"; do
+    f="${f#./}"
+    case "$f" in
+      "$mem_dir/$priv_dir"/*) rel="${f#"$mem_dir/$priv_dir"/}"
+                              priv_files+=("${priv_prefix:+$priv_prefix/}$rel") ;;
+      *)                      _rest+=("$f") ;;
+    esac
+  done
+  files=("${_rest[@]+"${_rest[@]}"}")
+fi
+
 if [[ "$external" == "1" ]]; then
   mem_prefix=""
   [[ -n "$store" && "$mem_real" != "$store" ]] && mem_prefix="${mem_real#"$store"/}"
-  for f in "${files[@]}"; do
+  for f in "${files[@]+"${files[@]}"}"; do
     f="${f#./}"
     case "$f" in
       "$mem_dir"/*) rel="${f#"$mem_dir"/}"
@@ -174,7 +198,7 @@ if [[ "$external" == "1" ]]; then
     esac
   done
 else
-  proj_files=("${files[@]}")
+  proj_files=("${files[@]+"${files[@]}"}")
 fi
 
 store_unpushed=0
@@ -218,13 +242,52 @@ if [[ ${#store_files[@]} -gt 0 ]]; then
   fi
 fi
 
+priv_unpushed=0
+if [[ ${#priv_files[@]} -gt 0 ]]; then
+  hr "workplace memory"
+  echo "  repo:   $priv_store"
+  priv_add=()
+  for f in "${priv_files[@]}"; do
+    needs_staging "$priv_store" "$f" && priv_add+=("$f")
+  done
+  if [[ ${#priv_add[@]} -gt 0 ]]; then
+    git -C "$priv_store" add -- "${priv_add[@]}" || { echo "  git add failed in the workplace repository"; exit 1; }
+  fi
+  pn=$(git -C "$priv_store" diff --cached --name-only | wc -l | tr -d ' ')
+  if [[ "$pn" == "0" ]]; then
+    echo "  nothing to commit there (already committed by a parallel session?)"
+  elif ! git -C "$priv_store" commit -q -m "$msg"; then
+    echo "  commit failed in the workplace repository — nothing committed here either"
+    exit 1
+  else
+    echo "  staged $pn file(s), $(git -C "$priv_store" log --oneline -1)"
+  fi
+  # Pushed before this repository's commit, for the same reason the store is:
+  # a rebase wants local commits to replay. A failure is loud but not fatal —
+  # the notes are committed and safe, and a network problem must not leave the
+  # session half closed.
+  if [[ $sync -eq 1 ]]; then
+    if git -C "$priv_store" pull --rebase --quiet && { [[ $push -eq 0 ]] || git -C "$priv_store" push --quiet; }; then
+      [[ $push -eq 1 ]] && echo "  pushed" || echo "  --no-push: the private notes stay local"
+    else
+      priv_unpushed=1
+      echo "  ! sync failed — the notes are committed in $priv_store but NOT pushed."
+      echo "    The other machine will not see them: git -C $priv_store push"
+    fi
+  fi
+fi
+
 if [[ ${#proj_files[@]} -eq 0 ]]; then
   hr "this repository"
   echo "  nothing outside the memory was written — no commit here"
   hr "lock"
   bash "$here/wrap-lock.sh" release | sed 's/^/  /'
   [[ $store_unpushed -eq 1 ]] && { printf '\nsession closed, but the memory store is NOT pushed.\n'; exit 1; }
-  printf '\nsession closed. Memory is committed and pushed in %s.\n' "$store"
+  [[ $priv_unpushed -eq 1 ]] && { printf '\nsession closed, but the workplace memory is NOT pushed.\n'; exit 1; }
+  # Which repository actually took the notes, named rather than assumed: with
+  # only private notes written, $store is empty and the old line claimed a
+  # store that had closed nothing.
+  printf '\nsession closed. Memory is committed and pushed in %s.\n' "${store:-$priv_store}"
   exit 0
 fi
 set -- "${proj_files[@]}"
@@ -283,6 +346,10 @@ bash "$here/wrap-lock.sh" release | sed 's/^/  /'
 
 if [[ $store_unpushed -eq 1 ]]; then
   printf '\nthis repository is closed, but the memory store is NOT pushed: git -C %s push\n' "$store"
+  exit 1
+fi
+if [[ $priv_unpushed -eq 1 ]]; then
+  printf '\nthis repository is closed, but the workplace memory is NOT pushed: git -C %s push\n' "$priv_store"
   exit 1
 fi
 printf '\nsession closed. Memory, slice and procedure are committed and pushed.\n'

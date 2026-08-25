@@ -14,6 +14,42 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.11.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (the shim derives one more path). **`commit` now
+closes a third repository** — the workplace one — where before it refused to
+commit into it at all.
+
+Reported from a Linux machine: `/wrap` could not commit a note written into the
+private memory. Reproduced here, in both `commit_push` modes, so the mode was
+never the cause:
+
+    x .agent-memory/private/private-fact.md — not changed: wrong path, or the
+      edit was lost
+    (a parallel session may have written between check and commit)
+
+- The gates knew two shapes and this was the third. `FLOPPY_MEMORY_EXTERNAL`
+  covers the whole memory being foreign; the common shape is the memory living
+  in the code repository with only `<memory_dir>/<private_dir>` symlinked into
+  the workplace repository. Neither `wrap-guard.sh` nor `wrap-commit.sh`
+  contained the word. So the guard asked THIS repository's `git status` about a
+  path this repository ignores by design, was told nothing had changed, and
+  refused — while the note sat on disk and `workplace` had just reported that a
+  write through the link lands in the workplace repository.
+- The diagnosis it printed was wrong twice over: the path was right, the edit
+  was not lost, and no parallel session was involved. A gate that refuses is
+  fine; a gate that refuses with a false reason sends the next hour somewhere
+  else.
+- `commit` now stages, commits and pushes those files in the workplace
+  repository, the way it already did for a store, and leaves the code
+  repository untouched. A call naming files of both kinds closes both.
+- The `check` line that said workplace changes must be committed "there
+  separately" now says to name them in the file list instead. It was true until
+  this release and would have sent the human to commit by hand what the next
+  call does — including notes this session never claimed.
+
+481 asserts, up from 466.
+
 ## 0.10.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (the shim now refuses a variable that names a
