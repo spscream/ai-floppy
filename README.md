@@ -1,284 +1,359 @@
 # floppy
 
-A session ritual for coding agents: durable, git-committed memory for a
-repository, a `start` rite that orients a fresh session, a `wrap` rite that
-closes one, and the guards that keep both honest (a file-list gate, a memory
-linter, a per-session lock). Ships as a plugin for both Claude Code and
-Cursor.
+floppy is a plugin for Claude Code and Cursor. It gives a coding agent two
+things: a memory that stays in your repository, and two procedures that use
+that memory.
+
+- The `start` procedure tells the agent where the last session stopped.
+- The `wrap` procedure saves what this session learned.
+- Three checks keep the procedures correct: a file-list check, a memory
+  linter, and a session lock.
+
+The memory is a set of markdown files. Git holds them with your code. A second
+machine gets the memory with one clone.
 
 ## Requirements
 
-- **A harness that loads plugins** — Claude Code or Cursor. Nothing here is a
-  standalone tool: the rites are skills, and the scripts exist to be called by
-  them.
-- **`bash` and `git`, and a git repository.** Every verb derives its paths from
-  the repository root and refuses to run outside one rather than guessing.
-- **macOS or Linux.** The suite runs on both in CI, and the macOS job is
-  pinned to `/bin/bash` — 3.2.57 — because the scripts are required to work
-  there: no `mapfile`, no `declare -A`, no GNU-only flags. Windows is used only
-  through WSL, which is a Linux shell as far as these scripts are concerned;
-  nothing is tested against a native Windows one.
-- Nothing else. No runtime beyond the shell, no network access except the
-  `git` calls you can read in the scripts.
+- **Claude Code or Cursor.** floppy is a plugin. It is not a separate program.
+- **`bash`, `git`, and a git repository.** Each command finds its paths from
+  the repository root. Outside a repository, each command stops with an error.
+  It does not guess.
+- **macOS or Linux.** CI runs the tests on both systems. The macOS job uses
+  `/bin/bash` version 3.2.57. All scripts must work with that version.
+- **Nothing more.** The scripts need no other program. They use the network
+  only for the `git` commands that you can read in the source.
+
+For Windows, use WSL. WSL is a Linux shell for these scripts. No test uses a
+native Windows shell.
 
 ## Install
 
-Claude Code:
+### Claude Code
 
 ```
 claude plugin marketplace add spscream/ai-floppy
 claude plugin install floppy@floppy
 ```
 
-(equivalently, inside a session: `/plugin marketplace add spscream/ai-floppy`
-then `/plugin install floppy@floppy` — the marketplace and the plugin inside
-it are both named `floppy`, hence the repeated name)
+You can do the same in a session. Use `/plugin marketplace add
+spscream/ai-floppy`, then `/plugin install floppy@floppy`.
 
-Cursor, from the repository: Dashboard → Plugins → Add Marketplace → Import
-from Repo, pointing at `spscream/ai-floppy`; then Customize (sidebar) → find
-`floppy` → Install. This needs Cursor to be able to read the repository, so a
-private one has to be reachable by whatever account Cursor is signed in as.
+The name `floppy` occurs two times in the second command. The marketplace has
+this name. The plugin inside the marketplace has the same name.
 
-Cursor, from a local checkout — the documented way to try a plugin without a
-marketplace at all, and the one to use while developing:
+### Cursor, from the repository
+
+1. Open Dashboard → Plugins → Add Marketplace → Import from Repo.
+2. Enter `spscream/ai-floppy`.
+3. Open Customize in the sidebar.
+4. Find `floppy` and install it.
+
+Cursor must be able to read the repository. If the repository is private, sign
+in to Cursor with an account that has access to it.
+
+### Cursor, from a local copy
+
+Use this method during development of the plugin. You can also use it to try
+the plugin without a marketplace.
 
 ```
 mkdir -p ~/.cursor/plugins/local
 ln -s /path/to/ai-floppy ~/.cursor/plugins/local/floppy
 ```
 
-Restart Cursor afterwards. Nothing else is needed: the manifest at
-`.cursor-plugin/plugin.json` is found from there, and `skills/` with it.
+Then start Cursor again. Cursor reads `.cursor-plugin/plugin.json` and the
+`skills/` directory from that location.
 
-Cursor can have several projects open at once, and a skill invoked there runs
-its shell commands in whichever one the harness happens to land it in — the
-skill itself has no say. Every rite names that repository as the first line
-of its output (`repo: /path/to/it`), so check it before trusting the rest,
-especially before `wrap`'s `commit`, which stages, commits, and pushes.
+During development you can also set `AI_FLOPPY_HOME` to your local copy.
 
-A cache that never refreshes is the trap to know about: `claude plugin
-update` compares version strings, so while `version` in
-`.claude-plugin/plugin.json` is unchanged it reports "already at the latest
-version" and copies nothing — a plugin installed from a directory marketplace
-mid-development can sit on a snapshot days old. Measured on 2026-08-25: the
-cached copy had an empty `scripts/`. Bump the version, or uninstall and
-install again. `.floppy/run` refuses to resolve into a cache directory with no
-`scripts/*.sh` rather than dying later with a confusing "No such file".
+After the install, prepare your repository with the `init` skill. See below.
 
-The mirror of that trap is `.floppy/run` itself. It is a **copy** in the
-consumer repository, not a link, and `plugin update` never touches it: it
-travels with that repository's git instead, so on a second machine it can
-arrive *ahead* of the plugin rather than behind it. Both directions used to be
-mute — a missing verb read as a typo, and a verb the plugin was too old for
-died with a bare "No such file or directory" pointing into a cache. Each now
-names which side is behind, and every call compares this copy against the
-plugin's and says one line on stderr when they differ, because most of the ways
-a shim goes stale are silent: a corrected config parser or search order just
-keeps doing the old thing. Refresh it with a plain `cp` (the hint says which) —
-deliberately not a verb, since a shim old enough to need refreshing is too old
-to know the verb that would do it.
+### Cursor and more than one project
 
-Once installed, set the plugin up in a target repository with the `init`
-skill (below). If you're developing the plugin itself rather than installing it,
-point `AI_FLOPPY_HOME` at your checkout instead of relying on the harness.
+Cursor can have more than one project open. A skill runs its shell commands in
+one of these projects. The skill does not select the project.
+
+Each procedure prints the repository as the first line of its output
+(`repo: /path/to/it`). Read this line first. Read it before `wrap` runs its
+`commit` step, because that step stages, commits, and pushes files.
+
+## Two stale copies that cause no error message
+
+### 1. The plugin cache
+
+`claude plugin update` compares version numbers. If the version number is the
+same, the command copies no files. It then reports "already at the latest
+version".
+
+The result is an installed copy that is some days old. Measured on 2026-08-25:
+the cached copy contained an empty `scripts/` directory.
+
+To correct this, do one of these steps:
+
+- Increase the version number in `.claude-plugin/plugin.json`.
+- Remove the plugin, then install it again.
+
+`.floppy/run` refuses a cache directory that contains no `scripts/*.sh` file.
+This gives a clear message instead of a later "No such file or directory".
+
+### 2. The shim file in your repository
+
+`.floppy/run` is a copy of a file in the plugin. It is not a link. A plugin
+update does not change it. Git moves it with your repository.
+
+Thus `.floppy/run` can be older than the plugin. On a second machine it can
+also be newer than the plugin.
+
+At each call, `.floppy/run` compares itself with the file in the plugin. If the
+two files are different, it prints one line on stderr. That line contains the
+`cp` command that corrects the copy.
+
+The correction is a `cp` command, not a floppy command. This is deliberate. A
+shim file that is old enough to need a correction does not know the new
+commands.
+
+**Caution:** a stale shim file usually causes no error. It continues to use the
+old configuration parser, or the old search order, and stays silent.
 
 ## `init`
 
-Run once per repository. Asks two questions — the memory directory
-(`.agent-memory` unless you want something else) and the memory's language —
-then lays out everything else on its own: copies the shim to `.floppy/run`
-(the only file this plugin puts in your repository), writes `.floppy/config`,
-creates an empty memory router (`<memory_dir>/MEMORY.md`) and a seeded
-current-state file (`docs/statuses/NOW.md`), gitignores the machine-local
-memory scope, and points your `AGENTS.md` at `agent-memory`.
-Idempotent — safe to run again, changes nothing on a repository already set
-up.
+Run `init` one time in each repository.
+
+`init` asks two questions:
+
+1. The memory directory. The default is `.agent-memory`.
+2. The language of the memory notes.
+
+`init` then does all of these steps:
+
+- copies the shim file to `.floppy/run`. This is the only file that the plugin
+  puts in your repository.
+- writes `.floppy/config`.
+- creates the memory index `<memory_dir>/MEMORY.md`.
+- creates the state file `docs/statuses/NOW.md`.
+- adds the machine-local memory directory to `.gitignore`.
+- adds a pointer to `agent-memory` in your `AGENTS.md`.
+
+`init` is idempotent. If the repository is already prepared, a second run
+changes nothing.
 
 ## The five skills
 
-The two harnesses name these differently: Claude Code namespaces plugin
-skills by plugin name, so `start` is invoked as `floppy:start`; Cursor lists
-skills flat, as `/start`, and credits the plugin separately ("Created by
-Floppy") instead of folding its name into the skill name. Everywhere else —
-including the rest of this document — a skill is named by its bare name,
-`start`, since that's the only form true in both harnesses.
+Claude Code and Cursor show the names differently. Claude Code adds the plugin
+name, for example `floppy:start`. Cursor shows the short name, for example
+`/start`, and shows the plugin as "Created by Floppy". This document uses the
+short name. Only the short name is correct in both applications.
 
-- **`init`** — one-time setup, described above.
-- **`agent-memory`** — not a rite, has no steps of its own. The
-  conventions the other three assume: what a memory note looks like (one
-  fact per file, `metadata.evidence` chosen from `measured` / `read` /
-  `decided` / `sourced`), the three-level index tree
-  (`MEMORY.md` → `<half>/INDEX.md` → `<half>/<group>/INDEX.md`), the
-  `quota.lock` ratchet, and which of project / workplace / machine scope a
-  fact belongs to.
-- **`start`** — orients a fresh session before any edit: read the
-  current-state file, identify which half of the memory the task belongs to
-  (skip this if the repository has none yet), read that half's guidance and
-  memory index, then verify live facts with `bash .floppy/run status`
-  instead of trusting the documents.
-- **`workstatus`** — a live status check mid-session: git state,
-  divergence from the remote, background jobs, memory wiring, the workplace
-  memory repository if configured, and the current-state file's freshness.
-- **`wrap`** — closes a session: take the lock, select which facts
-  are worth a memory note, update the current-state file, name what's left
-  unfinished, then `bash .floppy/run check` (read-only: lint + file-list
-  guard + diff) followed by `bash .floppy/run commit` (stage, commit, sync,
-  release the lock).
+- **`init`** — the setup. See above.
+- **`agent-memory`** — the rules for the memory. This skill has no steps. The
+  other skills obey these rules. One note contains one fact. Each note has the
+  field `metadata.evidence` with one of these values: `measured`, `read`,
+  `decided`, `sourced`. The index has three levels: `MEMORY.md`, then
+  `<half>/INDEX.md`, then `<half>/<group>/INDEX.md`. The file `quota.lock`
+  holds the size limits. Each fact belongs to one scope: project, workplace, or
+  machine.
+- **`start`** — prepares a new session, before the first edit. The agent reads
+  the state file. The agent then finds the half of the memory for this task,
+  and reads the guidance and the index of that half. If the repository has no
+  memory yet, the agent omits this step. The agent then runs
+  `bash .floppy/run status`, because live facts are more reliable than the
+  documents.
+- **`workstatus`** — reports the state during a session: git state, difference
+  from the remote, background jobs, memory configuration, the workplace memory
+  repository, and the age of the state file.
+- **`wrap`** — closes a session. The agent takes the lock. The agent selects
+  the facts that are worth a note, updates the state file, and records the
+  unfinished work. The agent then runs `bash .floppy/run check`, which changes
+  nothing and shows the lint result, the file-list check, and the diff. Last,
+  the agent runs `bash .floppy/run commit`, which stages, commits, pushes, and
+  releases the lock.
 
-## `parity` — when the rite is also kept in another language
+## `parity` — for a procedure kept in two languages
 
-A repository may keep the rite twice: these skills in English, and command
-files in the language its people actually read (`.claude/commands/wrap.md`
-beside `skills/wrap/SKILL.md`). Two copies of a procedure drift, and they
-drift silently — what gets lost is not meaning but a **step**.
+A repository can keep the procedure two times: these skills in English, and
+command files in the language of its people. An example is
+`.claude/commands/wrap.md` beside `skills/wrap/SKILL.md`.
+
+Two copies of one procedure become different with time. Usually a **step** is
+lost, not a meaning. This does not cause an error.
 
 ```
 bash .floppy/run parity
 ```
 
-It compares only what survives translation: the set of
-`bash .floppy/run <verb>` calls each file makes, and the sequence of numbered
-headings. Nothing about wording, section titles, or length — a translation
-legitimately folds a tail section into the last step or adds a
-project-specific table, and asserting that would produce red nobody acts on.
-The English skill is the source of truth; a divergence means the command
-needs the step, not the other way round.
+`parity` compares only two things: the set of `bash .floppy/run <verb>` calls
+in each file, and the sequence of numbered headings. It ignores the words, the
+section titles, and the length. A translation can move a section, or add a
+table for its project. A check on those items would give a failure that nobody
+corrects.
 
-`wrap`'s `check` runs this automatically and goes red on a divergence, so the
-drift surfaces when a session closes rather than when someone happens to look.
-A repository with no such command files gets no such section — using the
-skills directly is the normal case.
+The English skill is the source of truth. If the two files are different, add
+the step to the command file.
 
-The measurement that motivated it, on the project this plugin was extracted
-from: the `workstatus` skill documented `bash .floppy/run status --flow` and
-when to use it, while the same repository's `/workstatus` command never
-mentioned the flag. Nothing was red anywhere.
+The `check` step of `wrap` runs `parity`. A difference makes `check` fail. Thus
+the difference becomes visible at the end of a session.
+
+If a repository has no command files, this section does not apply to it. Use
+the skills directly. This is the usual condition.
+
+The measurement that caused this check: in the project that this plugin comes
+from, the `workstatus` skill documented `bash .floppy/run status --flow`, but
+the `/workstatus` command file did not mention the flag. No check failed.
 
 ## `.floppy/config`
 
-Flat `key=value`, one per line, read by the shim (`.floppy/run`) and
-exported as `FLOPPY_*` for every script downstream. Everything is optional;
-these are the defaults when a key is absent.
+The file contains one `key=value` line for each setting. The shim file
+(`.floppy/run`) reads it, and exports each value as a `FLOPPY_*` variable for
+the scripts.
+
+All keys are optional. The table shows the value that each key has if the file
+does not contain it.
 
 | key | default | what it controls |
 |---|---|---|
-| `memory_dir` | `.agent-memory` | where this repository's durable memory lives |
-| `memory_local_dir` | `local` | name of the machine-local scope inside the memory — written on one machine, never committed. Only the name is configurable; the rule is not, and the check that committed memory must never link into it follows this key |
-| `memory_repo` | *(unset)* | git URL of the store that holds this project's memory when the code repository cannot; set with `memory_project_key`, then run `bash .floppy/run store` once per machine and worktree |
-| `memory_project_key` | *(unset)* | this project's scope inside that store (`projects/<key>/memory`) |
-| `agents_memory_dir` | `$HOME/agents_memory` | the parent directory holding memory checkouts, one per repository URL: the checkout for a URL is `<parent>/<repository name>`, **derived rather than configured**, so two different repositories cannot end up in one directory. One URL used for both the store and the workplace deliberately shares a checkout. A checkout already sitting directly at the parent (the layout from before this key) is adopted when its `origin` proves it is that repository |
-| `memory_repo_dir` | *(derived)* | overrides the derived path for the store on this machine. Set it only where the checkout cannot live under the parent |
-| `memory_language` | `en` | the language memory notes are written in — a convention read from this file directly, not something any script acts on. Independent of the language a session replies to its human in, which is never configured here |
-| `workplace_repo` | *(unset)* | git URL of a workplace-wide private memory repository; both this and `workplace_project_key` must be set to use `bash .floppy/run workplace` |
-| `workplace_project_key` | *(unset)* | this project's scope directory (`projects/<key>`) inside the workplace repository |
-| `workplace_memory_dir` | *(derived)* | the same override, for the workplace repository |
-| `index_chars_max` | `24500` | character ceiling on the memory index, measured off the harness's session loader — it truncates past a limit of its own and never says which section it dropped. A fact about the harness, not this project: the per-corpus caps live in `quota.lock` instead |
-| `statuses_now` | `docs/statuses/NOW.md` | the current-state file `start` reads in full and `wrap` keeps up to date |
-| `statuses_now_chars_max` | `12000` | character ceiling on the current-state file; `wrap-guard` refuses a commit that pushes it over |
-| `watched_dirs` | `docs` | comma-separated directories, besides `memory_dir`, that `wrap` is allowed to commit |
-| `watched_files` | `AGENTS.md` | comma-separated single files (exact match, patterns allowed) `wrap` is allowed to commit |
-| `commands_dir` | `.claude/commands` | where a repository keeps the rite as command files in its own language, if it keeps them at all; read only by `bash .floppy/run parity` |
-| `commit_push` | `auto` | `auto` pulls `--rebase` then pushes after every commit, same as always; `never` skips that whole tail — set this on a repository with no remote configured, since `auto` would fail the pull every time there. A single call can skip just the push with `--no-push` without changing this default |
+| `memory_dir` | `.agent-memory` | the directory of the memory of this repository |
+| `memory_local_dir` | `local` | the name of the machine-local scope in the memory. One machine writes these notes. Git never commits them. Only the name is a setting. The rule is not. Committed memory must not link into this scope, and the check uses this key |
+| `memory_repo` | *(not set)* | the git URL of a store repository, if the code repository cannot hold the memory. Set `memory_project_key` also. Then run `bash .floppy/run store` one time for each machine and each worktree |
+| `memory_project_key` | *(not set)* | the scope of this project in that store (`projects/<key>/memory`) |
+| `agents_memory_dir` | `$HOME/agents_memory` | the parent directory of the memory checkouts. Each repository URL gets one checkout below it. The name of that checkout comes from the URL. floppy derives the name; you do not set it. Two different repositories thus cannot use one directory. One URL used for two purposes shares one checkout, which is correct. If a checkout is already at the parent directory itself, floppy uses it, but only if its `origin` is the configured URL |
+| `memory_repo_dir` | *(derived)* | replaces the derived path of the store on this machine. Set it only if that checkout cannot be below the parent directory |
+| `memory_language` | `en` | the language of the memory notes. No script uses this key. A session reads it from this file. It does not control the language of the answers to a human |
+| `workplace_repo` | *(not set)* | the git URL of a private memory repository for a workplace. Set `workplace_project_key` also. `bash .floppy/run workplace` needs both keys |
+| `workplace_project_key` | *(not set)* | the scope of this project in the workplace repository (`projects/<key>`) |
+| `workplace_memory_dir` | *(derived)* | the same replacement, for the workplace repository |
+| `index_chars_max` | `24500` | the maximum number of characters in the memory index. The value comes from the session loader of the agent application. That loader removes text above a limit and does not report the removed section. This is a fact about the application, not about your project. The limits for the corpus are in `quota.lock` |
+| `statuses_now` | `docs/statuses/NOW.md` | the state file. `start` reads all of it. `wrap` keeps it correct |
+| `statuses_now_chars_max` | `12000` | the maximum number of characters in the state file. `wrap-guard` refuses a commit above this limit |
+| `watched_dirs` | `docs` | the directories, in addition to `memory_dir`, that `wrap` can commit. Use a comma between the names |
+| `watched_files` | `AGENTS.md` | the single files that `wrap` can commit. Patterns are permitted. Use a comma between the names |
+| `commands_dir` | `.claude/commands` | the directory of the command files, if the repository has them in its own language. Only `bash .floppy/run parity` reads this key |
+| `commit_push` | `auto` | the action after each commit. `auto` runs `git pull --rebase`, then pushes. `never` omits both. Use `never` if the repository has no remote, because `auto` fails there. To omit the push one time only, use `--no-push` |
 
-`workplace_repo` and `workplace_project_key` are deliberately never given a
-live default: a repository that never opted in must not silently write into
-somebody else's private memory.
+`workplace_repo` and `workplace_project_key` have no default value. This is
+deliberate. With a default, a repository could write into the private memory of
+a different person.
 
 ### Two memory repositories on one machine
 
-A project can use both `store` (its whole memory hosted elsewhere) and
-`workplace` (a shared scope at `<memory_dir>/local`), and they may be different
-repositories. Until 0.4.2 each had its own directory key with the same default,
-which meant configuring both pointed them at one directory — and the collision
-was silent. Measured 2026-08-25: the first verb cloned its repository there,
-the second found a `.git`, skipped its clone, never compared the remote, and
-reported `ok a write through the link lands in the workplace repository` while
-the notes were landing in the store and would have been pushed there.
+A project can use `store` and `workplace` together. `store` moves all of the
+memory into a different repository. `workplace` attaches a shared scope at
+`<memory_dir>/local`. These can be two different repositories.
 
-Two things prevent it now. The checkout directory is derived from the URL, so
-two URLs cannot name one directory; and whenever a checkout already exists, the
-verb compares its `origin` with the configured URL and refuses if they differ,
-naming both. The second half also covers the case that has nothing to do with
-collisions: an unrelated repository that happens to sit at that path.
+Before version 0.4.2, each of the two had its own directory key, and the two
+keys had the same default value. If you set both keys, they gave one directory.
+No message told you.
 
-Nothing to migrate. A checkout already at the parent keeps being used, and the
-verb says it adopted it.
+Measured on 2026-08-25, in that condition:
 
-## Memory in a repository other than the code's
+- The first verb cloned its repository into the directory.
+- The second verb found a `.git` directory there, and did not clone.
+- The second verb did not compare the remote with the configured URL.
+- The second verb reported "ok a write through the link lands in the workplace
+  repository".
+- The notes went into the store repository instead. `commit` would have pushed
+  them there.
 
-Some consumers cannot commit agent notes next to the code: a client's checkout
-they do not own, or a policy that keeps them apart. The memory then lives in a store repository and the code repository carries only
-`.floppy/run` and `.floppy/config`, about 110 lines that review in a minute.
+Two changes prevent this condition:
 
-Set it up when initializing:
+- The checkout directory comes from the URL. Thus two URLs cannot give one
+  directory.
+- If a checkout is already there, the verb compares its `origin` with the
+  configured URL. If the two are different, the verb stops, and shows both.
+
+The second change also finds a different problem: an unrelated repository at
+that path.
+
+You do not need to move anything. If a checkout is already at the parent
+directory, floppy continues to use it, and the verb tells you so.
+
+## Memory in a different repository
+
+Some repositories cannot hold agent notes with the code. Examples are a
+customer checkout that you do not own, and a policy that keeps the two apart.
+
+In that condition, the memory goes into a store repository. Your code
+repository keeps two files only: `.floppy/run` and `.floppy/config`. Together
+they are approximately 110 lines. A review of them takes one minute.
+
+To set this up during `init`, use the flags:
 
 ```
 --memory-repo git@example.com:workplace/agents-memory.git --memory-key acme
 ```
 
-or on an already-initialized repository, by setting `memory_repo` and
-`memory_project_key` in `.floppy/config` and running:
+To set it up later, put `memory_repo` and `memory_project_key` in
+`.floppy/config`. Then run:
 
 ```
-bash .floppy/run store    # clone or pull, link, ignore, verify a write lands there
-bash .floppy/run link     # then the harness's memory directory, as always
+bash .floppy/run store    # clone or pull, link, ignore, and verify a write
+bash .floppy/run link     # then the memory directory of the agent application
 ```
 
-`store` is per machine and per worktree, idempotent, and refuses rather than
-guesses when a real directory sits where the symlink belongs — those notes may
-be the only copies. `bash .floppy/run store --check` reports without changing
-anything. The step that matters most is the last one it performs: writing
-through the link and confirming the file appears in the store. Everything else
-can look correct while a write lands somewhere nobody publishes.
+`store` runs one time for each machine and each worktree. It is idempotent. To
+see the result without a change, run `bash .floppy/run store --check`.
 
-Nothing has to be declared in the config. The layout is **derived** from where
-`memory_dir` resolves to, because a boolean in a config file would disagree
-with the filesystem exactly when it matters — a symlink that failed to be
-created would still read as "external" while every write landed in an ignored
-directory inside the code repository, where nothing would ever publish it.
+If a directory is in the position of the symbolic link, `store` stops. It does
+not delete the directory. Those notes can be the only copies.
 
-From there the rite closes two repositories instead of one:
-`guard` asks the store what changed and answers in the paths you typed,
-`check` shows the notes going out (this repository's diff is blind to them by
-construction), and `commit` commits and pushes both from one file list. A store
-that cannot be pushed makes `commit` fail loudly rather than print "session
-closed" over unpublished notes, and a `memory_dir` that resolves outside git
-altogether is named as such — it works for reading and writing and publishes
-nothing.
+The last step of `store` is the important one. It writes a file through the
+link, and confirms that the file is in the store. All other steps can look
+correct while a write goes to a location that nobody publishes.
 
-One cost is worth knowing before choosing this: the memory stops being reviewed
-alongside the code, which in the in-repo layout is free.
+The configuration contains no key for "external" or "internal". The layout
+comes from the location of `memory_dir`. A key in a file could disagree with
+the file system. It would disagree exactly in the dangerous condition: a
+symbolic link that was not created, and notes that go into an ignored directory
+in the code repository.
 
-The half-done state — ignore line added, symlink never created — is the one to
-know about, because it is comfortable: notes are written and read normally,
-`git status` cannot show them since it was told not to, and nothing publishes
-them. `guard` fails on exactly that combination (ignored, but inside this
-repository) and names it, and `status` reports the store in its own section so
-a machine that skipped the wiring is visible rather than quietly writing into a
-directory nobody reads.
+With a store, the `wrap` procedure closes two repositories:
+
+- `guard` asks the store for its changes, and reports them with the paths that
+  you use.
+- `check` shows the notes that go out. The diff of the code repository cannot
+  show them.
+- `commit` commits and pushes both repositories from one file list. If the
+  store refuses the push, `commit` fails. It does not report "session closed"
+  above notes that are not published.
+- If `memory_dir` is outside git, `status` reports this condition. The memory
+  then works for reading and writing, but nothing publishes it.
+
+Know one disadvantage before you select this layout. Nobody reviews the memory
+with the code. In the in-repository layout, that review is free.
+
+**Caution:** the incomplete condition is comfortable, and thus dangerous. The
+ignore line is present, but the symbolic link is absent. Notes are written and
+read correctly. `git status` cannot show them, because it was told to ignore
+them. Nothing publishes them. `guard` fails on this combination, and names it.
+`status` reports the store in a section of its own, and thus shows a machine
+that omitted the setup.
 
 ## `quota.lock`
 
-A ratchet inside the memory directory — `chars_max` (total character budget),
-`note_chars_max` (one note), `pointers_max` (pointers in one index) and
-`pointer_line_max` (one pointer line, default 170) — bounding how large the
-memory is allowed to get. All four are facts about *this* corpus, which is why
-they live with the memory rather than in `.floppy/config`; the one size limit
-that is a fact about the harness instead, `index_chars_max`, is in the config
-table above. **It is not shipped by this plugin and never copied from one
-project to another.** `init` deliberately does not create one: its
-numbers have to come from measuring *this* project's own corpus, and a
-ceiling copied from a different project is that project's ceiling, which
-bounds nothing about the memory actually in front of you. `bash .floppy/run
-lint` warns, rather than fails, while it's missing.
+This file is in the memory directory. It contains four limits:
+
+- `chars_max` — the total number of characters.
+- `note_chars_max` — the characters in one note.
+- `pointers_max` — the pointers in one index.
+- `pointer_line_max` — the characters in one pointer line. The default is 170.
+
+All four are facts about **this** corpus. Thus they stay with the memory, and
+not in `.floppy/config`. One size limit is a fact about the agent application
+instead: `index_chars_max`, in the table above.
+
+The plugin does not supply a `quota.lock` file, and the file is **never copied**
+from one project to a different project. `init` does not create it. Its numbers
+must come from a measurement of the corpus of this project. A limit from a
+different project describes that project, and controls nothing here.
+
+While the file is absent, `bash .floppy/run lint` gives a warning. It does not
+fail.
 
 ## Releases
 
-[CHANGELOG.md](CHANGELOG.md) — what changed, and per release the one thing a
-consumer cannot work out for itself: whether the update also requires copying
-the shim into the repository again (`.floppy/run` is a copy, and no plugin
-update touches it).
+See [CHANGELOG.md](CHANGELOG.md). For each release it answers one question that
+you cannot answer without it: does this update also need a new copy of the shim
+file? `.floppy/run` is a copy, and no plugin update changes it.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
