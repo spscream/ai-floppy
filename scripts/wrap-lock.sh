@@ -29,12 +29,15 @@ gitdir="$(git rev-parse --git-dir 2>/dev/null)" || { echo "not a git repository"
 lock="$gitdir/wrap.lock"          # a directory: mkdir is atomic
 owner="$lock/owner"
 
-age_min() {
-  [[ -f "$owner" ]] || { echo 9999; return; }
-  local now mtime
-  now="$(date +%s)"
-  mtime="$(stat -c %Y "$owner" 2>/dev/null || echo 0)"
-  echo $(( (now - mtime) / 60 ))
+# Is the owner file older than MAX_AGE_MIN minutes? A yes/no question, and
+# `find -mmin` answers it directly and portably. This used to compute an exact
+# age via `stat -c %Y`, which is GNU-only: macOS ships BSD stat, has no such
+# flag, and the `|| echo 0` fallback made every lock on this machine read as
+# ~57 years old — so it was always "abandoned" and never actually held. No
+# owner file at all counts as stale too, the same as the old 9999-minute answer.
+is_stale() {
+  [[ -f "$owner" ]] || return 0
+  [[ -n "$(find "$owner" -mmin +"$MAX_AGE_MIN" 2>/dev/null)" ]]
 }
 
 write_owner() {
@@ -51,16 +54,15 @@ case "${1:-}" in
       exit 0
     fi
 
-    age="$(age_min)"
-    if [[ "$age" -lt "$MAX_AGE_MIN" ]]; then
-      echo "x another session holds the wrap lock (${age} min old):"
+    if ! is_stale; then
+      echo "x another session holds the wrap lock (younger than ${MAX_AGE_MIN} min):"
       sed 's/^/    /' "$owner" 2>/dev/null
       echo "  Wait for it to finish, then run acquire again."
       echo "  Do not remove $lock by hand: that session is writing memory right now."
       exit 1
     fi
 
-    echo "! the lock is ${age} min old, older than ${MAX_AGE_MIN}. Taking it over."
+    echo "! the lock is older than ${MAX_AGE_MIN} min. Taking it over."
     echo "  A /wrap does not take that long, so that session was abandoned."
     echo "  Check MEMORY.md and today's status snapshot for a half-written entry"
     echo "  before you commit."
@@ -81,11 +83,10 @@ case "${1:-}" in
 
   status)
     if [[ -d "$lock" ]]; then
-      age="$(age_min)"
-      if [[ "$age" -lt "$MAX_AGE_MIN" ]]; then
-        echo "held, ${age} min old:"
+      if is_stale; then
+        echo "held but abandoned (older than ${MAX_AGE_MIN} min):"
       else
-        echo "held but abandoned, ${age} min old (older than ${MAX_AGE_MIN}):"
+        echo "held, younger than ${MAX_AGE_MIN} min:"
       fi
       sed 's/^/    /' "$owner" 2>/dev/null
       exit 1
