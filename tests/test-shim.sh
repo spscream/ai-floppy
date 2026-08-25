@@ -31,6 +31,10 @@ empty_home="$(mktemp -d)"
 out3="$(cd "$repo2" && HOME="$empty_home" AI_FLOPPY_HOME=/nonexistent CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1)"; rc3=$?
 assert_rc       "missing plugin exits nonzero" 1 "$rc3"
 assert_contains "missing plugin names the fix" "plugin install floppy" "$out3"
+# With nothing installed under either harness, the failure has to name both
+# routes, not just Claude Code's — a Cursor install route led nowhere before.
+assert_contains "missing plugin also names Cursor's install route" "Cursor" "$out3"
+assert_contains "missing plugin also names the AI_FLOPPY_HOME escape hatch" "AI_FLOPPY_HOME" "$out3"
 rm -rf "$empty_home"
 
 # finding 1: an explicitly empty value must not fall back to the default.
@@ -66,6 +70,54 @@ out7="$(cd "$repo7" && HOME="$fake_home" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bas
 assert_contains "cache fallback picks 0.10.0, not lexicographically-later 0.9.0" \
   "FLOPPY_ROOT=$fake_home/.claude/plugins/cache/example/floppy/0.10.0" "$out7"
 rm -rf "$fake_home"
+
+# ---------- Cursor: cache path with a SHA-named directory ----------
+# Cursor's own layout, measured on the owner's machine — not Claude Code's:
+#   ~/.cursor/plugins/cache/<marketplace>/<plugin>/<git-sha>
+repoCu1="$(sandbox)"; cp shim/run "$repoCu1/.floppy/run"
+home_cu1="$(mktemp -d)"
+sha="ed18232fd3b616d570a707fb8464b678b8542dbf"
+mkdir -p "$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha/scripts"
+out_cu1="$(cd "$repoCu1" && HOME="$home_cu1" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
+assert_contains "Cursor cache: a SHA-named directory resolves" \
+  "FLOPPY_ROOT=$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha" "$out_cu1"
+rm -rf "$repoCu1" "$home_cu1"
+
+# ---------- Cursor: local development checkout ----------
+# ~/.cursor/plugins/local/<name> — a single fixed path (the docs have the
+# human symlink it there by hand), nothing to pick among.
+repoCu2="$(sandbox)"; cp shim/run "$repoCu2/.floppy/run"
+home_cu2="$(mktemp -d)"
+mkdir -p "$home_cu2/.cursor/plugins/local/floppy/scripts"
+out_cu2="$(cd "$repoCu2" && HOME="$home_cu2" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
+assert_contains "Cursor local dev checkout resolves" \
+  "FLOPPY_ROOT=$home_cu2/.cursor/plugins/local/floppy" "$out_cu2"
+rm -rf "$repoCu2" "$home_cu2"
+
+# ---------- Cursor: cache picks newest by MTIME, not by sorting the SHA ----------
+# The trap this discriminates: Cursor's cache directory names are git SHAs,
+# not versions, so sort -V (correct for Claude Code's semver dirs) orders
+# them by hash value — unrelated to recency. Build two candidates whose
+# alphabetical order is the OPPOSITE of their actual modification order, and
+# backdate with `touch -t` rather than sleeping between them. If the code
+# under test reached for sort -V here, it would pick the alphabetically-last
+# name ("zzz...") — which this deliberately makes the OLDER one — instead of
+# the actually-newest "aaa..." one.
+repoCu3="$(sandbox)"; cp shim/run "$repoCu3/.floppy/run"
+home_cu3="$(mktemp -d)"
+older="$home_cu3/.cursor/plugins/cache/mp/floppy/zzz-alphabetically-last"
+newer="$home_cu3/.cursor/plugins/cache/mp/floppy/aaa-alphabetically-first"
+mkdir -p "$older/scripts" "$newer/scripts"
+touch -t 202001010000 "$older"
+touch -t 202401010000 "$newer"
+out_cu3="$(cd "$repoCu3" && HOME="$home_cu3" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
+assert_contains "Cursor cache: newest by mtime wins, even sorting alphabetically first" \
+  "FLOPPY_ROOT=$newer" "$out_cu3"
+case "$out_cu3" in
+  *"zzz-alphabetically-last"*) fail "Cursor cache: does not fall for sort -V on SHA-like names" "aaa-alphabetically-first only" "$out_cu3" ;;
+  *) ok "Cursor cache: does not fall for sort -V on SHA-like names" ;;
+esac
+rm -rf "$repoCu3" "$home_cu3"
 
 # MINOR 8: a run outside any git repository must fail loudly, not silently
 # fall back to `pwd` and derive every downstream path from the wrong place.

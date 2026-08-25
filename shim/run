@@ -17,25 +17,57 @@ if ! FLOPPY_REPO="$(git rev-parse --show-toplevel 2>/dev/null)"; then
 fi
 export FLOPPY_REPO
 
-# The plugin cache path carries a version and changes on every update, so the
-# only stable handles are the harness variable and an explicit override.
+# The plugin cache path carries a version (Claude Code) or a git commit SHA
+# (Cursor) in its last segment and changes on every update, so the only
+# stable handles across both harnesses are the harness-set variable and an
+# explicit override.
+#
+# Each candidate below only counts if it actually has scripts/ — a cache
+# entry that exists but is mid-write, or a stale leftover from a broken
+# install, must not be trusted just because it is the newest thing on disk.
+# That guard already caught a stale half-populated cache once and must stay:
+# every branch gates on -d ".../scripts" itself, so a candidate that fails
+# it falls through to the next layout instead of being accepted anyway.
 #
 # skills/init/SKILL.md duplicates this exact search rather than sourcing it
-# from here: `floppy:init` runs before this file exists in the target
-# repository (creating it is init's own first step), so it cannot read this
-# copy. Keep the two in sync by hand if this search ever changes.
+# from here: `init` runs before this file exists in the target repository
+# (creating it is init's own first step), so it cannot read this copy. Keep
+# the two in sync by hand if this search ever changes.
+claude_cache="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
+cursor_local="$HOME/.cursor/plugins/local/floppy"
+# Cursor's cache path ends in a git commit SHA, not a version — measured on
+# the owner's own machine:
+#   ~/.cursor/plugins/cache/floppy/floppy/ed18232fd3b616d570a707fb8464b678b8542dbf
+# Sorting SHAs with `sort -V` (or any lexicographic sort) orders them by hash
+# value, which has no relationship to recency at all: on a machine with two
+# cached copies it would silently pick an arbitrary one, quite possibly the
+# stale one — exactly the failure mode this whole guard exists to prevent.
+# `ls -dt` sorts candidate directories by modification time instead, which
+# is what "newest" actually means here, and it does so portably across BSD
+# (macOS) and GNU `ls` without touching `stat`'s incompatible flags. Kept as
+# a second, separate lookup rather than unified with claude_cache's sort -V:
+# a mechanism correct for a version-named directory is not correct for a
+# SHA-named one, and unifying them would make one of the two wrong.
+cursor_cache="$(ls -dt "$HOME"/.cursor/plugins/cache/*/floppy/*/ 2>/dev/null | head -n1)"
+
 if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; then
   FLOPPY_ROOT="$CLAUDE_PLUGIN_ROOT"
 elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then
   FLOPPY_ROOT="$AI_FLOPPY_HOME"
-else
-  FLOPPY_ROOT="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
+elif [[ -n "$claude_cache" && -d "${claude_cache}/scripts" ]]; then
+  FLOPPY_ROOT="$claude_cache"
+elif [[ -d "$cursor_local/scripts" ]]; then
+  FLOPPY_ROOT="$cursor_local"
+elif [[ -n "$cursor_cache" && -d "${cursor_cache}/scripts" ]]; then
+  FLOPPY_ROOT="$cursor_cache"
 fi
 
 if [[ -z "${FLOPPY_ROOT:-}" || ! -d "$FLOPPY_ROOT/scripts" ]]; then
   echo "x floppy plugin not found." >&2
-  echo "  Install it, or point AI_FLOPPY_HOME at a checkout:" >&2
-  echo "      /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
+  echo "  Claude Code:  /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
+  echo "  Cursor:       Dashboard -> Plugins -> Add Marketplace -> Import from Repo (spscream/ai_floppy)" >&2
+  echo "  Cursor (dev): ln -s /path/to/ai_floppy ~/.cursor/plugins/local/floppy" >&2
+  echo "  Or point AI_FLOPPY_HOME at a checkout directly." >&2
   exit 1
 fi
 export FLOPPY_ROOT
