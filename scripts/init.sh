@@ -32,6 +32,7 @@ set -uo pipefail
 usage() {
   echo "usage: bash scripts/init.sh --repo <path> [--memory-dir <dir>] [--language <lang>]" >&2
   echo "       [--memory-repo <git-url> --memory-key <scope>] [--memory-repo-dir <path>]" >&2
+  echo "       [--agents-memory-dir <path>]" >&2
   echo "  --memory-repo/--memory-key host the memory in another repository, for a" >&2
   echo "  code repository that cannot hold agent notes. Both or neither." >&2
 }
@@ -42,6 +43,7 @@ language="en"
 memory_repo=""
 memory_key=""
 memory_repo_dir=""
+agents_memory_dir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --memory-repo)     memory_repo="${2:-}";     shift 2 ;;
     --memory-key)      memory_key="${2:-}";      shift 2 ;;
     --memory-repo-dir) memory_repo_dir="${2:-}"; shift 2 ;;
+    --agents-memory-dir) agents_memory_dir="${2:-}"; shift 2 ;;
     -h|--help)     usage; exit 0 ;;
     *) echo "x unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -126,7 +129,8 @@ else
 # floppy config — flat key=value, one per line. See the agent-memory skill
 # for what each key governs.
 memory_dir=$mem_dir
-memory_language=$language
+memory_language=$language${agents_memory_dir:+
+agents_memory_dir=$agents_memory_dir}
 $store_cfg
 # workplace_repo and workplace_project_key have no default on purpose: a
 # fresh project must not silently write into somebody else's private memory.
@@ -159,10 +163,11 @@ fi
 # — correctly, since it never decides the fate of files somebody wrote.
 if [[ -n "$memory_repo" ]]; then
   echo
-  if FLOPPY_REPO="$repo" FLOPPY_MEMORY_DIR="$mem_dir" \
-     FLOPPY_MEMORY_REPO="$memory_repo" FLOPPY_MEMORY_PROJECT_KEY="$memory_key" \
-     FLOPPY_MEMORY_REPO_DIR="${memory_repo_dir:-$HOME/agents_memory}" \
-     bash "$self_dir/memory-store.sh"; then
+  # A subshell with the target repository as the working directory: the shim
+  # derives FLOPPY_REPO from `git rev-parse`, and init's own cwd is the plugin
+  # checkout, so a bare call would wire the plugin instead of the consumer.
+  if ( cd "$repo" && AI_FLOPPY_HOME="${AI_FLOPPY_HOME:-$(cd "$self_dir/.." && pwd)}" \
+       bash "$repo/.floppy/run" store ); then
     echo
   else
     echo "x wiring the store failed — nothing else was created" >&2

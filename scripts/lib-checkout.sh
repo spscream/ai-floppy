@@ -59,8 +59,16 @@ ensure_checkout() {
     # record a gitlink instead of the notes, and the notes then belong to
     # neither repository. It happens when the parent is itself the adopted
     # legacy checkout and a second URL wants a directory under it.
+    # Walk up to the nearest ancestor that exists: the clone path now has a
+    # .clones/ segment that git would create on the way, so testing only the
+    # immediate parent would miss the case entirely and clone into the
+    # repository below it.
     ec_parent="$(dirname "$ec_dir")"
-    if [[ -d "$ec_parent" ]] && git -C "$ec_parent" rev-parse --show-toplevel >/dev/null 2>&1; then
+    while [[ ! -d "$ec_parent" && "$ec_parent" != "/" && "$ec_parent" != "." ]]; do
+      ec_parent="$(dirname "$ec_parent")"
+    done
+    if [[ -d "$ec_parent" ]] && ec_top="$(git -C "$ec_parent" rev-parse --show-toplevel 2>/dev/null)"; then
+      ec_parent="$ec_top"
       echo "x $ec_parent is itself a git repository, so $ec_dir would be a repository inside a repository"
       echo "  That is the layout from before agents_memory_dir: one checkout at the parent."
       echo "  Give the parent a directory of its own, then run this again:"
@@ -88,6 +96,76 @@ ensure_checkout() {
     echo "! no executable .githooks/pre-commit in $ec_dir — secrets are guarded by nothing but the human"
   fi
   return 0
+}
+
+# view_link <key> <clone> <scope-subpath> <name>
+# Builds the human-facing view: agents_memory_dir/<key>/<name> points at the
+# scope inside the clone. The clones are named after repositories and the view
+# is named after projects, which is what a person looks for; keeping both
+# alphabets in one directory is what this separates.
+#
+# The link is RELATIVE whenever the clone sits under the same parent, so moving
+# agents_memory_dir as a whole keeps every view working. It is never committed
+# anywhere: the view lives outside any repository by construction.
+view_link() {
+  vl_key="$1"; vl_clone="$2"; vl_sub="$3"; vl_name="$4"
+  vl_parent="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}"
+  vl_view="$vl_parent/$vl_key"
+  vl_path="$vl_view/$vl_name"
+  mkdir -p "$vl_view"
+  # The view sits at <parent>/<key>/, so ".." is the parent itself. The
+  # clone-is-the-parent branch is the adopted legacy layout, where stripping a
+  # "<parent>/" prefix that is not there would have produced "../<absolute
+  # path>" — a link that resolves nowhere and fails only at the write probe.
+  if [[ "$vl_clone" == "$vl_parent" ]]; then
+    vl_target="../$vl_sub"
+  elif [[ "$vl_clone" == "$vl_parent"/* ]]; then
+    vl_target="../${vl_clone#"$vl_parent"/}/$vl_sub"
+  else
+    vl_target="$vl_clone/$vl_sub"
+  fi
+  if [[ -L "$vl_path" ]]; then
+    if [[ -d "$vl_path" ]] && [[ "$(cd "$vl_path" && pwd -P)" == "$(cd "$vl_clone/$vl_sub" && pwd -P)" ]]; then
+      echo "ok view already wired: $vl_path"
+      return 0
+    fi
+    echo "x $vl_path points at $(readlink "$vl_path"), not $vl_target"
+    echo "  It may belong to another store. Remove it by hand and run this again."
+    return 1
+  fi
+  if [[ -e "$vl_path" ]]; then
+    echo "x $vl_path is a real directory, not a view into a memory repository"
+    echo "  Nothing was moved or deleted: this script does not decide the fate of memory."
+    return 1
+  fi
+  ln -s "$vl_target" "$vl_path"
+  echo "ok view: $vl_path -> $vl_target"
+  # In the adopted legacy layout the parent IS a checkout, so the view lands
+  # inside it. A view is wiring like any other link here, and wiring does not
+  # belong in anybody's history.
+  ignore_wiring_link "$vl_path"
+  return 0
+}
+
+# refuse_old_scope <clone> <old-relative> <new-relative> [recipe-line...]
+# The scope names changed in 0.5.0. Migrating them behind the human's back is
+# exactly what this plugin refuses to do with memory, and doing it on ONE
+# machine is worse than not doing it: until the other machine also runs 0.5.0,
+# one writes the old path while the other reads the new one, and the memory
+# forks with nothing red anywhere. So: refuse, and print the commands.
+refuse_old_scope() {
+  ro_clone="$1"; ro_old="$2"; ro_new="$3"; shift 3
+  echo "x $ro_clone still uses the scope layout from before 0.5.0"
+  echo "    found:    $ro_old"
+  echo "    expected: $ro_new"
+  echo "  Update every machine that writes this repository FIRST. A half-migrated"
+  echo "  pair of machines writes two scopes and neither one is complete."
+  echo "  Then, once, on any of them:"
+  for ro_line in "$@"; do echo "      $ro_line"; done
+  echo "      git -C \"$ro_clone\" commit -m 'memory scopes: <key>/shared and <key>/local'"
+  echo "      git -C \"$ro_clone\" push"
+  echo "  Nothing was changed here."
+  return 1
 }
 
 # ignore_wiring_link <link-path>

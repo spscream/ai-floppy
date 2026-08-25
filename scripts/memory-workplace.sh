@@ -51,15 +51,18 @@ repo="$(pwd)"
 # to, and a default here would mean a consuming project silently writes into
 # somebody else's private memory. Set workplace_project_key and workplace_repo
 # in .floppy/config.
-project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set workplace_project_key in .floppy/config}"
+project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set project_key in .floppy/config (or workplace_project_key to override it)}"
 url="${FLOPPY_WORKPLACE_REPO:?set workplace_repo in .floppy/config}"
 dir="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
-target="$dir/projects/$project_key"
+scope="projects/$project_key/local"
+target="$dir/$scope"
+view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/local"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
 link="$repo/$mem_dir/local"
 
 echo "workplace memory: $dir"
-echo "project scope:    projects/$project_key"
+echo "project scope:    $scope"
+echo "view:             $view"
 echo
 
 # ---------- the repository itself ----------
@@ -72,7 +75,22 @@ _lib="$(dirname "$0")/lib-checkout.sh"
 . "$_lib"
 ensure_checkout "$url" "$dir" "workplace memory" || exit 1
 
+# Before 0.5.0 this scope was projects/<key> itself. Notes sitting directly in
+# it are that layout: the move is a human's, once, on one machine — see
+# refuse_old_scope for why doing it here would be worse than refusing.
+if [[ -d "$dir/projects/$project_key" ]]; then
+  stray="$(find "$dir/projects/$project_key" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$stray" != "0" ]]; then
+    refuse_old_scope "$dir" "projects/$project_key (${stray} file(s) directly in it)" "$scope" \
+      "git -C \"$dir\" mv \"projects/$project_key\" \"projects/$project_key.moving\"" \
+      "mkdir -p \"$dir/projects/$project_key\"" \
+      "git -C \"$dir\" mv \"projects/$project_key.moving\" \"$scope\""
+    exit 1
+  fi
+fi
+
 mkdir -p "$target"
+view_link "$project_key" "$dir" "$scope" local || exit 1
 
 # ---------- the symlink ----------
 if [[ -L "$link" ]]; then
@@ -179,11 +197,11 @@ elif [[ -e "$link" ]]; then
     exit 1
   fi
   echo "ok local/ migrated and removed"
-  ln -s "$target" "$link"
-  echo "ok linked: $mem_dir/local -> $target"
+  ln -s "$view" "$link"
+  echo "ok linked: $mem_dir/local -> $view"
 else
-  ln -s "$target" "$link"
-  echo "ok linked: $mem_dir/local -> $target"
+  ln -s "$view" "$link"
+  echo "ok linked: $mem_dir/local -> $view"
 fi
 
 # ---------- the link itself must not be committed ----------

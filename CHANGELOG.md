@@ -14,6 +14,51 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.5.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (new key, and the shim resolves the new layout).
+**Scope names changed — read the migration note below before updating.**
+
+The layout is now keyed by project, not by repository. What a person opens is
+`agents_memory_dir/<key>/`, holding `shared` and `local`; the clones moved into
+`agents_memory_dir/.clones/<repository>/`, one per URL as before. A flat parent
+mixed two alphabets — project names beside repository names — and telling them
+apart needed the config open beside the terminal.
+
+- **New key `project_key`.** One key names this project in every memory
+  repository it uses and names its directory in the view.
+  `memory_project_key` and `workplace_project_key` stay as overrides, for the
+  project whose scope really is named differently in two repositories.
+- **The scopes are siblings now:** `projects/<key>/shared` in the store,
+  `projects/<key>/local` in the workplace repository. They were
+  `projects/<key>/memory` and `projects/<key>` itself, so with one repository
+  serving both roles the second contained the first — private notes and shared
+  memory in one tree, and `--migrate-local` walking a corpus that was not its
+  own. N projects were already separated by `<key>`; what confused them was the
+  nesting.
+- **The old scope names are refused, not migrated.** The verb stops and prints
+  the `git mv` commands. Moving somebody's notes unasked is what this plugin
+  refuses to do everywhere else, and doing it on ONE machine is worse than not
+  doing it: until the other machine also runs 0.5.0, one writes the old path
+  while the other reads the new one and the memory forks with nothing red
+  anywhere. Update every machine first, then move the scopes once.
+- `<memory_dir>` and `<memory_dir>/local` point at the view, not into a clone,
+  so a repository URL can change without rewiring every worktree. The write
+  probe at the end of each verb proves the whole chain, so the extra hop is
+  checked rather than trusted.
+- The view links are relative when the clone sits under the same parent:
+  `agents_memory_dir` can be moved as one directory. They are never committed —
+  in the adopted legacy layout, where the parent itself is a checkout, the
+  containing repository is told to ignore them.
+- `init` learned `--agents-memory-dir`, and now wires the store by calling the
+  shim rather than the store script with a hand-built environment. That copy of
+  the path resolution had already fallen behind the shim's.
+- The nesting refusal walks up to the nearest existing ancestor. With clones
+  under `.clones/`, testing only the immediate parent would have missed the
+  case and cloned into the repository below it.
+
+406 asserts, up from 405.
+
 ## 0.4.2 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (the shim resolves the checkout paths, and one

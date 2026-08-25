@@ -40,10 +40,11 @@ repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
 printf 'memory_dir=.agent-memory\n' > "$repo/.floppy/config"
 run_store "$repo"
 assert_eq       "no store configured: refuses"       "2" "$RC"
-assert_contains "and says both keys are needed"      "memory_project_key" "$OUT"
+assert_contains "and says both keys are needed"      "project_key" "$OUT"
 assert_contains "and says who does not need this"    "does not need this verb" "$OUT"
 
 # ---------- wires a machine from nothing ----------
+views="$(cd "$(mktemp -d)" && pwd -P)/views"
 remote="$(make_store_remote)"
 checkout="$(cd "$(mktemp -d)" && pwd -P)/store"
 cat > "$repo/.floppy/config" <<EOF
@@ -51,6 +52,7 @@ memory_dir=.agent-memory
 memory_repo=$remote
 memory_project_key=acme
 memory_repo_dir=$checkout
+agents_memory_dir=$views
 EOF
 run_store "$repo"
 assert_eq       "wiring succeeds (rc)"                "0" "$RC"
@@ -61,7 +63,7 @@ assert_contains "it adds the ignore line"             ".gitignore" "$OUT"
 # while a write lands somewhere other than the store.
 assert_contains "it verifies a write reaches the store" "lands in the store" "$OUT"
 [[ -L "$repo/.agent-memory" ]] && ok "the memory is a symlink" || fail "the memory is a symlink" "symlink" "not a symlink"
-assert_eq "it points into the project's own scope" "$checkout/projects/acme/memory" \
+assert_eq "it points into the project's own scope" "$checkout/projects/acme/shared" \
   "$(cd "$repo/.agent-memory" && pwd -P)"
 assert_eq "the code repository ignores it" "0" \
   "$(cd "$repo" && git check-ignore -q -- .agent-memory; echo $?)"
@@ -79,7 +81,7 @@ assert_eq "the ignore line is not duplicated" "1" \
 # ---------- --check reports without changing ----------
 run_store "$repo" --check
 assert_eq       "--check passes on a wired machine" "0" "$RC"
-assert_contains "and names the link target"         "projects/acme/memory" "$OUT"
+assert_contains "and names the link target"         "projects/acme/shared" "$OUT"
 
 # ---------- it never decides the fate of memory somebody wrote ----------
 # A real directory where the symlink belongs is the lagging-machine case, and
@@ -90,6 +92,7 @@ memory_dir=.agent-memory
 memory_repo=$remote
 memory_project_key=acme
 memory_repo_dir=$checkout
+agents_memory_dir=$views
 EOF
 mkdir -p "$repo2/.agent-memory"
 printf 'a note\n' > "$repo2/.agent-memory/note.md"
@@ -130,7 +133,8 @@ esac
 repo4="$(cd "$(mktemp -d)" && pwd -P)"; git init -q -b main "$repo4"
 checkout2="$(cd "$(mktemp -d)" && pwd -P)/store2"
 init_out="$(bash scripts/init.sh --repo "$repo4" \
-  --memory-repo "$remote" --memory-key beta --memory-repo-dir "$checkout2" 2>&1)"
+  --memory-repo "$remote" --memory-key beta --memory-repo-dir "$checkout2" \
+  --agents-memory-dir "$views" 2>&1)"
 init_rc=$?
 assert_eq       "init with a store succeeds"        "0" "$init_rc"
 assert_contains "it wires the store"                "linked" "$init_out"
@@ -138,7 +142,7 @@ assert_contains "it wires the store"                "linked" "$init_out"
 # MEMORY.md must be created THROUGH the link, so it lands in the store rather
 # than in a directory that would have blocked the symlink.
 assert_eq "the index landed in the store" "0" \
-  "$([[ -f "$checkout2/projects/beta/memory/MEMORY.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$checkout2/projects/beta/shared/MEMORY.md" ]] && echo 0 || echo 1)"
 assert_contains "the config records where the store is" "memory_repo=$remote" "$(cat "$repo4/.floppy/config")"
 assert_contains "and the scope"                         "memory_project_key=beta" "$(cat "$repo4/.floppy/config")"
 
@@ -164,5 +168,5 @@ esac
 [[ -L "$repo6/.agent-memory" ]] && fail "a plain init keeps memory in the repository" "real dir" "symlink" \
   || ok "a plain init keeps memory in the repository"
 
-rm -rf "$repo" "$repo2" "$repo3" "$repo4" "$repo5" "$repo6" "$remote" "$checkout" "$checkout2"
+rm -rf "$views" "$repo" "$repo2" "$repo3" "$repo4" "$repo5" "$repo6" "$remote" "$checkout" "$checkout2"
 summary

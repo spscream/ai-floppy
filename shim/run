@@ -164,7 +164,14 @@ fi
 export FLOPPY_MEMORY_EXTERNAL FLOPPY_MEMORY_STORE
 export FLOPPY_MEMORY_REAL="$_mem_real"
 export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
-export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key '')"
+# One key names this project in every memory repository it uses, and it is
+# also the directory a human opens under agents_memory_dir. The two older,
+# per-purpose keys stay as overrides, for the project whose scope really is
+# named differently in the two repositories — that case exists, which is why
+# they are not simply deleted, but it is not the common one and it should not
+# be what a fresh config asks about.
+export FLOPPY_PROJECT_KEY="$(cfg_get project_key '')"
+export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key "$FLOPPY_PROJECT_KEY")"
 
 # ---------- where a memory checkout lives ----------
 # One PARENT directory holds one checkout per repository URL, and the checkout
@@ -202,13 +209,23 @@ _checkout_dir() {
   # at the last slash alone would leave "git@host:repo" as a directory name.
   _cd_slug="${_cd_url%/}"; _cd_slug="${_cd_slug##*/}"; _cd_slug="${_cd_slug##*:}"
   _cd_slug="${_cd_slug%.git}"
-  _cd_derived="$FLOPPY_AGENTS_MEMORY_DIR/$_cd_slug"
+  # Clones live under .clones/ so that the parent holds one alphabet only —
+  # project keys, which is what a human looks for there. A flat parent mixed
+  # project names with repository names, and telling them apart needed the
+  # config open beside the terminal.
+  _cd_derived="$FLOPPY_AGENTS_MEMORY_DIR/.clones/$_cd_slug"
   if [[ -d "$_cd_derived/.git" ]]; then printf '%s\n' "$_cd_derived"; return; fi
-  # The layout from before this change: one checkout directly at the parent.
-  # Adopt it when its origin proves it is this very repository. Anything less
-  # than that proof would be the silent adoption this change exists to stop,
-  # so a directory holding some other repository falls through to the derived
-  # path and the verb's origin check has the last word.
+  # Two older layouts, adopted rather than re-cloned, and each only when its
+  # origin proves it is this very repository. Anything less than that proof
+  # would be the silent adoption these checks exist to stop: a directory
+  # holding some other repository falls through to the derived path, where the
+  # verb's own origin check has the last word.
+  #   0.4.2: one checkout per URL, directly under the parent.
+  if [[ -d "$FLOPPY_AGENTS_MEMORY_DIR/$_cd_slug/.git" ]] \
+     && [[ "$(_origin_of "$FLOPPY_AGENTS_MEMORY_DIR/$_cd_slug")" == "$_cd_url" ]]; then
+    printf '%s\n' "$FLOPPY_AGENTS_MEMORY_DIR/$_cd_slug"; return
+  fi
+  #   before 0.4.2: one checkout, at the parent itself.
   if [[ -d "$FLOPPY_AGENTS_MEMORY_DIR/.git" ]] \
      && [[ "$(_origin_of "$FLOPPY_AGENTS_MEMORY_DIR")" == "$_cd_url" ]]; then
     printf '%s\n' "$FLOPPY_AGENTS_MEMORY_DIR"; return
@@ -231,7 +248,7 @@ export FLOPPY_MEMORY_LOCAL_DIR="$(cfg_get memory_local_dir local)"
 # at somebody else's store. Read by `store`; the rest of the rite derives the
 # layout from the filesystem instead.
 export FLOPPY_MEMORY_REPO="$(cfg_get memory_repo '')"
-export FLOPPY_MEMORY_PROJECT_KEY="$(cfg_get memory_project_key '')"
+export FLOPPY_MEMORY_PROJECT_KEY="$(cfg_get memory_project_key "$FLOPPY_PROJECT_KEY")"
 export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get memory_repo_dir '')")"
 export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"

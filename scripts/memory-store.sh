@@ -44,18 +44,21 @@ key="${FLOPPY_MEMORY_PROJECT_KEY:-}"
 dir="${FLOPPY_MEMORY_REPO_DIR:-$HOME/agents_memory}"
 
 if [[ -z "$url" || -z "$key" ]]; then
-  echo "x memory_repo and memory_project_key are both required in .floppy/config"
+  echo "x memory_repo and project_key are both required in .floppy/config"
   echo "  This verb moves the memory out of the code repository; without a"
   echo "  destination and a scope there is nowhere to move it to."
   echo "  A project that keeps memory in its own repository does not need this verb."
   exit 2
 fi
 
-target="$dir/projects/$key/memory"
+scope="projects/$key/shared"
+target="$dir/$scope"
+view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$key/shared"
 link="$repo/$mem_dir"
 
 echo "store:      $dir"
-echo "scope:      projects/$key/memory"
+echo "scope:      $scope"
+echo "view:       $view"
 echo "memory_dir: $mem_dir"
 echo
 
@@ -85,7 +88,18 @@ _lib="$(dirname "$0")/lib-checkout.sh"
 . "$_lib"
 ensure_checkout "$url" "$dir" "store" || exit 1
 
+# Before 0.5.0 this project's corpus was projects/<key>/memory, and the
+# workplace scope was projects/<key> itself — so with one repository serving
+# both, the second contained the first. Siblings end that, but the notes have
+# to be moved by a human on one machine, once.
+if [[ -e "$dir/projects/$key/memory" ]]; then
+  refuse_old_scope "$dir" "projects/$key/memory" "$scope" \
+    "git -C \"$dir\" mv \"projects/$key/memory\" \"$scope\""
+  exit 1
+fi
+
 mkdir -p "$target"
+view_link "$key" "$dir" "$scope" shared || exit 1
 
 # ---------- the symlink ----------
 if [[ -L "$link" ]]; then
@@ -104,8 +118,12 @@ elif [[ -e "$link" ]]; then
   echo "  Nothing was moved or deleted: this script does not decide the fate of memory."
   exit 1
 else
-  ln -s "$target" "$link"
-  echo "ok linked: $mem_dir -> $target"
+  # Through the view, not straight into the clone: the view is the stable
+  # address of this project's memory, and it survives the store moving to
+  # another URL. The write probe below proves the whole chain either way, so
+  # the extra hop is checked rather than trusted.
+  ln -s "$view" "$link"
+  echo "ok linked: $mem_dir -> $view"
 fi
 
 # ---------- the ignore line ----------

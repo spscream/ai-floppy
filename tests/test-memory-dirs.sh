@@ -70,8 +70,8 @@ assert_rc       "store: wires up"                    0 "$RC"
 run_verb "$repo1" "$H1" workplace
 assert_rc       "workplace: wires up beside it"      0 "$RC"
 
-s_dir="$H1/agents_memory/store"
-w_dir="$H1/agents_memory/wp"
+s_dir="$H1/agents_memory/.clones/store"
+w_dir="$H1/agents_memory/.clones/wp"
 assert_eq "store checkout is under the parent, named for its URL" "0" \
   "$([[ -d "$s_dir/.git" ]] && echo 0 || echo 1)"
 assert_eq "workplace checkout is a separate directory"            "0" \
@@ -85,16 +85,16 @@ assert_eq "workplace checkout really is the workplace repository" "workplace" \
 # in the workplace repository, not merely in some directory that exists.
 printf 'private\n' > "$repo1/.agent-memory/local/note.md"
 assert_eq "a note in local/ lands in the workplace checkout" "0" \
-  "$([[ -f "$w_dir/projects/acme/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$w_dir/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
 assert_eq "and not in the store checkout" "1" \
-  "$([[ -f "$s_dir/projects/acme/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$s_dir/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
 
 # ---------- 2. a checkout of the wrong repository is refused ----------
 W2="$(mktemp -d)"; H2="$W2/home"; mkdir -p "$H2/agents_memory"
 mk_remote "$W2/store.git" store
 mk_remote "$W2/wp.git" workplace
 # Somebody else's repository already sitting exactly where wp is expected.
-git clone -q "$W2/store.git" "$H2/agents_memory/wp"
+mkdir -p "$H2/agents_memory/.clones"; git clone -q "$W2/store.git" "$H2/agents_memory/.clones/wp"
 repo2="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H2/agents_memory
 workplace_repo=$W2/wp.git
@@ -126,10 +126,10 @@ run_verb "$repo3" "$H3" workplace
 assert_rc       "legacy layout: still wires up"            0 "$RC"
 assert_contains "and says the checkout was adopted"  "adopt" "$OUT"
 assert_eq "no second checkout was cloned underneath" "1" \
-  "$([[ -d "$H3/agents_memory/wp/.git" ]] && echo 0 || echo 1)"
+  "$([[ -d "$H3/agents_memory/.clones/wp/.git" ]] && echo 0 || echo 1)"
 printf 'private\n' > "$repo3/.agent-memory/local/note.md"
 assert_eq "the note lands in the adopted checkout" "0" \
-  "$([[ -f "$H3/agents_memory/projects/acme/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$H3/agents_memory/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
 
 # ---------- 4. a clone that would nest inside a checkout is refused ----------
 # The hybrid of the two layouts above: the parent is itself a checkout, and a
@@ -149,7 +149,7 @@ run_verb "$repo4" "$H4" store
 assert_eq       "store: refuses to clone inside a checkout (rc)" "1" "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 assert_contains "the refusal says the parent is a repository" "repositor" "$OUT"
 assert_eq "nothing was cloned" "1" \
-  "$([[ -e "$H4/agents_memory/store" ]] && echo 0 || echo 1)"
+  "$([[ -e "$H4/agents_memory/.clones/store" ]] && echo 0 || echo 1)"
 
 # ---------- 5. store + workplace together: the wiring link is not committed ----------
 # With a store, memory_dir is itself a symlink, so local/ is created INSIDE the
@@ -170,14 +170,14 @@ assert_rc "combined: store wires up"     0 "$RC"
 run_verb "$repo5" "$H5" workplace
 assert_rc "combined: workplace wires up" 0 "$RC"
 
-s5="$H5/agents_memory/store"
+s5="$H5/agents_memory/.clones/store"
 assert_eq "the local/ link was created inside the store checkout" "0" \
-  "$([[ -L "$s5/projects/acme/memory/local" ]] && echo 0 || echo 1)"
+  "$([[ -L "$s5/projects/acme/shared/local" ]] && echo 0 || echo 1)"
 untracked="$(git -C "$s5" status --porcelain -uall 2>/dev/null | grep -c 'memory/local' | tr -d ' ')"
 assert_eq "the store repository ignores that link rather than committing it" "0" "$untracked"
 printf 'private\n' > "$repo5/.agent-memory/local/note.md"
 assert_eq "a note through it still reaches the workplace repository" "0" \
-  "$([[ -f "$H5/agents_memory/wp/projects/acme/note.md" ]] && echo 0 || echo 1)"
+  "$([[ -f "$H5/agents_memory/.clones/wp/projects/acme/local/note.md" ]] && echo 0 || echo 1)"
 
 # ---------- 6. the directory name comes from the repository, not the URL ----------
 # Resolution only: `env` prints what the shim derived and clones nothing, so
@@ -195,7 +195,7 @@ workplace_repo=$url
 workplace_project_key=acme")"
   got="$(cd "$r" && HOME="$H6" AI_FLOPPY_HOME="$ROOT" CLAUDE_PLUGIN_ROOT= \
     bash .floppy/run env 2>/dev/null | sed -n 's/^FLOPPY_WORKPLACE_MEMORY_DIR=//p')"
-  assert_eq "checkout for $url is named $want" "$H6/agents_memory/$want" "$got"
+  assert_eq "checkout for $url is named $want" "$H6/agents_memory/.clones/$want" "$got"
 done
 
 rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
