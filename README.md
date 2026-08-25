@@ -436,6 +436,11 @@ Read it before changing any path in the scripts. It exists because the layout
 was renamed three times in one day, and each rename corrected a model that
 nobody had written down.
 
+[docs/lessons.md](docs/lessons.md) — what those renames cost, why the external
+layout is derived from the filesystem instead of a config flag, how a linter
+walked an empty tree and stayed green, and why the suite hangs on an open
+stdin.
+
 ## Releases
 
 See [CHANGELOG.md](CHANGELOG.md). For each release it answers one question that
