@@ -14,6 +14,23 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.5.1 — 2026-08-25
+
+**Refresh `.floppy/run`: no.** Take it before migrating a second machine.
+
+- **Wiring left by a pre-0.5.0 run is repointed, not refused.** After the scope
+  move, `<memory_dir>/local` still pointed at the old scope of the same
+  repository, and the verb stopped with "the symlink points elsewhere" — so
+  every machine needed a manual `rm` before it could be rewired. That link is
+  wiring: it holds no content, and this verb recreates it on each machine
+  anyway. A link into a *different* repository is still refused, because that
+  one may be another workplace and this verb does not guess.
+- `readlink -f` left `memory-workplace.sh`. BSD readlink on macOS has no `-f`,
+  so that comparison had never worked there — it was reached only when the link
+  already disagreed, which is why no test and no machine had shown it.
+
+414 asserts, up from 406.
+
 ## 0.5.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (new key, and the shim resolves the new layout).

@@ -94,9 +94,23 @@ view_link "$project_key" "$dir" "$scope" local || exit 1
 
 # ---------- the symlink ----------
 if [[ -L "$link" ]]; then
-  cur="$(readlink -f "$link")"
-  if [[ "$cur" == "$(readlink -f "$target")" ]]; then
+  # `cd && pwd -P`, not `readlink -f`: BSD readlink on macOS has no -f, and
+  # every other resolution in this plugin already uses the portable form.
+  if [[ -d "$link" ]]; then cur="$(cd "$link" && pwd -P)"; else cur="$(readlink "$link")"; fi
+  want="$(cd "$target" && pwd -P)"
+  old_scope="$(cd "$dir" && pwd -P)/projects/$project_key"
+  if [[ "$cur" == "$want" ]]; then
     echo "ok already configured: $mem_dir/local -> $target"
+  elif [[ "$cur" == "$old_scope" ]]; then
+    # Wiring left by a pre-0.5.0 run of this same verb, pointing at the scope
+    # this project used to have in this same repository. The notes moved; this
+    # link did not. Repointing it is this verb's job: it is wiring, it holds no
+    # content, and every machine recreates it anyway. The refusal below still
+    # covers the case that is genuinely ambiguous — a link into some other
+    # repository, which may be another workplace.
+    rm -f "$link"
+    ln -s "$view" "$link"
+    echo "ok repointed $mem_dir/local from the pre-0.5.0 scope to $view"
   else
     echo "x the symlink points elsewhere: $link -> $cur"
     echo "  expected $target. Sort this out by hand: it may be another workplace."

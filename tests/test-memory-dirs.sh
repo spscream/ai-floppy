@@ -198,5 +198,55 @@ workplace_project_key=acme")"
   assert_eq "checkout for $url is named $want" "$H6/agents_memory/.clones/$want" "$got"
 done
 
+
+# ---------- 7. wiring left by a pre-0.5.0 run is repointed, not refused ----------
+# The scope names moved in 0.5.0, and the human moved the notes with git mv.
+# What is left is a symlink into the old scope of the SAME repository: wiring,
+# holding no content, recreated by this verb on every machine. Refusing it sent
+# every machine through a manual rm; a link into a DIFFERENT repository is a
+# separate case and still refused.
+W7="$(mktemp -d)"; H7="$W7/home"; mkdir -p "$H7"
+mk_remote "$W7/wp.git" workplace
+repo7="$(mk_consumer "memory_dir=.agent-memory
+agents_memory_dir=$H7/agents_memory
+project_key=acme
+workplace_repo=$W7/wp.git")"
+mkdir -p "$repo7/.agent-memory"
+run_verb "$repo7" "$H7" workplace
+assert_rc "fresh wiring succeeds" 0 "$RC"
+
+clone7="$H7/agents_memory/.clones/wp"
+# Put the machine back into the pre-0.5.0 shape: notes in the old scope, and
+# the link pointing at it.
+mkdir -p "$clone7/projects/acme"
+printf 'old\n' > "$clone7/projects/acme/note.md"
+rm -f "$repo7/.agent-memory/local"
+ln -s "$clone7/projects/acme" "$repo7/.agent-memory/local"
+# The verb must refuse while the notes are still in the old scope...
+run_verb "$repo7" "$H7" workplace
+assert_eq       "notes still in the old scope: refuses" "1" "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "and prints the move recipe"            "projects/acme.moving"  "$OUT"
+# ...and repoint the link once the notes have moved, without a manual rm.
+mkdir -p "$clone7/projects/acme/local"
+mv "$clone7/projects/acme/note.md" "$clone7/projects/acme/local/note.md"
+run_verb "$repo7" "$H7" workplace
+assert_rc       "after the move: wires up"              0 "$RC"
+assert_contains "and says it repointed the wiring" "repointed" "$OUT"
+assert_eq "the note is readable through the link again" "old" \
+  "$(cat "$repo7/.agent-memory/local/note.md" 2>/dev/null)"
+
+# A link into another repository is still refused: that one may be a workplace
+# somebody else's machine wired, and this verb does not guess.
+mk_remote "$W7/other.git" other
+git clone -q "$W7/other.git" "$W7/other"
+mkdir -p "$W7/other/projects/acme/local"
+rm -f "$repo7/.agent-memory/local"
+ln -s "$W7/other/projects/acme/local" "$repo7/.agent-memory/local"
+run_verb "$repo7" "$H7" workplace
+assert_eq       "a link into another repository is refused" "1" "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "and says so"                    "points elsewhere" "$OUT"
+
+rm -rf "$W7"
+
 rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
 summary

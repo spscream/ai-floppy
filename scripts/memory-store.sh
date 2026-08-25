@@ -103,10 +103,18 @@ view_link "$key" "$dir" "$scope" shared || exit 1
 
 # ---------- the symlink ----------
 if [[ -L "$link" ]]; then
-  if [[ "$(cd "$link" && pwd -P)" == "$(cd "$target" && pwd -P)" ]]; then
+  if [[ -d "$link" ]]; then cur="$(cd "$link" && pwd -P)"; else cur="$(readlink "$link")"; fi
+  old_scope="$(cd "$dir" && pwd -P)/projects/$key/memory"
+  if [[ "$cur" == "$(cd "$target" && pwd -P)" ]]; then
     echo "ok already wired: $mem_dir -> $target"
+  elif [[ "$cur" == "$old_scope" ]]; then
+    # The same repointing as in memory-workplace.sh, for the same reason: this
+    # is wiring left by an earlier version of this verb, not memory.
+    rm -f "$link"
+    ln -s "$view" "$link"
+    echo "ok repointed $mem_dir from the pre-0.5.0 scope to $view"
   else
-    echo "x $mem_dir points elsewhere: $(readlink "$link")"
+    echo "x $mem_dir points elsewhere: $cur"
     echo "  expected $target. Sort this out by hand — it may be another store."
     exit 1
   fi
