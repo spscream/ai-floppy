@@ -28,7 +28,10 @@ assert_contains "memory_dir defaults" "FLOPPY_MEMORY_DIR=.agent-memory" "$out2"
 # empty directory so this does not depend on whether the real machine happens
 # to have a floppy plugin cached (it does, on this one).
 empty_home="$(mktemp -d)"
-out3="$(cd "$repo2" && HOME="$empty_home" AI_FLOPPY_HOME=/nonexistent CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1)"; rc3=$?
+# AI_FLOPPY_HOME is emptied rather than pointed at /nonexistent: a set-but-
+# empty-handed value is now a refusal in its own right (below), and this case
+# is about nothing being installed anywhere.
+out3="$(cd "$repo2" && HOME="$empty_home" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1)"; rc3=$?
 assert_rc       "missing plugin exits nonzero" 1 "$rc3"
 assert_contains "missing plugin names the fix" "plugin install floppy" "$out3"
 # With nothing installed under either harness, the failure has to name both
@@ -236,5 +239,38 @@ assert_contains "old plugin: names the resolved root"       "$oldroot"          
 still="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1; echo "rc=$?")"
 assert_contains "old plugin: a verb it does have still runs" "repo: $repoO" "$still"
 rm -rf "$oldroot" "$repoO"
+
+# ---------- a variable that names the plugin, pointed at no plugin ----------
+# Measured 2026-08-25, and it cost a wrong conclusion: AI_FLOPPY_HOME was set
+# to a directory holding no plugin, the search fell through to the Claude Code
+# cache, an older copy answered, and a script that had just been fixed was
+# reported as still broken. Nothing in the output named the copy that ran.
+# A cache is a guess and may be skipped in silence; a variable somebody set is
+# a statement, and must not be.
+repoE="$(sandbox)"; cp shim/run "$repoE/.floppy/run"
+homeE="$(mktemp -d)"
+# A WORKING cache under the fake HOME, so a pass here proves refusal rather
+# than the absence of anywhere to fall through to.
+mkdir -p "$homeE/.claude/plugins/cache/example/floppy/9.9.9/scripts"
+touch "$homeE/.claude/plugins/cache/example/floppy/9.9.9/scripts/x.sh"
+emptyE="$(mktemp -d)"
+
+outE="$(cd "$repoE" && HOME="$homeE" AI_FLOPPY_HOME="$emptyE" CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"; rcE=$?
+assert_rc       "AI_FLOPPY_HOME with no plugin refuses (rc)" 1 "$rcE"
+assert_contains "and names the variable"                     "AI_FLOPPY_HOME is set to" "$outE"
+assert_contains "and names the path it was given"            "$emptyE" "$outE"
+case "$outE" in
+  *"9.9.9"*) fail "does not fall through to the cache instead" "no cache root" "$outE" ;;
+  *)         ok   "does not fall through to the cache instead" ;;
+esac
+
+# CLAUDE_PLUGIN_ROOT is the harness's variable, not floppy's: a call made from
+# inside another plugin's skill can carry that plugin's root with no mistake by
+# anyone. So this one warns and carries on, naming what it used instead.
+outC="$(cd "$repoE" && HOME="$homeE" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT="$emptyE" bash .floppy/run env 2>&1)"; rcC=$?
+assert_rc       "CLAUDE_PLUGIN_ROOT with no plugin does not stop the run (rc)" 0 "$rcC"
+assert_contains "but says it is being ignored"    "CLAUDE_PLUGIN_ROOT is set to" "$outC"
+assert_contains "and names the root used instead" "9.9.9" "$outC"
+rm -rf "$repoE" "$homeE" "$emptyE"
 
 summary

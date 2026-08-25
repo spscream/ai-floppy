@@ -14,6 +14,40 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.10.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (the shim now refuses a variable that names a
+plugin which is not there). **Expect a red `lint`** on the first run in a
+project that has a workplace memory repository: notes there have never been
+checked, and now they are.
+
+- The shim stops instead of searching on when `AI_FLOPPY_HOME` is set to a
+  directory holding no `scripts/*.sh`. A cache path is a guess and skipping a
+  wrong guess in silence is right; a variable somebody set is a statement about
+  where the plugin is, and skipping THAT in silence is how a call ends up
+  against another copy. Measured while fixing 0.9.1: the variable was pointed
+  at a directory with no plugin, the search fell through to the Claude Code
+  cache, an older copy answered, and a script that had just been fixed was
+  reported as still broken — with nothing in the output naming the copy that
+  ran. `CLAUDE_PLUGIN_ROOT` is treated differently on purpose: the harness sets
+  it per plugin, so a call from inside another plugin's skill can carry that
+  plugin's root through nobody's mistake. That one warns, names the root used
+  instead, and carries on.
+- The memory linter reaches the private scope — the symlink into the workplace
+  repository, which every one of its queries used to exclude by path. It gets
+  the per-note invariants: frontmatter, `name`/`description`, `metadata.type`,
+  `metadata.evidence`, slug uniqueness, `[[link]]` resolution. Measured on the
+  first consumer's store the moment it ran: three notes, three with no
+  `metadata.evidence`, invisible because nothing reached them.
+- What the private scope deliberately does NOT get: the index rules, because
+  the scope is flat by design and its README is prose rather than pointers —
+  demanding `MEMORY.md` and `INDEX.md` there would report every note an orphan
+  on the first run; and the quota, because those numbers live in the committed
+  memory's `quota.lock` and are facts about that corpus. Borrowing them here is
+  the same borrowed cap this project refuses elsewhere.
+
+466 asserts, up from 452.
+
 ## 0.9.1 — 2026-08-25
 
 **Refresh `.floppy/run`: no.** The shim is unchanged; the fixes are in the

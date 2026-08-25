@@ -55,6 +55,30 @@ cursor_local="$HOME/.cursor/plugins/local/floppy"
 # SHA-named one, and unifying them would make one of the two wrong.
 cursor_cache="$(ls -dt "$HOME"/.cursor/plugins/cache/*/floppy/*/ 2>/dev/null | head -n1)"
 
+# A cache path is a guess, and falling through a wrong guess in silence is
+# right. A variable somebody SET is not a guess — it states where the plugin
+# is — and falling through that in silence is how a call ends up against a
+# different copy than the one named. Measured 2026-08-25: AI_FLOPPY_HOME was
+# pointed at a directory holding no plugin, the search fell through to the
+# Claude Code cache, an older copy answered, and a script that had just been
+# fixed was reported as still broken. Nothing in the output said which copy
+# had run.
+#
+# The two variables are not treated alike, because they are not alike.
+# AI_FLOPPY_HOME belongs to floppy and nothing else sets it, so a bad value is
+# a mistake and this stops. CLAUDE_PLUGIN_ROOT is set by the harness per
+# plugin, and a call made from inside some other plugin's skill can carry that
+# other plugin's root through no fault of anyone's — so that one warns, names
+# the root it used instead, and carries on.
+if [[ -n "${AI_FLOPPY_HOME:-}" ]] && ! has_scripts "$AI_FLOPPY_HOME"; then
+  echo "x AI_FLOPPY_HOME is set to '$AI_FLOPPY_HOME', which holds no scripts/*.sh" >&2
+  echo "  That variable names where the plugin is, so this stops rather than" >&2
+  echo "  searching the caches behind your back: a run against a copy other than" >&2
+  echo "  the one you named is how a fixed script gets reported as still broken." >&2
+  echo "  Unset it, or point it at a floppy checkout." >&2
+  exit 1
+fi
+
 if   has_scripts "${CLAUDE_PLUGIN_ROOT:-}"; then
   FLOPPY_ROOT="$CLAUDE_PLUGIN_ROOT"
 elif has_scripts "${AI_FLOPPY_HOME:-}"; then
@@ -65,6 +89,11 @@ elif has_scripts "$cursor_local"; then
   FLOPPY_ROOT="$cursor_local"
 elif has_scripts "$cursor_cache"; then
   FLOPPY_ROOT="$cursor_cache"
+fi
+
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && ! has_scripts "$CLAUDE_PLUGIN_ROOT"; then
+  echo "! CLAUDE_PLUGIN_ROOT is set to '$CLAUDE_PLUGIN_ROOT', which holds no scripts/*.sh." >&2
+  echo "  Ignoring it and using ${FLOPPY_ROOT:-nothing found} instead." >&2
 fi
 
 if ! has_scripts "${FLOPPY_ROOT:-}"; then

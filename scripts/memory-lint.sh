@@ -79,6 +79,37 @@ while IFS= read -r __line; do notes+=("$__line"); done < <(
   find -L "$MEM" -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
 )
 
+# The private scope, which every query above deliberately skips. It is a
+# symlink into the workplace repository, so it is a different corpus in a
+# different git repository — and until now nothing checked it at all. Measured
+# 2026-08-25 on the first consumer's store: three notes, three without
+# metadata.evidence, invisible because no query reached them.
+#
+# What it gets and what it does not:
+#   yes - the per-note invariants: frontmatter, name/description, type,
+#         evidence, slug uniqueness, and [[link]] resolution. Those are
+#         properties of a note, true wherever the note lives.
+#   no  - the index tree. The scope is flat by design, with a README that is
+#         prose rather than pointers; demanding MEMORY.md and INDEX.md there
+#         would report every note an orphan on the first run.
+#   no  - the quota. Those numbers live in the committed memory's quota.lock
+#         and are facts about THAT corpus. Applying them here is exactly the
+#         borrowed cap this project refuses elsewhere; the private scope needs
+#         its own measurement before it can have its own numbers.
+#
+# README.md is excluded the way MEMORY.md and INDEX.md are above: in this
+# scope it is the file that introduces the directory, not a note in it.
+private_notes=()
+if [[ -d "$MEM/$LOCAL_DIR" ]]; then
+  while IFS= read -r __line; do private_notes+=("$__line"); done < <(
+    find -L "$MEM/$LOCAL_DIR" -name '*.md' \
+      -not -name 'MEMORY.md' -not -name 'INDEX.md' -not -name 'README.md' | sort
+  )
+fi
+
+# Every note whose own invariants are checked, wherever it lives.
+all_notes=("${notes[@]+"${notes[@]}"}" "${private_notes[@]+"${private_notes[@]}"}")
+
 # ---------- frontmatter ----------
 hr "frontmatter"
 # Slug -> file, as newline-delimited "slug<TAB>file" records instead of an
@@ -87,7 +118,7 @@ slug_records=""
 slug_file() {  # $1 = slug; prints the file that claimed it, empty if free
   printf '%s\n' "$slug_records" | awk -F'\t' -v s="$1" '$1 == s { print $2; exit }'
 }
-for f in "${notes[@]+"${notes[@]}"}"; do
+for f in "${all_notes[@]+"${all_notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   if [[ "$(head -n1 "$f")" != "---" ]]; then
     err "$rel: no frontmatter"
@@ -395,7 +426,7 @@ done
 
 # ---------- [[slug]] links ----------
 hr "[[slug]] links"
-for f in "${notes[@]+"${notes[@]}"}"; do
+for f in "${all_notes[@]+"${all_notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   while IFS= read -r slug; do
     [[ -z "$slug" ]] && continue
