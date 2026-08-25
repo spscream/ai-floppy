@@ -5,7 +5,16 @@
 # environment, so there is exactly one parser and one search order.
 set -uo pipefail
 
-FLOPPY_REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# Loud on purpose: every verb below trusts FLOPPY_REPO as the root all its
+# paths are relative to. A silent `|| pwd` fallback here would mean a run
+# from outside any git repository quietly derives every downstream path —
+# memory dir, statuses file, watched dirs — from the wrong place instead of
+# failing where the mistake is obvious.
+if ! FLOPPY_REPO="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "x not inside a git repository: $(pwd)" >&2
+  echo "  floppy's session ritual is git-based; cd into the repository first" >&2
+  exit 1
+fi
 export FLOPPY_REPO
 
 # The plugin cache path carries a version and changes on every update, so the
@@ -44,14 +53,26 @@ cfg_get() { # key default
   printf '%s' "$v"
 }
 
+# memory_language is deliberately not exported: it governs the language a
+# note's prose is written in, which is a convention the agent reads out of
+# .floppy/config directly (see floppy:agent-memory) — no script here acts on
+# it. An env var nothing consumes is worse than no var: it looks wired.
 export FLOPPY_MEMORY_DIR="$(cfg_get memory_dir .agent-memory)"
-export FLOPPY_MEMORY_LANGUAGE="$(cfg_get memory_language en)"
 export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
 export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key '')"
+# $HOME/agents_memory is only a default, not a rule: it is one person's own
+# checkout name, and a consumer whose workplace checkout lives elsewhere sets
+# workplace_memory_dir in .floppy/config rather than symlinking to match it.
+export FLOPPY_WORKPLACE_MEMORY_DIR="$(cfg_get workplace_memory_dir "$HOME/agents_memory")"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
 export FLOPPY_WATCHED_DIRS="$(cfg_get watched_dirs docs)"
 export FLOPPY_WATCHED_FILES="$(cfg_get watched_files AGENTS.md)"
+# auto: pull --rebase then push, same as always. never: wrap-commit stays
+# local — commits but does not touch a remote at all. For a repository with
+# no upstream configured, "auto" fails the sync step every time (there is
+# nothing to pull or push against), so that repository sets commit_push=never.
+export FLOPPY_COMMIT_PUSH="$(cfg_get commit_push auto)"
 
 verb="${1:-}"; shift 2>/dev/null || true
 case "$verb" in

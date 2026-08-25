@@ -97,6 +97,15 @@ memory_language=$language
 # Set both to use "bash .floppy/run workplace".
 # workplace_repo=git@example.com:workplace/agents-memory.git
 # workplace_project_key=your-project-key
+# workplace_memory_dir defaults to $HOME/agents_memory, which is one
+# person's own checkout name, not a rule — set it if yours lives elsewhere.
+# workplace_memory_dir=/path/to/your/workplace-memory-checkout
+
+# commit_push controls what "bash .floppy/run commit" does after committing:
+# auto (default) pulls --rebase then pushes, same as always. A repository
+# with no upstream configured fails that every time — set commit_push=never
+# to keep every commit local instead (the --no-push flag does this per call).
+# commit_push=never
 
 # statuses_now=docs/statuses/NOW.md
 # statuses_now_chars_max=12000
