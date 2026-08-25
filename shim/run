@@ -79,6 +79,33 @@ if ! has_scripts "${FLOPPY_ROOT:-}"; then
 fi
 export FLOPPY_ROOT
 
+# Is this copy the same file as the plugin's? Both are on disk now, so the
+# question is one `cmp` away.
+#
+# Why every call and not just a red one: this file is a COPY in the consumer
+# repository and does not arrive with `plugin update`, and the ways it goes
+# stale are mostly SILENT. A missing verb announces itself; a fixed config
+# parser, a fixed repository resolver, a corrected search order do not — the
+# old copy simply keeps doing the old thing. Measured over the first week after
+# extraction: the shim took 9 commits, and 4 of the 8 after the first were in
+# the plugin resolver — the one part that by construction cannot move into the
+# plugin, so no amount of shrinking this file removes them. A content
+# comparison covers all 8.
+#
+# The hint is a bare `cp` rather than a verb like `refresh` on purpose: a shim
+# old enough to need refreshing is by definition too old to know the verb that
+# would do it.
+#
+# Silent when the plugin ships no shim/ (some install layouts flatten it) —
+# a check with nothing to compare against must not invent a warning. Silent
+# too when this IS the plugin's own copy, which is the case while developing
+# the plugin itself.
+self="${BASH_SOURCE[0]:-$0}"
+plugin_shim="$FLOPPY_ROOT/shim/run"
+if [[ -f "$self" && -f "$plugin_shim" ]] && ! cmp -s "$self" "$plugin_shim"; then
+  echo "! .floppy/run differs from the installed plugin's shim — usually stale: cp \"$plugin_shim\" \"$FLOPPY_REPO/.floppy/run\"" >&2
+fi
+
 # Flat key=value, like quota.lock. Nested YAML cannot be parsed by bash 3.2
 # without a hand-rolled parser, and a hand-rolled config parser fails quietly.
 cfg="$FLOPPY_REPO/.floppy/config"

@@ -50,6 +50,19 @@ cached copy had an empty `scripts/`. Bump the version, or uninstall and
 install again. `.floppy/run` refuses to resolve into a cache directory with no
 `scripts/*.sh` rather than dying later with a confusing "No such file".
 
+The mirror of that trap is `.floppy/run` itself. It is a **copy** in the
+consumer repository, not a link, and `plugin update` never touches it: it
+travels with that repository's git instead, so on a second machine it can
+arrive *ahead* of the plugin rather than behind it. Both directions used to be
+mute — a missing verb read as a typo, and a verb the plugin was too old for
+died with a bare "No such file or directory" pointing into a cache. Each now
+names which side is behind, and every call compares this copy against the
+plugin's and says one line on stderr when they differ, because most of the ways
+a shim goes stale are silent: a corrected config parser or search order just
+keeps doing the old thing. Refresh it with a plain `cp` (the hint says which) —
+deliberately not a verb, since a shim old enough to need refreshing is too old
+to know the verb that would do it.
+
 Once installed, set the plugin up in a target repository with the `init`
 skill (below). If you're developing the plugin itself rather than installing it,
 point `AI_FLOPPY_HOME` at your checkout instead of relying on the harness.
