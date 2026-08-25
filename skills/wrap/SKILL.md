@@ -65,9 +65,12 @@ where the claim came from, not how important it is:
 need. Marking `measured` something that was actually only read is the
 expensive mistake here — it hands the next session a guess dressed as fact.
 
-A note over ten thousand characters does not pass review. That is not a
-long note — it is two notes written as one. Split it into one fact per
-file; do not raise the cap to make it fit.
+A note that trips the consumer's own per-note cap
+(`note_chars_max` in their `quota.lock` — in the project this convention
+was ported from, that cap was measured at ten thousand characters, which is
+a fact about that project's corpus, not a rule to inherit) is not a long
+note. It's two notes written as one. Split it into one fact per file; do
+not raise the cap to make it fit.
 
 ## Write for a stranger
 
