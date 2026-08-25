@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# The only file of this plugin that lands in a consumer repository, as
+# .floppy/run. It does two things nobody else may do: locate the plugin, and
+# parse .floppy/config. Everything downstream reads FLOPPY_* from the
+# environment, so there is exactly one parser and one search order.
+set -uo pipefail
+
+FLOPPY_REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+export FLOPPY_REPO
+
+# The plugin cache path carries a version and changes on every update, so the
+# only stable handles are the harness variable and an explicit override.
+if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; then
+  FLOPPY_ROOT="$CLAUDE_PLUGIN_ROOT"
+elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then
+  FLOPPY_ROOT="$AI_FLOPPY_HOME"
+else
+  FLOPPY_ROOT="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort | tail -n1)"
+fi
+
+if [[ -z "${FLOPPY_ROOT:-}" || ! -d "$FLOPPY_ROOT/scripts" ]]; then
+  echo "x floppy plugin not found." >&2
+  echo "  Install it, or point AI_FLOPPY_HOME at a checkout:" >&2
+  echo "      /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
+  exit 1
+fi
+export FLOPPY_ROOT
+
+# Flat key=value, like quota.lock. Nested YAML cannot be parsed by bash 3.2
+# without a hand-rolled parser, and a hand-rolled config parser fails quietly.
+cfg="$FLOPPY_REPO/.floppy/config"
+cfg_get() { # key default
+  local v=""
+  [[ -f "$cfg" ]] && v="$(sed -n "s/^$1=//p" "$cfg" | head -n1)"
+  printf '%s' "${v:-$2}"
+}
+
+export FLOPPY_MEMORY_DIR="$(cfg_get memory_dir .agent-memory)"
+export FLOPPY_MEMORY_LANGUAGE="$(cfg_get memory_language en)"
+export FLOPPY_WORKPLACE_REPO="$(cfg_get workplace_repo '')"
+export FLOPPY_WORKPLACE_PROJECT_KEY="$(cfg_get workplace_project_key '')"
+export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
+export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
+export FLOPPY_WATCHED_DIRS="$(cfg_get watched_dirs docs)"
+export FLOPPY_WATCHED_FILES="$(cfg_get watched_files AGENTS.md)"
+
+verb="${1:-}"; shift 2>/dev/null || true
+case "$verb" in
+  env)       env | grep '^FLOPPY_' | sort ;;
+  lint)      exec bash "$FLOPPY_ROOT/scripts/memory-lint.sh"      "$@" ;;
+  link)      exec bash "$FLOPPY_ROOT/scripts/memory-link.sh"      "$@" ;;
+  workplace) exec bash "$FLOPPY_ROOT/scripts/memory-workplace.sh" "$@" ;;
+  guard)     exec bash "$FLOPPY_ROOT/scripts/wrap-guard.sh"       "$@" ;;
+  lock)      exec bash "$FLOPPY_ROOT/scripts/wrap-lock.sh"        "$@" ;;
+  status)    exec bash "$FLOPPY_ROOT/scripts/workstatus.sh"       "$@" ;;
+  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|guard|lock|status}" ;;
+  *)         echo "x unknown verb: $verb" >&2; exit 2 ;;
+esac
