@@ -22,17 +22,22 @@ export FLOPPY_REPO
 # stable handles across both harnesses are the harness-set variable and an
 # explicit override.
 #
-# Each candidate below only counts if it actually has scripts/ — a cache
-# entry that exists but is mid-write, or a stale leftover from a broken
-# install, must not be trusted just because it is the newest thing on disk.
-# That guard already caught a stale half-populated cache once and must stay:
-# every branch gates on -d ".../scripts" itself, so a candidate that fails
-# it falls through to the next layout instead of being accepted anyway.
+# Each candidate below only counts if it actually has SCRIPTS in scripts/ —
+# a cache entry that exists but is mid-write, or a stale leftover from a
+# broken install, must not be trusted just because it is the newest thing on
+# disk. The directory alone is not evidence, and testing for it was not
+# enough: on 2026-08-25 Claude Code held a cache from a moment when scripts/
+# held only .gitkeep, `claude plugin update` called it "already at the latest
+# version" because the version string had not moved, and every verb died with
+# "No such file or directory" from inside the resolved root. Gating on at
+# least one *.sh makes that candidate fall through to the next layout, or to
+# the install hint below — which is what a broken install should produce.
 #
 # skills/init/SKILL.md duplicates this exact search rather than sourcing it
 # from here: `init` runs before this file exists in the target repository
 # (creating it is init's own first step), so it cannot read this copy. Keep
 # the two in sync by hand if this search ever changes.
+has_scripts() { [[ -n "${1:-}" ]] && ls "$1"/scripts/*.sh >/dev/null 2>&1; }
 claude_cache="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
 cursor_local="$HOME/.cursor/plugins/local/floppy"
 # Cursor's cache path ends in a git commit SHA, not a version — measured on
@@ -50,24 +55,26 @@ cursor_local="$HOME/.cursor/plugins/local/floppy"
 # SHA-named one, and unifying them would make one of the two wrong.
 cursor_cache="$(ls -dt "$HOME"/.cursor/plugins/cache/*/floppy/*/ 2>/dev/null | head -n1)"
 
-if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; then
+if   has_scripts "${CLAUDE_PLUGIN_ROOT:-}"; then
   FLOPPY_ROOT="$CLAUDE_PLUGIN_ROOT"
-elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then
+elif has_scripts "${AI_FLOPPY_HOME:-}"; then
   FLOPPY_ROOT="$AI_FLOPPY_HOME"
-elif [[ -n "$claude_cache" && -d "${claude_cache}/scripts" ]]; then
+elif has_scripts "$claude_cache"; then
   FLOPPY_ROOT="$claude_cache"
-elif [[ -d "$cursor_local/scripts" ]]; then
+elif has_scripts "$cursor_local"; then
   FLOPPY_ROOT="$cursor_local"
-elif [[ -n "$cursor_cache" && -d "${cursor_cache}/scripts" ]]; then
+elif has_scripts "$cursor_cache"; then
   FLOPPY_ROOT="$cursor_cache"
 fi
 
-if [[ -z "${FLOPPY_ROOT:-}" || ! -d "$FLOPPY_ROOT/scripts" ]]; then
+if ! has_scripts "${FLOPPY_ROOT:-}"; then
   echo "x floppy plugin not found." >&2
   echo "  Claude Code:  /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
   echo "  Cursor:       Dashboard -> Plugins -> Add Marketplace -> Import from Repo (spscream/ai_floppy)" >&2
   echo "  Cursor (dev): ln -s /path/to/ai_floppy ~/.cursor/plugins/local/floppy" >&2
   echo "  Or point AI_FLOPPY_HOME at a checkout directly." >&2
+  echo "  A cache directory that exists but holds no scripts/*.sh counts as not found:" >&2
+  echo "  reinstall rather than trusting \`plugin update\`, which is a no-op while the version is unchanged." >&2
   exit 1
 fi
 export FLOPPY_ROOT

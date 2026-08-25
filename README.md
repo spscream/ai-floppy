@@ -41,6 +41,15 @@ skill itself has no say. Every rite names that repository as the first line
 of its output (`repo: /path/to/it`), so check it before trusting the rest,
 especially before `wrap`'s `commit`, which stages, commits, and pushes.
 
+A cache that never refreshes is the trap to know about: `claude plugin
+update` compares version strings, so while `version` in
+`.claude-plugin/plugin.json` is unchanged it reports "already at the latest
+version" and copies nothing — a plugin installed from a directory marketplace
+mid-development can sit on a snapshot days old. Measured on 2026-08-25: the
+cached copy had an empty `scripts/`. Bump the version, or uninstall and
+install again. `.floppy/run` refuses to resolve into a cache directory with no
+`scripts/*.sh` rather than dying later with a confusing "No such file".
+
 Once installed, set the plugin up in a target repository with the `init`
 skill (below). If you're developing the plugin itself rather than installing it,
 point `AI_FLOPPY_HOME` at your checkout instead of relying on the harness.

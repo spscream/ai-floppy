@@ -41,17 +41,20 @@ normally lives in the one file this plugin copies into a consumer, which has
 to stay self-contained. Run:
 
 ```bash
-if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; then
+has_scripts() { [[ -n "${1:-}" ]] && ls "$1"/scripts/*.sh >/dev/null 2>&1; }
+
+if   has_scripts "${CLAUDE_PLUGIN_ROOT:-}"; then
   floppy_root="$CLAUDE_PLUGIN_ROOT"
-elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then
+elif has_scripts "${AI_FLOPPY_HOME:-}"; then
   floppy_root="$AI_FLOPPY_HOME"
 else
   floppy_root="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
 fi
 
-if [[ -z "$floppy_root" || ! -d "$floppy_root/scripts" ]]; then
-  echo "x floppy plugin not found." >&2
+if ! has_scripts "$floppy_root"; then
+  echo "x floppy plugin not found (a cache directory with no scripts/*.sh counts as not found)." >&2
   echo "  Install it: /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
+  echo "  If it is installed, reinstall: `plugin update` is a no-op while the version is unchanged." >&2
   exit 1
 fi
 

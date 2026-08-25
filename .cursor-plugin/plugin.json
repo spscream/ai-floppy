@@ -2,7 +2,9 @@
   "name": "floppy",
   "displayName": "Floppy",
   "description": "Session ritual for agent work: durable memory, a start rite, a wrap rite, and the guards that keep them honest",
-  "version": "0.1.0",
-  "author": { "name": "Alexander Malaev" },
+  "version": "0.1.1",
+  "author": {
+    "name": "Alexander Malaev"
+  },
   "skills": "./skills/"
 }

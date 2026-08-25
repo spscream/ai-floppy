@@ -66,6 +66,8 @@ repo7="$(sandbox)"; cp shim/run "$repo7/.floppy/run"
 fake_home="$(mktemp -d)"
 mkdir -p "$fake_home/.claude/plugins/cache/example/floppy/0.9.0/scripts"
 mkdir -p "$fake_home/.claude/plugins/cache/example/floppy/0.10.0/scripts"
+touch "$fake_home/.claude/plugins/cache/example/floppy/0.9.0/scripts/x.sh"
+touch "$fake_home/.claude/plugins/cache/example/floppy/0.10.0/scripts/x.sh"
 out7="$(cd "$repo7" && HOME="$fake_home" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "cache fallback picks 0.10.0, not lexicographically-later 0.9.0" \
   "FLOPPY_ROOT=$fake_home/.claude/plugins/cache/example/floppy/0.10.0" "$out7"
@@ -78,6 +80,7 @@ repoCu1="$(sandbox)"; cp shim/run "$repoCu1/.floppy/run"
 home_cu1="$(mktemp -d)"
 sha="ed18232fd3b616d570a707fb8464b678b8542dbf"
 mkdir -p "$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha/scripts"
+touch "$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha/scripts/x.sh"
 out_cu1="$(cd "$repoCu1" && HOME="$home_cu1" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "Cursor cache: a SHA-named directory resolves" \
   "FLOPPY_ROOT=$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha" "$out_cu1"
@@ -89,6 +92,7 @@ rm -rf "$repoCu1" "$home_cu1"
 repoCu2="$(sandbox)"; cp shim/run "$repoCu2/.floppy/run"
 home_cu2="$(mktemp -d)"
 mkdir -p "$home_cu2/.cursor/plugins/local/floppy/scripts"
+touch "$home_cu2/.cursor/plugins/local/floppy/scripts/x.sh"
 out_cu2="$(cd "$repoCu2" && HOME="$home_cu2" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "Cursor local dev checkout resolves" \
   "FLOPPY_ROOT=$home_cu2/.cursor/plugins/local/floppy" "$out_cu2"
@@ -108,6 +112,7 @@ home_cu3="$(mktemp -d)"
 older="$home_cu3/.cursor/plugins/cache/mp/floppy/zzz-alphabetically-last"
 newer="$home_cu3/.cursor/plugins/cache/mp/floppy/aaa-alphabetically-first"
 mkdir -p "$older/scripts" "$newer/scripts"
+touch "$older/scripts/x.sh" "$newer/scripts/x.sh"
 touch -t 202001010000 "$older"
 touch -t 202401010000 "$newer"
 out_cu3="$(cd "$repoCu3" && HOME="$home_cu3" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
@@ -160,5 +165,36 @@ firstline_commit="$(cd "$repoV" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commi
 assert_eq "commit: first line names the resolved repository" "repo: $repoV" "$firstline_commit"
 
 rm -rf "$repoV"
+
+
+# ---------- a cache directory with no scripts is not a plugin ----------
+# Measured on 2026-08-25: Claude Code held a floppy cache whose scripts/ held
+# only .gitkeep — a snapshot taken minutes after install, before the scripts
+# existed — and `claude plugin update` reported "already at the latest version
+# (0.1.0)" because the version string had not moved. The old guard tested for
+# the DIRECTORY, which was there, so the shim resolved into it happily and
+# every verb died with "No such file or directory" pointing inside the plugin
+# cache. A user reading that has no way to tell it from a bug in the verb.
+repoStale="$(sandbox)"; cp shim/run "$repoStale/.floppy/run"
+home_stale="$(mktemp -d)"
+mkdir -p "$home_stale/.claude/plugins/cache/mp/floppy/0.1.0/scripts"
+touch "$home_stale/.claude/plugins/cache/mp/floppy/0.1.0/scripts/.gitkeep"
+out_stale="$(cd "$repoStale" && HOME="$home_stale" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
+rc_stale=$?
+assert_eq "empty cache: the run fails instead of resolving into it" "1" "$rc_stale"
+assert_contains "empty cache: names the install path" "floppy plugin not found" "$out_stale"
+assert_contains "empty cache: says update is a no-op on an unchanged version" "no-op" "$out_stale"
+case "$out_stale" in
+  *"FLOPPY_ROOT=$home_stale"*) fail "empty cache: does not resolve into a scriptless cache" "no FLOPPY_ROOT" "$out_stale" ;;
+  *) ok "empty cache: does not resolve into a scriptless cache" ;;
+esac
+
+# The same directory becomes valid the moment it holds a real script: the
+# guard must gate on content, not punish the layout.
+touch "$home_stale/.claude/plugins/cache/mp/floppy/0.1.0/scripts/workstatus.sh"
+out_filled="$(cd "$repoStale" && HOME="$home_stale" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
+assert_contains "cache with one script resolves" \
+  "FLOPPY_ROOT=$home_stale/.claude/plugins/cache/mp/floppy/0.1.0" "$out_filled"
+rm -rf "$repoStale" "$home_stale"
 
 summary
