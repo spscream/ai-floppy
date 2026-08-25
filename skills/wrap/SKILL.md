@@ -135,16 +135,32 @@ writing half is the second. Each one used to be several separate commands —
 the memory linter, a guard comparing the file list to what actually changed,
 `git status`, `git diff --stat`, then staging, committing, pulling, pushing,
 and releasing the lock. They were folded into two calls not to shorten the
-output, which was already short, but because the cost of ten small steps
-isn't in what they print — it's in the number of points where the model
-stops and decides between them. That reasoning cost was measured on a
-`/start` run, not on `/wrap` itself: there it came to roughly 7.5k tokens of
-reasoning across six tool calls. The same arithmetic is why `/wrap`'s own
-ten calls were folded into two — a skill that expands `check`/`commit` back
-into separate commands pays the same tax the measurement found elsewhere,
-even though the number itself was never re-measured on `/wrap` directly.
-Don't reconstruct the individual `git status` / `git diff` / lint calls by
-hand.
+output, which was already short, but because of what a session is actually
+billed for.
+
+**The turn is the unit, not the tool call.** Measured over 48 `/start` and
+`/wrap` runs: reasoning costs about 649 tokens per turn, and parallel calls
+issued together in one block cost as one turn. So wrapping calls in a script
+pays off only where it removes a *turn* — four independent reads already
+issued in a single block save nothing at all.
+
+That is exactly what these two do. The steps they replace were not
+independent: each one's result decided whether the next should run, so the
+model had to stop, read, and choose between them — four separate turns before
+anything was written, and six more after. Folding them removes those stopping
+points. A skill that expands `check` and `commit` back into their individual
+`git status` / `git diff` / lint calls puts every one of them back.
+
+The larger arithmetic is worth knowing, because it is not intuitive: every
+turn resends the whole window, so a session's bill is roughly turns × window
+size, and the window only grows. The cost is quadratic in session length —
+which is why the answer to a long session is to end it, not to economise
+inside it.
+
+(An earlier version of this passage explained the fold by "reasoning happens
+before every tool call", citing 7.5k tokens across six calls. That framing was
+superseded by the 48-run measurement above: it counted calls where it should
+have counted turns. The conclusion held; the reason did not.)
 
 The diff prints before the commit on purpose: closing happens right when the
 human has stopped watching closely, so the file list and the size of the
