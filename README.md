@@ -216,6 +216,13 @@ ceiling copied from a different project is that project's ceiling, which
 bounds nothing about the memory actually in front of you. `bash .floppy/run
 lint` warns, rather than fails, while it's missing.
 
+## Releases
+
+[CHANGELOG.md](CHANGELOG.md) — what changed, and per release the one thing a
+consumer cannot work out for itself: whether the update also requires copying
+the shim into the repository again (`.floppy/run` is a copy, and no plugin
+update touches it).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

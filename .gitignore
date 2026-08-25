@@ -1,4 +1,4 @@
 .DS_Store
 
-# рабочий каталог исполнения планов: черновики, не история
+# plan-execution scratch directory: drafts, not history
 .superpowers/
