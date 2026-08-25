@@ -381,4 +381,74 @@ fi
 rm -f "$repoT/stray.txt"
 rm -rf "$repoT"
 
+# ---------- a file this session deleted with `git rm` ----------
+# Reported from a second session. `git rm` stages the deletion, so the path is
+# in neither the worktree nor the index; `git add -- <that path>` then fails
+# with "did not match any files" and takes the whole commit down. Measured on
+# this machine's git: `git add -A -- <path>` fails identically, so widening the
+# add is not the fix. A deletion staged by `git rm` needs no staging at all.
+repoD="$(sandbox)"; cp shim/run "$repoD/.floppy/run"
+cat > "$repoD/.floppy/config" <<'EOFD'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+commit_push=never
+EOFD
+mkdir -p "$repoD/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoD/state/NOW.md"
+printf 'superseded by a later measurement\n' > "$repoD/state/OLD.md"
+write_clean_memory "$repoD"
+git -C "$repoD" add -A
+git -C "$repoD" -c user.email=t@t -c user.name=t commit -qm base
+
+git -C "$repoD" rm -q state/OLD.md
+outD="$(cd "$repoD" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "drop the superseded note" state/OLD.md 2>&1)"; rcD=$?
+assert_rc       "git rm: the commit goes through (rc)"  0 "$rcD"
+case "$outD" in
+  *"git add failed"*) fail "git rm: staging does not fail on the deleted path" "no add failure" "$outD" ;;
+  *)                  ok   "git rm: staging does not fail on the deleted path" ;;
+esac
+assert_eq       "git rm: the deletion is gone from HEAD's tree" "" \
+  "$(git -C "$repoD" ls-tree -r --name-only HEAD -- state/OLD.md)"
+assert_contains "git rm: and it is this session's commit that did it" \
+  "drop the superseded note" "$(git -C "$repoD" log -1 --format=%s)"
+assert_eq       "git rm: nothing left uncommitted"           "" \
+  "$(git -C "$repoD" status --porcelain)"
+
+# A path that never existed must still fail — the skip is for a staged
+# deletion, not a blanket "ignore what git cannot find".
+printf 'x\n' > "$repoD/state/NEW.md"
+outD2="$(cd "$repoD" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "typo in the list" state/NEW.md state/nosuch.md 2>&1)"; rcD2=$?
+assert_rc       "git rm: a typo in the file list still fails (rc)" 1 "$rcD2"
+rm -rf "$repoD"
+
+# ---------- the linter refusing to run is not "0 problems" ----------
+# memory-lint.sh exits 2 when it cannot check anything at all: the memory
+# layout is absent, or the configured scope name is unusable. wrap-check.sh
+# mapped every non-zero code to its problem-counting branch, and since a
+# refusal prints no "  x" lines the human got "MEMORY LINT IS RED, 0
+# problem(s)" and nothing else — red with no reason given.
+repoR="$(sandbox)"; cp shim/run "$repoR/.floppy/run"
+cat > "$repoR/.floppy/config" <<'EOFR'
+memory_dir=brain
+statuses_now=state/NOW.md
+watched_dirs=state,.floppy
+EOFR
+mkdir -p "$repoR/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoR/state/NOW.md"
+git -C "$repoR" add -A
+git -C "$repoR" -c user.email=t@t -c user.name=t commit -qm base
+printf '| Notes | 1 | 3 | up |\n' > "$repoR/state/NOW.md"
+
+outR="$(cd "$repoR" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check state/NOW.md 2>&1)"; rcR=$?
+assert_rc       "lint refusal: check is still red (rc)" 1 "$rcR"
+assert_contains "lint refusal: the linter's own reason is shown" \
+  "does not use this memory layout" "$outR"
+case "$outR" in
+  *"0 problem(s)"*) fail "lint refusal: not reported as zero problems" "no '0 problem(s)'" "$outR" ;;
+  *)                ok   "lint refusal: not reported as zero problems" ;;
+esac
+rm -rf "$repoR"
+
 summary

@@ -14,6 +14,38 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.9.1 — 2026-08-25
+
+**Refresh `.floppy/run`: no.** The shim is unchanged; the fixes are in the
+scripts it calls.
+
+- `check` no longer reports a red memory linter with no reason. The linter has
+  three outcomes, and the code knew two: exit 2 is a refusal *before* any
+  checking — no memory layout in this repository, or a scope name it cannot
+  use — and it prints a sentence rather than `  x` lines. Those lines were what
+  got counted, so the human saw `MEMORY LINT IS RED, 0 problem(s)` and nothing
+  else. It stays red, because a wrap that cannot read the memory should not
+  proceed quietly, but it now prints the linter's own sentence. This is the
+  message a person meets when the wrong project is active in a harness holding
+  several, so throwing it away was expensive.
+- `commit` no longer dies on a file this session deleted with `git rm`.
+  Reported from a second session. `git rm` stages the deletion, which takes the
+  path out of both the worktree and the index, and `git add -- <that path>`
+  then fails with "did not match any files" — killing the whole commit.
+  Measured while fixing: `git add -A -- <path>` fails identically, so widening
+  the add is not the fix. An already-staged deletion is simply left alone; it
+  is in the index already, which is what the add was for. A path that matches
+  nothing anywhere stays in the list and still fails, so a typo in the file
+  list is as loud as before.
+- `tests/run.sh` runs the files in parallel, one job per core by default.
+  Measured on a 12-core mac: 71.8s serially, 20.7s parallel, identical results
+  and identical output order. Sixteen jobs measured slower than twelve, so the
+  default is the core count and not more. `FLOPPY_TEST_JOBS=1` restores the
+  serial run, whose output streams live — which is what you want while chasing
+  one failure.
+
+452 asserts, nine of them added here.
+
 ## 0.9.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes.** The shim reads one new config key.

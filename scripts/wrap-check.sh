@@ -40,9 +40,20 @@ rc=0
 
 # ---------- memory invariants ----------
 hr "memory"
-lint_out="$(bash "$here/memory-lint.sh" 2>&1)"
-if [[ $? -eq 0 ]]; then
+lint_out="$(bash "$here/memory-lint.sh" 2>&1)"; lint_rc=$?
+# Three outcomes, not two. Exit 2 is the linter refusing to check anything at
+# all — no memory layout here, or a scope name it cannot use — and it prints a
+# sentence rather than "  x" lines. Counting those lines gave "RED, 0
+# problem(s)" and nothing else: red with the reason thrown away, which is the
+# state a person meets when the wrong project is active in a harness that holds
+# several. It stays red, because a wrap whose memory cannot be read is not a
+# wrap that should proceed quietly, but it now says why.
+if [[ $lint_rc -eq 0 ]]; then
   echo "$lint_out" | grep -E '^clean:' | sed 's/^/  /'
+elif [[ $lint_rc -eq 2 ]]; then
+  rc=1
+  echo "  MEMORY LINT COULD NOT RUN — it refused before checking anything:"
+  echo "$lint_out" | sed 's/^/    /'
 else
   rc=1
   lint_n=$(echo "$lint_out" | grep -cE '^  x')

@@ -137,6 +137,26 @@ echo "  memory clean, file list matches"
 # wrote, in the paths it wrote them — `.agent-memory/flow/x.md` — and this
 # translates the memory half into the store's own vocabulary. Requiring two
 # lists would mean the rite's text has to know which layout the consumer chose.
+# A file this session deleted with `git rm` is already staged, and its path is
+# then in neither the worktree nor the index — `git add -- <it>` fails with
+# "did not match any files" and takes the whole commit with it. Measured: `git
+# add -A -- <path>` fails identically, so widening the add is not the fix.
+# Dropping such a path from the add list is not a widening either: the deletion
+# is already in the index, which is exactly what the add was for. A path that
+# matches nothing anywhere is left in the list, so a typo still fails loudly.
+needs_staging() { # $1 = repo dir ("" for this repository), $2 = path
+  ns_dir="$1"; ns_path="$2"
+  [[ -e "${ns_dir:+$ns_dir/}$ns_path" ]] && return 0
+  # Spelled out per repository rather than as ${ns_dir:+-C "$ns_dir"}: that
+  # form word-splits and would break on a checkout path containing a space.
+  if [[ -n "$ns_dir" ]]; then
+    ns_staged="$(git -C "$ns_dir" diff --cached --name-only --diff-filter=D -- "$ns_path" 2>/dev/null)"
+  else
+    ns_staged="$(git diff --cached --name-only --diff-filter=D -- "$ns_path" 2>/dev/null)"
+  fi
+  [[ -z "$ns_staged" ]]
+}
+
 external="${FLOPPY_MEMORY_EXTERNAL:-0}"
 store="${FLOPPY_MEMORY_STORE:-}"
 mem_real="${FLOPPY_MEMORY_REAL:-}"
@@ -166,7 +186,13 @@ if [[ ${#store_files[@]} -gt 0 ]]; then
     exit 1
   fi
   echo "  repo:   $store"
-  git -C "$store" add -- "${store_files[@]}" || { echo "  git add failed in the store"; exit 1; }
+  store_add=()
+  for f in "${store_files[@]}"; do
+    needs_staging "$store" "$f" && store_add+=("$f")
+  done
+  if [[ ${#store_add[@]} -gt 0 ]]; then
+    git -C "$store" add -- "${store_add[@]}" || { echo "  git add failed in the store"; exit 1; }
+  fi
   sn=$(git -C "$store" diff --cached --name-only | wc -l | tr -d ' ')
   if [[ "$sn" == "0" ]]; then
     echo "  nothing to commit there (already committed by a parallel session?)"
@@ -208,7 +234,13 @@ files=("$@")
 # Enumerated, never a directory, and never `git add -A`: this tree holds nested
 # repositories and other people's working copies.
 hr "stage"
-git add -- "${files[@]}" || { echo "  git add failed"; exit 1; }
+to_add=()
+for f in "${files[@]}"; do
+  needs_staging "" "$f" && to_add+=("$f")
+done
+if [[ ${#to_add[@]} -gt 0 ]]; then
+  git add -- "${to_add[@]}" || { echo "  git add failed"; exit 1; }
+fi
 n=$(git diff --cached --name-only | wc -l | tr -d ' ')
 echo "  staged $n file(s)"
 

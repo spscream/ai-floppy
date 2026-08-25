@@ -1,7 +1,10 @@
 name: tests
 
-# The suite is ~10 seconds and touches nothing outside temporary directories,
-# so there is no reason to run it on anything narrower than every push.
+# The suite touches nothing outside temporary directories, and tests/run.sh
+# runs the files in parallel (one job per core), so there is no reason to run
+# it on anything narrower than every push. Measured 2026-08-25 on a 12-core
+# mac: 71.8s serially, 20.7s parallel; a runner with fewer cores lands between
+# the two, with the slowest single file (~15s) as the floor either way.
 on:
   push:
   pull_request:
