@@ -53,7 +53,7 @@ repo="$(pwd)"
 # in .floppy/config.
 project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set workplace_project_key in .floppy/config}"
 url="${FLOPPY_WORKPLACE_REPO:?set workplace_repo in .floppy/config}"
-dir="${WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
+dir="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
 target="$dir/projects/$project_key"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
 link="$repo/$mem_dir/local"

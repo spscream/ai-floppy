@@ -103,9 +103,12 @@ if [[ -n "${up:-}" ]]; then
 else
   echo "  branch has no upstream"
 fi
+# Sorted by the tip commit's committer date, which is when it was made, not
+# when it reached the remote — so this names the branch, not "recently
+# pushed", which the sort does not actually establish.
 other=$(git branch -r --sort=-committerdate --format='%(refname:short) %(committerdate:relative)' 2>/dev/null \
   | awk -v up="$up" '$1 != up && $1 !~ /HEAD/' | head -2)
-[[ -n "$other" ]] && echo "$other" | sed 's/^/  recently pushed: /'
+[[ -n "$other" ]] && echo "$other" | sed 's/^/  other branch, newest commit: /'
 
 # ---------- memory wiring on this machine ----------
 # The one wiring step whose absence is silent: without it a session writes
@@ -125,19 +128,25 @@ fi
 # is a symlink into it. An unpushed note there blinds a second machine the
 # same way an unpushed commit here does, but the "git" section above says
 # nothing about it.
-hr "workplace memory"
-wp="${WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
-if [[ ! -d "$wp/.git" ]]; then
-  echo "  not wired: no $wp — bash .floppy/run workplace"
-elif [[ ! -L "$mem_dir/local" ]]; then
-  echo "  repository exists, but $mem_dir/local is not a symlink — bash .floppy/run workplace"
-else
-  wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
-  wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
-  [[ "$wp_dirty" == "0" && "$wp_ahead" == "0" ]] && echo "  clean and pushed"
-  [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) ($wp)"
-  [[ "$wp_ahead" != "0" && "$wp_ahead" != "?" ]] && echo "  $wp_ahead commit(s) not pushed — a second machine cannot see them"
-  [[ "$wp_ahead" == "?" ]] && echo "  the memory branch has no upstream"
+#
+# Only shown when workplace_repo is configured — see wrap-check.sh's comment
+# on the same condition. A project that never opted in gets no section here,
+# not a "not wired" nudge that dead-ends into a config error.
+if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
+  hr "workplace memory"
+  wp="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
+  if [[ ! -d "$wp/.git" ]]; then
+    echo "  not wired: no $wp — bash .floppy/run workplace"
+  elif [[ ! -L "$mem_dir/local" ]]; then
+    echo "  repository exists, but $mem_dir/local is not a symlink — bash .floppy/run workplace"
+  else
+    wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
+    wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
+    [[ "$wp_dirty" == "0" && "$wp_ahead" == "0" ]] && echo "  clean and pushed"
+    [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) ($wp)"
+    [[ "$wp_ahead" != "0" && "$wp_ahead" != "?" ]] && echo "  $wp_ahead commit(s) not pushed — a second machine cannot see them"
+    [[ "$wp_ahead" == "?" ]] && echo "  the memory branch has no upstream"
+  fi
 fi
 
 # ---------- status slice ----------

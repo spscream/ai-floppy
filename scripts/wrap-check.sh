@@ -72,22 +72,30 @@ staged=$(git diff --cached --numstat -- "$@" | wc -l | tr -d ' ')
 [[ "${staged:-0}" != "0" ]] && echo "  note: $staged file(s) are already staged"
 
 # ---------- the second repository ----------
-# .agent-memory/local is a symlink into ~/agents_memory, and this project's git
-# does not look there at all: `git status` here stays clean even when a note
-# was written. An unpushed note there blinds the second machine exactly like an
-# unpushed commit here.
-hr "workplace memory"
-wp="${WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
-if [[ ! -d "$wp/.git" ]]; then
-  echo "  not wired: no $wp — bash .floppy/run workplace"
-else
-  wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
-  wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
-  if [[ "$wp_dirty" == "0" && "$wp_ahead" == "0" ]]; then
-    echo "  clean and pushed"
+# <mem_dir>/local is a symlink into the workplace memory repository, and this
+# project's git does not look there at all: `git status` here stays clean
+# even when a note was written. An unpushed note there blinds the second
+# machine exactly like an unpushed commit here.
+#
+# Only shown when workplace_repo is actually configured: on a project that
+# never opted into a workplace store, printing "not wired" every time is a
+# dead end, not a nudge — following it fails immediately with "set
+# workplace_project_key in .floppy/config" (memory-workplace.sh requires
+# both keys). No configured repo means no workplace section, not a red flag.
+if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
+  hr "workplace memory"
+  wp="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
+  if [[ ! -d "$wp/.git" ]]; then
+    echo "  not wired: no $wp — bash .floppy/run workplace"
   else
-    [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) in $wp — commit them there separately"
-    [[ "$wp_ahead" != "0" && "$wp_ahead" != "?" ]] && echo "  $wp_ahead commit(s) unpushed — the second machine cannot see them"
+    wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
+    wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
+    if [[ "$wp_dirty" == "0" && "$wp_ahead" == "0" ]]; then
+      echo "  clean and pushed"
+    else
+      [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) in $wp — commit them there separately"
+      [[ "$wp_ahead" != "0" && "$wp_ahead" != "?" ]] && echo "  $wp_ahead commit(s) unpushed — the second machine cannot see them"
+    fi
   fi
 fi
 
