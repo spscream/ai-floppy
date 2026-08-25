@@ -57,6 +57,8 @@ case "$verb" in
   guard)     exec bash "$FLOPPY_ROOT/scripts/wrap-guard.sh"       "$@" ;;
   lock)      exec bash "$FLOPPY_ROOT/scripts/wrap-lock.sh"        "$@" ;;
   status)    exec bash "$FLOPPY_ROOT/scripts/workstatus.sh"       "$@" ;;
-  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|guard|lock|status}" ;;
+  check)     exec bash "$FLOPPY_ROOT/scripts/wrap-check.sh"       "$@" ;;
+  commit)    exec bash "$FLOPPY_ROOT/scripts/wrap-commit.sh"      "$@" ;;
+  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|guard|lock|status|check|commit}" ;;
   *)         echo "x unknown verb: $verb" >&2; exit 2 ;;
 esac
