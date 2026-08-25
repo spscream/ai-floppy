@@ -52,4 +52,54 @@ assert_contains "refusal names the repo config key"      "workplace_repo" "$out6
 assert_eq       "still nothing cloned"                    "absent" "$([[ -e "$home3/agents_memory" ]] && echo exists || echo absent)"
 
 rm -rf "$repo3" "$home3"
+
+# direct invocation (not through the shim): FLOPPY_MEMORY_DIR unset must not
+# crash under `set -u`. mem= and link= already fall back to .agent-memory via
+# ${FLOPPY_MEMORY_DIR:-.agent-memory}; a bare $FLOPPY_MEMORY_DIR in a message
+# string does not get that fallback and aborts with "unbound variable" the
+# moment the code path that prints it is reached — a failure mode the vendor
+# originals never had, because they had a literal string there.
+unset FLOPPY_MEMORY_DIR 2>/dev/null || true
+
+repo4="$(sandbox)"; mkdir -p "$repo4/.agent-memory"
+home4="$(mktemp -d)"
+
+out7="$(cd "$repo4" && HOME="$home4" FLOPPY_REPO="$repo4" bash "$ROOT/scripts/memory-link.sh" 2>&1)"; rc7=$?
+assert_rc       "direct memory-link wires without the var"     0 "$rc7"
+assert_contains "direct memory-link reports the symlink"       "ok symlink created" "$out7"
+
+out8="$(cd "$repo4" && HOME="$home4" FLOPPY_REPO="$repo4" bash "$ROOT/scripts/memory-link.sh" --check 2>&1)"; rc8=$?
+assert_rc       "direct memory-link --check passes without the var" 0 "$rc8"
+assert_contains "direct memory-link --check names .agent-memory"    "-> .agent-memory" "$out8"
+case "$out8" in
+  *"unbound variable"*) fail "direct memory-link --check does not abort" "no 'unbound variable'" "$out8" ;;
+  *) ok "direct memory-link --check does not abort" ;;
+esac
+
+rm -rf "$repo4" "$home4"
+
+# same check for memory-workplace.sh, which needs a real git remote to clone.
+wrepo="$(mktemp -d)"
+git init -q --bare "$wrepo/remote.git"
+seed="$(mktemp -d)"
+git -C "$seed" init -q -b main
+git -C "$seed" -c user.email=a@b.c -c user.name=a commit -q --allow-empty -m init
+git -C "$seed" remote add origin "$wrepo/remote.git"
+git -C "$seed" push -q origin main >/dev/null 2>&1
+rm -rf "$seed"
+
+repo5="$(sandbox)"; mkdir -p "$repo5/.agent-memory"
+home5="$(mktemp -d)"
+
+out9="$(cd "$repo5" && HOME="$home5" FLOPPY_REPO="$repo5" \
+  FLOPPY_WORKPLACE_PROJECT_KEY="direct-test" FLOPPY_WORKPLACE_REPO="$wrepo/remote.git" \
+  bash "$ROOT/scripts/memory-workplace.sh" 2>&1)"; rc9=$?
+assert_rc       "direct memory-workplace wires without the var" 0 "$rc9"
+assert_contains "direct memory-workplace names .agent-memory"   "ok linked: .agent-memory/local -> " "$out9"
+case "$out9" in
+  *"unbound variable"*) fail "direct memory-workplace does not abort" "no 'unbound variable'" "$out9" ;;
+  *) ok "direct memory-workplace does not abort" ;;
+esac
+
+rm -rf "$wrepo" "$repo5" "$home5"
 summary

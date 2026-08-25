@@ -27,7 +27,8 @@ check_only=0
 [[ "${1:-}" == "--check" ]] && check_only=1
 
 repo="$(pwd)"
-mem="$repo/${FLOPPY_MEMORY_DIR:-.agent-memory}"
+mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
+mem="$repo/$mem_dir"
 enc="$(printf '%s' "$repo" | tr '/.' '--')"
 proj="$HOME/.claude/projects/$enc"
 link="$proj/memory"
@@ -43,7 +44,7 @@ fi
 # In --check mode every branch below reports and stops; nothing is created.
 if [[ $check_only -eq 1 ]]; then
   if [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$mem" ]]; then
-    echo "ok memory link: $link -> $FLOPPY_MEMORY_DIR"
+    echo "ok memory link: $link -> $mem_dir"
     exit 0
   elif [[ -L "$link" ]]; then
     echo "x memory link points elsewhere: $link -> $(readlink -f "$link")"

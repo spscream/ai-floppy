@@ -55,7 +55,8 @@ project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set workplace_project_key in .flopp
 url="${FLOPPY_WORKPLACE_REPO:?set workplace_repo in .floppy/config}"
 dir="${WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
 target="$dir/projects/$project_key"
-link="$repo/${FLOPPY_MEMORY_DIR:-.agent-memory}/local"
+mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
+link="$repo/$mem_dir/local"
 
 echo "workplace memory: $dir"
 echo "project scope:    projects/$project_key"
@@ -100,7 +101,7 @@ mkdir -p "$target"
 if [[ -L "$link" ]]; then
   cur="$(readlink -f "$link")"
   if [[ "$cur" == "$(readlink -f "$target")" ]]; then
-    echo "ok already configured: $FLOPPY_MEMORY_DIR/local -> $target"
+    echo "ok already configured: $mem_dir/local -> $target"
   else
     echo "x the symlink points elsewhere: $link -> $cur"
     echo "  expected $target. Sort this out by hand: it may be another workplace."
@@ -123,7 +124,7 @@ elif [[ -e "$link" ]]; then
   # printed "nothing was deleted" while saying it. Content decides, not names:
   # a file already in the scope byte for byte came from another machine
   # earlier, and the copy here is redundant.
-  echo "-- migrating $FLOPPY_MEMORY_DIR/local -> $target"
+  echo "-- migrating $mem_dir/local -> $target"
   [[ $apply -eq 0 ]] && echo "   (plan only — nothing is moved without --apply)"
   echo
   plan=""
@@ -202,10 +203,10 @@ elif [[ -e "$link" ]]; then
   fi
   echo "ok local/ migrated and removed"
   ln -s "$target" "$link"
-  echo "ok linked: $FLOPPY_MEMORY_DIR/local -> $target"
+  echo "ok linked: $mem_dir/local -> $target"
 else
   ln -s "$target" "$link"
-  echo "ok linked: $FLOPPY_MEMORY_DIR/local -> $target"
+  echo "ok linked: $mem_dir/local -> $target"
 fi
 
 # ---------- does a write reach the repository? ----------
