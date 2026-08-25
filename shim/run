@@ -74,17 +74,26 @@ export FLOPPY_WATCHED_FILES="$(cfg_get watched_files AGENTS.md)"
 # nothing to pull or push against), so that repository sets commit_push=never.
 export FLOPPY_COMMIT_PUSH="$(cfg_get commit_push auto)"
 
+# Every verb below acts on FLOPPY_REPO, resolved above, and several projects
+# can be open in the same harness at once (Cursor especially) with no other
+# indication which one a given shell landed in. Naming it costs nothing — the
+# value is already computed — so it is the first line of every verb's output,
+# in one shape, printed here rather than duplicated in each script. `commit`
+# additionally names the branch and push target itself, before its gates run:
+# see wrap-commit.sh.
+name_repo() { printf 'repo: %s\n' "$FLOPPY_REPO"; }
+
 verb="${1:-}"; shift 2>/dev/null || true
 case "$verb" in
   env)       env | grep '^FLOPPY_' | sort ;;
-  lint)      exec bash "$FLOPPY_ROOT/scripts/memory-lint.sh"      "$@" ;;
-  link)      exec bash "$FLOPPY_ROOT/scripts/memory-link.sh"      "$@" ;;
-  workplace) exec bash "$FLOPPY_ROOT/scripts/memory-workplace.sh" "$@" ;;
-  guard)     exec bash "$FLOPPY_ROOT/scripts/wrap-guard.sh"       "$@" ;;
+  lint)      name_repo; exec bash "$FLOPPY_ROOT/scripts/memory-lint.sh"      "$@" ;;
+  link)      name_repo; exec bash "$FLOPPY_ROOT/scripts/memory-link.sh"      "$@" ;;
+  workplace) name_repo; exec bash "$FLOPPY_ROOT/scripts/memory-workplace.sh" "$@" ;;
+  guard)     name_repo; exec bash "$FLOPPY_ROOT/scripts/wrap-guard.sh"       "$@" ;;
   lock)      exec bash "$FLOPPY_ROOT/scripts/wrap-lock.sh"        "$@" ;;
-  status)    exec bash "$FLOPPY_ROOT/scripts/workstatus.sh"       "$@" ;;
-  check)     exec bash "$FLOPPY_ROOT/scripts/wrap-check.sh"       "$@" ;;
-  commit)    exec bash "$FLOPPY_ROOT/scripts/wrap-commit.sh"      "$@" ;;
+  status)    name_repo; exec bash "$FLOPPY_ROOT/scripts/workstatus.sh"       "$@" ;;
+  check)     name_repo; exec bash "$FLOPPY_ROOT/scripts/wrap-check.sh"       "$@" ;;
+  commit)    name_repo; exec bash "$FLOPPY_ROOT/scripts/wrap-commit.sh"      "$@" ;;
   ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|guard|lock|status|check|commit}" ;;
   *)         echo "x unknown verb: $verb" >&2; exit 2 ;;
 esac

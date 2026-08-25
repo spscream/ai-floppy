@@ -42,8 +42,10 @@ enc="$(printf '%s' "$repo" | tr '/.' '--')"
 proj="$HOME/.claude/projects/$enc"
 link="$proj/memory"
 
+# The repository itself is already the shim's own first line (see
+# shim/run:name_repo) — not repeated here, so the two "which repo" lines a
+# reader sees are one shape, not two.
 if [[ $check_only -eq 0 ]]; then
-  echo "repository:        $repo"
   echo "project directory: $proj"
   echo "(this wires Claude Code's per-project memory only — Cursor has no equivalent to wire)"
   echo

@@ -23,6 +23,12 @@ move later, and this only needs one short question.
 
 ## 2. Run the script
 
+Before running it — this is the writing half, it lays files into `--repo .`
+— confirm that directory is the repository the human meant to set up.
+Several projects can be open in the same harness at once (Cursor especially),
+and the shell a skill runs in is not necessarily the one the human was
+talking about. One line naming it is enough.
+
 Whether the harness sets `CLAUDE_PLUGIN_ROOT` while a skill runs has not been
 measured, so do not rely on it alone. Locate the plugin the same three ways
 `.floppy/run` locates itself once installed — `CLAUDE_PLUGIN_ROOT`, then

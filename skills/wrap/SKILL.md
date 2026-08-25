@@ -111,6 +111,15 @@ State explicitly, in memory or the current-state file:
 bash .floppy/run check <files you wrote>
 ```
 
+Both calls print the repository they resolved as their first line
+(`repo: /path/to/it`) — `commit` also prints the branch and push target,
+above its gates. Before running `commit`, the writing half that stages,
+commits, and pushes, confirm that repository is the one the human actually
+meant to close: several projects can sit open in the same harness at once
+(Cursor especially), and a `wrap` aimed at "this session" can land in
+whichever one the shell happened to be in rather than the one the human was
+talking about. One line is enough — name it, don't turn it into a ceremony.
+
 ```bash
 bash .floppy/run commit -m "<what the facts are, not 'updated memory'>" <same files>
 ```

@@ -35,6 +35,12 @@ ln -s /path/to/ai_floppy ~/.cursor/plugins/local/floppy
 Restart Cursor afterwards. Nothing else is needed: the manifest at
 `.cursor-plugin/plugin.json` is found from there, and `skills/` with it.
 
+Cursor can have several projects open at once, and a skill invoked there runs
+its shell commands in whichever one the harness happens to land it in — the
+skill itself has no say. Every rite names that repository as the first line
+of its output (`repo: /path/to/it`), so check it before trusting the rest,
+especially before `wrap`'s `commit`, which stages, commits, and pushes.
+
 Once installed, set the plugin up in a target repository with the `init`
 skill (below). If you're developing the plugin itself rather than installing it,
 point `AI_FLOPPY_HOME` at your checkout instead of relying on the harness.

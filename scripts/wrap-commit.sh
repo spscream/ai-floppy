@@ -70,6 +70,26 @@ if [[ ${#files[@]} -eq 0 ]]; then
 fi
 
 hr() { printf '%s\n' "-- $1"; }
+
+# ---------- where this lands ----------
+# This is the dangerous verb: it stages, commits, and pushes. The rite's
+# existing principle is that the human sees the diff before anything is
+# written (wrap-check.sh); this extends it to seeing WHERE it will be
+# written, before the gates below get a chance to run — a gate that refuses
+# for an unrelated reason (an unwatched file, a red memory lint) would
+# otherwise teach nothing about which repository was actually targeted.
+hr "target"
+repo="$(pwd)"
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+push_target="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"
+echo "  repo:   $repo"
+echo "  branch: $branch"
+if [[ -n "$push_target" ]]; then
+  echo "  push:   $push_target"
+else
+  echo "  push:   no upstream configured"
+fi
+
 # Released via a trap on EXIT, not by calling unlock at each exit path: a lock
 # left behind by a finished session makes the next one wait half an hour for a
 # stale entry, and an explicit call at every exit is exactly the shape that

@@ -187,4 +187,17 @@ esac
 
 rm -rf "$repo6"
 
+# ---------- "does not use this memory layout" names the path ----------
+# This is exactly the message a human gets when the wrong project is active
+# in a harness that can have several open at once (Cursor especially). In its
+# old form it read as "your setup is broken"; naming the repository turns it
+# into "you are in the wrong place".
+repo7="$(sandbox)"; cp shim/run "$repo7/.floppy/run"
+out7="$(cd "$repo7" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc7=$?
+assert_rc       "no memory layout: exits 2"                    2 "$rc7"
+assert_contains "no memory layout: message names the repository path" "$repo7" "$out7"
+assert_contains "no memory layout: still explains what's missing" \
+  "this repository does not use this memory layout" "$out7"
+rm -rf "$repo7"
+
 summary

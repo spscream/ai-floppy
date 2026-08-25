@@ -13,6 +13,7 @@
 #   bash tools/memory-lint.sh
 set -uo pipefail
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+repo="$(pwd)"
 
 MEM="${FLOPPY_MEMORY_DIR:-.agent-memory}"
 IDX="$MEM/MEMORY.md"
@@ -31,7 +32,11 @@ chars_of() {
   LC_ALL=C awk '{ n += length($0) + 1; c += gsub(/[\200-\277]/, "", $0) } END { print n - c }' "$@"
 }
 
-[[ -f "$IDX" ]] || { echo "no $IDX — this repository does not use this memory layout"; exit 2; }
+# Naming the path, not just "no $IDX": this is the message a person gets when
+# the wrong project is active in a harness that can have several open at
+# once (Cursor especially), and without the path it reads as "your setup is
+# broken" rather than "you are in the wrong place".
+[[ -f "$IDX" ]] || { echo "no $IDX in $repo — this repository does not use this memory layout"; exit 2; }
 
 # Committed notes: everything except local/ and the index itself.
 # No `mapfile`/`declare -A` anywhere in this script: macOS still ships bash 3.2

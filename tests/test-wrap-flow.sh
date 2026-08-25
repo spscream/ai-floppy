@@ -341,4 +341,44 @@ assert_contains "commit_push=never: says it is staying local" "staying local" "$
 
 rm -rf "$repoNR"
 
+# ---------- commit names repo/branch/push before any gate runs ----------
+# `commit` is the dangerous verb: it stages, commits, and pushes. The naming
+# has to survive a gate rejection — a gate that refuses for an unrelated
+# reason (here, a file outside the watched paths) must not swallow it, or a
+# human reading only the failure learns nothing about which repository it was
+# about to touch. Assert on ORDER, not just presence: the "-- target" section
+# must come before "-- gates" in the actual output.
+repoT="$(sandbox)"; cp shim/run "$repoT/.floppy/run"
+cat > "$repoT/.floppy/config" <<'EOFT'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFT
+mkdir -p "$repoT/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoT/state/NOW.md"
+write_clean_memory "$repoT"
+git -C "$repoT" add -A
+git -C "$repoT" -c user.email=t@t -c user.name=t commit -qm base
+
+printf 'x\n' > "$repoT/stray.txt"
+outT="$(cd "$repoT" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should fail" stray.txt 2>&1)"; rcT=$?
+assert_rc       "target-naming: the gate still rejects the commit (rc)" 1 "$rcT"
+assert_contains "target-naming: names the resolved repository" "repo:   $repoT" "$outT"
+assert_contains "target-naming: names the branch"               "branch: main" "$outT"
+assert_contains "target-naming: names the push target (no remote configured)" \
+  "push:   no upstream configured" "$outT"
+
+target_line=$(printf '%s\n' "$outT" | grep -n '^-- target$' | head -1 | cut -d: -f1)
+gates_line=$(printf '%s\n' "$outT" | grep -n '^-- gates$' | head -1 | cut -d: -f1)
+if [[ -n "${target_line:-}" && -n "${gates_line:-}" && "$target_line" -lt "$gates_line" ]]; then
+  ok "target-naming: appears before the gates section, not after"
+else
+  fail "target-naming: appears before the gates section, not after" \
+    "target line before gates line" "target=${target_line:-missing} gates=${gates_line:-missing}"
+fi
+
+rm -f "$repoT/stray.txt"
+rm -rf "$repoT"
+
 summary
