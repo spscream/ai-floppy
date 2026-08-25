@@ -146,10 +146,18 @@ if [[ "${FLOPPY_MEMORY_EXTERNAL:-0}" == "1" ]]; then
 fi
 
 # ---------- workplace memory ----------
-# A second repository this project's git does not see at all: $mem_dir/local
-# is a symlink into it. An unpushed note there blinds a second machine the
-# same way an unpushed commit here does, but the "git" section above says
-# nothing about it.
+# A second repository this project's git does not see at all: the private
+# scope inside $mem_dir is a symlink into it. An unpushed note there blinds a
+# second machine the same way an unpushed commit here does, but the "git"
+# section above says nothing about it.
+#
+# The scope's directory name is read from the environment, never spelled here.
+# It was spelled here until 0.6.2, and the 0.6.0 rename turned this section
+# into a permanent false alarm: the wiring was correct under `private` while
+# this line looked for `local`, so every machine was told to run `workplace`
+# forever — and a genuinely broken link under the new name printed nothing at
+# all. A check that cries wolf is worse than no check, because it teaches the
+# reader to skip the section.
 #
 # Only shown when workplace_repo is configured — see wrap-check.sh's comment
 # on the same condition. A project that never opted in gets no section here,
@@ -157,10 +165,14 @@ fi
 if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
   hr "workplace memory"
   wp="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
+  # FLOPPY_MEMORY_LOCAL_DIR is the pre-0.6.0 name of the same variable: a shim
+  # copy that has not been refreshed still exports only that one, and reading
+  # it keeps this section honest on a repository mid-migration.
+  priv="${FLOPPY_MEMORY_PRIVATE_DIR:-${FLOPPY_MEMORY_LOCAL_DIR:-private}}"
   if [[ ! -d "$wp/.git" ]]; then
     echo "  not wired: no $wp — bash .floppy/run workplace"
-  elif [[ ! -L "$mem_dir/local" ]]; then
-    echo "  repository exists, but $mem_dir/local is not a symlink — bash .floppy/run workplace"
+  elif [[ ! -L "$mem_dir/$priv" ]]; then
+    echo "  repository exists, but $mem_dir/$priv is not a symlink — bash .floppy/run workplace"
   else
     wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
     wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')

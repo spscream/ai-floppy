@@ -23,7 +23,12 @@ IDX="$MEM/MEMORY.md"
 # that committed memory must not link into it is the one protecting against
 # links that are dead on a second machine, and with a name it does not
 # recognize that check silently applies to nothing.
-LOCAL_DIR="${FLOPPY_MEMORY_PRIVATE_DIR:-local}"
+# The pre-0.6.0 variable name is read as a fallback, and the final default
+# matches memory-workplace.sh. They disagreed (`local` here, `private` there),
+# so under an unrefreshed shim the rule "committed memory must not link into
+# the private scope" guarded a directory that no longer existed — the same
+# way of applying to nothing that 0.4.0 introduced this variable to prevent.
+LOCAL_DIR="${FLOPPY_MEMORY_PRIVATE_DIR:-${FLOPPY_MEMORY_LOCAL_DIR:-private}}"
 fail=0
 
 err() { printf '  x %s\n' "$1"; fail=1; }

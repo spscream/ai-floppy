@@ -14,6 +14,31 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.6.2 — 2026-08-25
+
+**Refresh `.floppy/run`: no.** Take it on any machine that has migrated to
+`private`, or `status` lies to it on every call.
+
+- **`status` spelled the private scope in, and 0.6.0 turned that into a
+  permanent false alarm.** The section looked for `<memory_dir>/local` while
+  the wiring, correctly, was `<memory_dir>/private`: a properly wired machine
+  was told to run `workplace` on every call, and a genuinely broken link under
+  the new name printed nothing at all. Found by reading the report on a machine
+  that had just migrated — no test failed, because no test asserted the section
+  against a wired repository. The name now comes from the environment, with the
+  pre-0.6.0 variable read as a fallback so a repository sitting behind an
+  unrefreshed shim is judged by the name that shim actually uses.
+- The linter's fallback for the same variable said `local` where
+  `memory-workplace.sh` said `private`. Under an unrefreshed shim the rule
+  "committed memory must not link into the private scope" therefore guarded a
+  directory that no longer existed — the way of applying to nothing that this
+  variable was introduced in 0.4.0 to prevent. Both now end in `private`.
+
+430 asserts, up from 423. The first draft of the new ones passed against the
+unfixed code: the sandbox had no `.floppy/run`, so every "does not say X"
+assert was satisfied by a run that died before printing anything. They now
+assert the section printed before asserting what it says.
+
 ## 0.6.1 — 2026-08-25
 
 **Refresh `.floppy/run`: no.**

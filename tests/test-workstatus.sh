@@ -82,4 +82,64 @@ out7="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
 assert_contains "workplace section appears once workplace_repo is set" "-- workplace memory" "$out7"
 
 rm -rf "$repo"
+
+# ---------- the private scope is read from the config, not spelled in ----------
+# Regression, measured on a live migration: after 0.6.0 renamed the scope,
+# this section still looked for `<memory_dir>/local`. On a correctly wired
+# repository it printed "not a symlink — run workplace" forever, and a broken
+# link under the new name printed nothing. Both directions are asserted here.
+#
+# Every case below first asserts that the section PRINTED. Without that, a run
+# that dies before reaching it satisfies every "does not say X" check for the
+# worst possible reason — which is exactly what the first draft of this block
+# did, having forgotten to copy the shim into the sandbox.
+repoP="$(sandbox)"; cp shim/run "$repoP/.floppy/run"
+# The checkout path is derived, not given: agents_memory_dir/.clones/<repo>.
+# Building it by hand here (rather than passing a directory) keeps the test
+# honest about the layout the verb actually wires.
+homeP="$(cd "$(mktemp -d)" && pwd -P)"
+wpP="$homeP/agents_memory/.clones/agents-memory"
+mkdir -p "$wpP"; git init -q -b main "$wpP"
+printf 'workplace_repo=git@example.com:workplace/agents-memory.git\nproject_key=test\nagents_memory_dir=%s\n' \
+  "$homeP/agents_memory" > "$repoP/.floppy/config"
+mkdir -p "$repoP/.agent-memory"
+ln -s "$wpP" "$repoP/.agent-memory/private"
+outP="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+assert_contains "wired private scope: the section runs at all" "-- workplace memory" "$outP"
+case "$outP" in
+  *"is not a symlink"*) fail "wired private scope is not reported as unwired" "no nudge" "$outP" ;;
+  *)                    ok   "wired private scope is not reported as unwired" ;;
+esac
+
+# The nudge still appears when the link genuinely is missing, and it names the
+# configured directory rather than the old one.
+rm "$repoP/.agent-memory/private"
+outP2="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+assert_contains "missing private link is still reported" "is not a symlink" "$outP2"
+assert_contains "the nudge names the private scope" ".agent-memory/private" "$outP2"
+case "$outP2" in
+  *".agent-memory/local"*) fail "the nudge does not name the pre-0.6.0 scope" "private only" "$outP2" ;;
+  *)                       ok   "the nudge does not name the pre-0.6.0 scope" ;;
+esac
+
+# An unrefreshed shim exports only the pre-0.6.0 variable; the section must
+# follow it rather than fall back to the new default and cry wolf.
+#
+# The script is called directly here, with the environment such a shim would
+# leave. Going through `.floppy/run` cannot express this: the shim recomputes
+# both variables from the config and overwrites whatever the caller exported,
+# so the case it is meant to reproduce — an OLD shim in front of NEW scripts —
+# is unreachable through it.
+ln -s "$wpP" "$repoP/.agent-memory/local"
+outP3="$(cd "$repoP" && FLOPPY_REPO="$repoP" FLOPPY_MEMORY_DIR=.agent-memory \
+  FLOPPY_WORKPLACE_REPO=git@example.com:workplace/agents-memory.git \
+  FLOPPY_WORKPLACE_MEMORY_DIR="$wpP" FLOPPY_MEMORY_LOCAL_DIR=local \
+  bash "$ROOT/scripts/workstatus.sh" 2>&1)"
+assert_contains "pre-0.6.0 name: the section runs at all" "-- workplace memory" "$outP3"
+case "$outP3" in
+  *"is not a symlink"*) fail "pre-0.6.0 scope name is honoured when that is what is exported" "no nudge" "$outP3" ;;
+  *)                    ok   "pre-0.6.0 scope name is honoured when that is what is exported" ;;
+esac
+rm -rf "$repoP" "$homeP"
+
 summary
