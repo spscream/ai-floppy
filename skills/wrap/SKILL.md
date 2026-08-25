@@ -115,6 +115,12 @@ bash .floppy/run check <files you wrote>
 bash .floppy/run commit -m "<what the facts are, not 'updated memory'>" <same files>
 ```
 
+`commit` pulls `--rebase` and pushes after committing, by default — that
+default is `commit_push=auto` in `.floppy/config`. A repository with no
+remote configured at all sets `commit_push=never` there instead, so this
+call stays entirely local rather than failing on the pull every time. For a
+single call that should sync but not yet push, pass `--no-push`.
+
 The whole read-only half of closing a session is that first call; the whole
 writing half is the second. Each one used to be several separate commands —
 the memory linter, a guard comparing the file list to what actually changed,
@@ -174,11 +180,15 @@ state; commit and push it on its own, the same way as this repository — an
 unpushed note there blinds the other machine exactly as an unpushed commit
 here would, silently, with nothing in this repository's status to reveal it.
 
-That repository's own `pre-commit` hook refuses a commit that contains a
-secret. Take a refusal as correct, not as an obstacle: remove the value and
+A workplace-wide store like this should carry a `pre-commit` hook that
+refuses a commit containing a secret — check whether this one does before
+assuming it; not every workplace repository has set that up. Where it
+exists, take a refusal as correct, not as an obstacle: remove the value and
 leave a pointer to where it actually lives instead of the value itself.
 Never answer it with `--no-verify` — the hook exists for exactly the commit
-it just stopped.
+it just stopped. Where it doesn't exist, be the guard yourself: read what
+you are about to commit for anything that looks like a secret before it
+goes in.
 
 ## Report to the human
 
