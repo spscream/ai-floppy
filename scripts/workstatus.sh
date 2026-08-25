@@ -183,11 +183,17 @@ elif [[ -e "$hook" ]]; then
 fi
 
 # ---------- state of the process half (--flow) ----------
-# Added in place of four separate commands run back to back. The saving is not
-# in the OUTPUT — it is about the same size — it is in the number of DECISION
-# POINTS: the model reasons before every tool call, and on a measured run that
-# reasoning came to ~7.5k tokens across six calls. Four calls folded into one
-# remove three of those reasoning cycles.
+# Added in place of four separate commands run back to back — and the honest
+# accounting is narrower than the first version of this comment claimed. A
+# session is billed per TURN (~649 tokens of reasoning over 48 measured runs),
+# and parallel calls issued in one block cost as one turn. These four are
+# independent reads: a model may well issue them together, in which case no
+# turn is removed at all. What the fold does buy is one prepared answer instead
+# of four raw outputs, and one line in the prompt instead of four.
+# (The superseded framing said "the model reasons before every tool call,
+# ~7.5k tokens across six calls"; re-measured it was 2.6k, and the unit is the
+# turn. wrap-check/wrap-commit are unaffected: their steps were sequential
+# decisions, so folding them does remove turns.)
 #
 # Printed only behind the flag: on a branch working on something else, this is
 # somebody else's half, and its state there is noise.

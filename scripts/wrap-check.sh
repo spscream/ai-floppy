@@ -2,9 +2,15 @@
 # Everything /wrap has to look at before it commits, in one call.
 #
 # Why a script: not to shorten the output — it was already short — but to cut
-# the number of points where the model stops and decides. Reasoning happens
-# before every tool call, and on a measured /start run it came to ~7.5k tokens
-# across six calls. /wrap prescribed four separate read-only commands here
+# the number of TURNS. Reasoning is billed per turn, ~649 tokens of it over 48
+# measured runs, and parallel calls issued in one block cost as one turn — so
+# folding pays only where it removes a turn. It does here: each step's result
+# decided whether the next should run, so the model had to stop and choose
+# between them. (An earlier version of this header explained the fold by
+# "reasoning happens before every tool call, ~7.5k tokens across six calls".
+# That was re-measured and came out three times smaller, with the turn as the
+# unit. The conclusion held; the reason did not — see skills/wrap/SKILL.md.)
+# /wrap prescribed four separate read-only commands here
 # (memory-lint, wrap-guard, git status, git diff --stat) plus a look at the
 # workplace memory repository. They always run together and always in this
 # order, so they are one question, not five.
