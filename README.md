@@ -1,0 +1,101 @@
+# floppy
+
+A session ritual for coding agents: durable, git-committed memory for a
+repository, a `start` rite that orients a fresh session, a `wrap` rite that
+closes one, and the guards that keep both honest (a file-list gate, a memory
+linter, a per-session lock). Ships as a plugin for both Claude Code and
+Cursor.
+
+## Install
+
+Claude Code:
+
+```
+claude plugin marketplace add spscream/ai_floppy
+claude plugin install floppy@floppy
+```
+
+(equivalently, inside a session: `/plugin marketplace add spscream/ai_floppy`
+then `/plugin install floppy@floppy` — the marketplace and the plugin inside
+it are both named `floppy`, hence the repeated name)
+
+Cursor: Dashboard → Plugins → Add Marketplace → Import from Repo, pointing at
+`spscream/ai_floppy`; then Customize (sidebar) → find `floppy` → Install.
+
+Once installed, set the plugin up in a target repository with `floppy:init`
+(below). If you're developing the plugin itself rather than installing it,
+point `AI_FLOPPY_HOME` at your checkout instead of relying on the harness.
+
+## `floppy:init`
+
+Run once per repository. Asks two questions — the memory directory
+(`.agent-memory` unless you want something else) and the memory's language —
+then lays out everything else on its own: copies the shim to `.floppy/run`
+(the only file this plugin puts in your repository), writes `.floppy/config`,
+creates an empty memory router (`<memory_dir>/MEMORY.md`) and a seeded
+current-state file (`docs/statuses/NOW.md`), gitignores the machine-local
+memory scope, and points your `AGENTS.md` at `floppy:agent-memory`.
+Idempotent — safe to run again, changes nothing on a repository already set
+up.
+
+## The five skills
+
+- **`floppy:init`** — one-time setup, described above.
+- **`floppy:agent-memory`** — not a rite, has no steps of its own. The
+  conventions the other three assume: what a memory note looks like (one
+  fact per file, `metadata.evidence` chosen from `measured` / `read` /
+  `decided` / `sourced`), the three-level index tree
+  (`MEMORY.md` → `<half>/INDEX.md` → `<half>/<group>/INDEX.md`), the
+  `quota.lock` ratchet, and which of project / workplace / machine scope a
+  fact belongs to.
+- **`floppy:start`** — orients a fresh session before any edit: read the
+  current-state file, identify which half of the memory the task belongs to
+  (skip this if the repository has none yet), read that half's guidance and
+  memory index, then verify live facts with `bash .floppy/run status`
+  instead of trusting the documents.
+- **`floppy:workstatus`** — a live status check mid-session: git state,
+  divergence from the remote, background jobs, memory wiring, the workplace
+  memory repository if configured, and the current-state file's freshness.
+- **`floppy:wrap`** — closes a session: take the lock, select which facts
+  are worth a memory note, update the current-state file, name what's left
+  unfinished, then `bash .floppy/run check` (read-only: lint + file-list
+  guard + diff) followed by `bash .floppy/run commit` (stage, commit, sync,
+  release the lock).
+
+## `.floppy/config`
+
+Flat `key=value`, one per line, read by the shim (`.floppy/run`) and
+exported as `FLOPPY_*` for every script downstream. Everything is optional;
+these are the defaults when a key is absent.
+
+| key | default | what it controls |
+|---|---|---|
+| `memory_dir` | `.agent-memory` | where this repository's durable memory lives |
+| `memory_language` | `en` | the language memory notes are written in — a convention read from this file directly, not something any script acts on. Independent of the language a session replies to its human in, which is never configured here |
+| `workplace_repo` | *(unset)* | git URL of a workplace-wide private memory repository; both this and `workplace_project_key` must be set to use `bash .floppy/run workplace` |
+| `workplace_project_key` | *(unset)* | this project's scope directory (`projects/<key>`) inside the workplace repository |
+| `workplace_memory_dir` | `$HOME/agents_memory` | where the workplace repository is (or should be) checked out on this machine |
+| `statuses_now` | `docs/statuses/NOW.md` | the current-state file `floppy:start` reads in full and `floppy:wrap` keeps up to date |
+| `statuses_now_chars_max` | `12000` | character ceiling on the current-state file; `wrap-guard` refuses a commit that pushes it over |
+| `watched_dirs` | `docs` | comma-separated directories, besides `memory_dir`, that `floppy:wrap` is allowed to commit |
+| `watched_files` | `AGENTS.md` | comma-separated single files (exact match, patterns allowed) `floppy:wrap` is allowed to commit |
+| `commit_push` | `auto` | `auto` pulls `--rebase` then pushes after every commit, same as always; `never` skips that whole tail — set this on a repository with no remote configured, since `auto` would fail the pull every time there. A single call can skip just the push with `--no-push` without changing this default |
+
+`workplace_repo` and `workplace_project_key` are deliberately never given a
+live default: a repository that never opted in must not silently write into
+somebody else's private memory.
+
+## `quota.lock`
+
+A ratchet inside the memory directory — a total character budget, a
+per-note cap, a pointers-per-index cap — that bounds how large the memory is
+allowed to get. **It is not shipped by this plugin and never copied from one
+project to another.** `floppy:init` deliberately does not create one: its
+numbers have to come from measuring *this* project's own corpus, and a
+ceiling copied from a different project is that project's ceiling, which
+bounds nothing about the memory actually in front of you. `bash .floppy/run
+lint` warns, rather than fails, while it's missing.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
