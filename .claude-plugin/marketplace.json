@@ -6,7 +6,7 @@
     {
       "name": "floppy",
       "description": "Session ritual for agent work: durable memory, a start rite, a wrap rite, and the guards that keep them honest",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "source": "./"
     }
   ]

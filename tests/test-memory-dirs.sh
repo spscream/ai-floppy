@@ -290,5 +290,37 @@ assert_eq "a live link under the old name is left alone" "0" \
 
 rm -rf "$W8"
 
+
+# ---------- 9. a view left pointing at a moved scope is repointed ----------
+# The scope moved (0.7.0 moved every one of them), the view did not, and the
+# view is a symlink this verb created. Refusing it made a machine wait on a
+# manual rm for wiring with nothing behind it. A view that still resolves
+# somewhere is refused, as before.
+W9="$(mktemp -d)"; H9="$W9/home"; mkdir -p "$H9"
+mk_remote "$W9/wp.git" workplace
+repo9="$(mk_consumer "memory_dir=.agent-memory
+agents_memory_dir=$H9/agents_memory
+project_key=acme
+workplace_repo=$W9/wp.git")"
+mkdir -p "$repo9/.agent-memory"
+run_verb "$repo9" "$H9" workplace
+assert_rc "wires up" 0 "$RC"
+
+view9="$H9/agents_memory/acme/private"
+rm -f "$view9"
+ln -s "../.clones/wp/projects/acme/gone" "$view9"
+run_verb "$repo9" "$H9" workplace
+assert_rc       "a dangling view does not stop the verb"   0 "$RC"
+assert_contains "and it says it repointed the view" "repointed the dangling view" "$OUT"
+assert_eq "the view resolves again" "0" "$([[ -d "$view9" ]] && echo 0 || echo 1)"
+
+mkdir -p "$W9/elsewhere"
+rm -f "$view9"; ln -s "$W9/elsewhere" "$view9"
+run_verb "$repo9" "$H9" workplace
+assert_eq       "a view that resolves elsewhere is still refused" "1" "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "and says what it points at"            "points at" "$OUT"
+
+rm -rf "$W9"
+
 rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
 summary

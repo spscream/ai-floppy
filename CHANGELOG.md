@@ -14,6 +14,20 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.7.1 — 2026-08-25
+
+**Refresh `.floppy/run`: no.** Needed while migrating to 0.7.0.
+
+- A **view** left pointing at a scope that a release moved is repointed, not
+  refused. 0.5.1 did this for the link inside the consumer repository and
+  stopped there; the view is the same kind of thing — a symlink this verb
+  created, with nothing behind it once the scope moved — and refusing it made
+  the 0.7.0 migration wait on a manual `rm` on every machine. Found one command
+  into that migration. A view that still resolves somewhere else is refused as
+  before, because that one may belong to another store.
+
+440 asserts, up from 434.
+
 ## 0.7.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (four new keys). **The scopes moved under a

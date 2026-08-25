@@ -129,6 +129,17 @@ view_link() {
       echo "ok view already wired: $vl_path"
       return 0
     fi
+    # Dangling: this verb made it, under a scope name that a later release
+    # moved, and there is nothing behind it to lose. Same reasoning as the
+    # consumer-side link in 0.5.1 — wiring is ours to repair. A view that
+    # still RESOLVES somewhere else is a different matter and is refused.
+    if [[ ! -e "$vl_path" ]]; then
+      rm -f "$vl_path"
+      ln -s "$vl_target" "$vl_path"
+      echo "ok repointed the dangling view: $vl_path -> $vl_target"
+      ignore_wiring_link "$vl_path"
+      return 0
+    fi
     echo "x $vl_path points at $(readlink "$vl_path"), not $vl_target"
     echo "  It may belong to another store. Remove it by hand and run this again."
     return 1
