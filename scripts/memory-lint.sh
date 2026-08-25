@@ -112,16 +112,28 @@ for f in "${notes[@]}"; do
 done
 
 # ---------- index ----------
-# The index has two levels since 2026-08-25: MEMORY.md is loaded into every
-# session and holds only the always-read notes plus a link to each half's
-# INDEX.md; the pointers of a half live in that half's index and are opened on
-# the second step. Links inside a half index are relative to the half, so they
+# The index is a tree since 2026-08-25: MEMORY.md is loaded into every session
+# and holds only the always-read notes plus a link to each half's INDEX.md; the
+# pointers of a half live in that half's index and are opened on the second
+# step. Links inside an index are relative to its own directory, so they
 # resolve from the file a session actually opens.
+#
+# A third level was added the same day, when sdk/ hit the 60-pointer cap and
+# quota.lock said what to do about it: split the half, do not raise the number.
+# Depth is capped at 3 on purpose. It is not a technical limit — it is the
+# number of files a session opens before it reaches a note, and nobody has
+# measured that a fourth hop still gets read.
 hr "index"
 indexes=("$IDX")
 while IFS= read -r __line; do indexes+=("$__line"); done < <(
-  find "$MEM" -mindepth 2 -maxdepth 2 -name 'INDEX.md' -not -path "$MEM/local/*" | sort
+  find "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/local/*" | sort
 )
+
+# Notes may not sit deeper than the deepest index that could list them.
+while IFS= read -r __deep; do
+  [[ -z "$__deep" ]] && continue
+  err "${__deep#"$MEM"/}: nested deeper than a sub-index can reach — the index tree stops at three levels"
+done < <(find "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/local/*" | sort)
 
 idx_pointers=0
 for f in "${indexes[@]}"; do
@@ -134,11 +146,28 @@ for f in "${indexes[@]}"; do
   done < <(grep -o '](\([^)]*\.md\))' "$f" | sed 's/^](//; s/)$//' | sort -u)
 done
 
-# A half index nobody links to is a half nobody opens.
+# An index nobody links to is a branch nobody opens. Every index is reached
+# from the one directly above it: a half from MEMORY.md, a sub-index from its
+# half. Checking against MEMORY.md alone would have let the third level in
+# unguarded, which is exactly how an unread branch appears — the sub-index
+# exists, the linter is quiet, and no session ever opens the file.
 for f in "${indexes[@]}"; do
   [[ "$f" == "$IDX" ]] && continue
-  link="${f#"$MEM"/}"
-  grep -qF "]($link)" "$IDX" || err "$link: not linked from MEMORY.md — a session never reaches this half"
+  dir="$(dirname "$f")"
+  up="$(dirname "$dir")"
+  if [[ "$up" == "$MEM" ]]; then
+    parent="$IDX"
+    parent_rel="MEMORY.md"
+  else
+    parent="$up/INDEX.md"
+    parent_rel="${up#"$MEM"/}/INDEX.md"
+  fi
+  link="${f#"$up"/}"
+  if [[ ! -f "$parent" ]]; then
+    err "${f#"$MEM"/}: its parent index $parent_rel does not exist — nothing above it can be opened"
+  elif ! grep -qF "]($link)" "$parent"; then
+    err "${f#"$MEM"/}: not linked from $parent_rel — a session never reaches this branch"
+  fi
 done
 
 # Every note is listed in the index of its own half, root notes in MEMORY.md.
@@ -217,19 +246,29 @@ lock_val() { sed -n "s/^$1=//p" "$LOCK" | head -n1; }
 if [[ ! -f "$LOCK" ]]; then
   err "quota.lock is missing — without it nothing bounds the size of this memory"
 else
-  notes_max="$(lock_val notes_max)"
   chars_max="$(lock_val chars_max)"
   note_chars_max="$(lock_val note_chars_max)"
   pointers_max="$(lock_val pointers_max)"
   grandfathered=",$(lock_val grandfathered),"
 
-  for __k in notes_max chars_max note_chars_max pointers_max; do
+  # A non-numeric value here is checked before anything uses it. Without the
+  # flag the run still reported the problem, but printed eight bash "operand
+  # expected" errors ahead of its own message, because the comparisons below
+  # went on using the bad value — the reader saw a broken script rather than a
+  # broken lock file.
+  lock_ok=1
+  for __k in chars_max note_chars_max pointers_max; do
     eval "__v=\$$__k"
     case "$__v" in
-      ''|*[!0-9]*) err "quota.lock: $__k is '$__v', expected a number — the ratchet is not enforcing anything" ;;
+      ''|*[!0-9]*)
+        err "quota.lock: $__k is '$__v', expected a number — the ratchet is not enforcing anything"
+        lock_ok=0
+        ;;
     esac
   done
+fi
 
+if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   # One note. A note over the cap is not a long note, it is two notes that were
   # written as one; on this corpus the cap caught exactly the pair that
   # flow/memory-hygiene-lessons already calls a session dump.
@@ -243,14 +282,16 @@ else
     esac
   done
 
-  # Whole corpus. Notes are cheap one at a time; the cost lands on the session
-  # that has to route through all of them.
-  total_notes="${#notes[@]}"
+  # Whole corpus, in characters. There is deliberately no cap on the NUMBER of
+  # notes: it was dropped on 2026-08-25 by the owner's decision, because it
+  # measured the wrong thing. Splitting two session dumps into six notes that
+  # day cost 4 of the 5 remaining slots while making the memory 6169 characters
+  # SMALLER — the count punished the one kind of work that lowers what a
+  # session pays. What the count was supposed to protect is covered already:
+  # routing by pointers_max, context cost by chars_max, dumps by
+  # note_chars_max.
   total_chars=0
   for f in "${notes[@]}"; do total_chars=$((total_chars + $(chars_of "$f"))); done
-  if [[ "$total_notes" -gt "$notes_max" ]]; then
-    err "$total_notes notes, over the $notes_max in quota.lock — raise notes_max in the same commit and say why, or drop what went stale"
-  fi
   if [[ "$total_chars" -gt "$chars_max" ]]; then
     err "$total_chars characters, over the $chars_max in quota.lock — raise chars_max in the same commit and say why, or drop what went stale"
   fi
