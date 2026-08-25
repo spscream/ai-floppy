@@ -42,10 +42,15 @@ bash .floppy/run status --flow
 Use it only when the task is about the process itself — on any other branch
 of work that half's state is someone else's business, not news.
 
-Beyond the command: pull a background job's log tail directly only if the
-report flagged something odd, and check `git log origin/HEAD..HEAD --oneline`
-only if the report flagged divergence. Don't gather more than the report
-already pointed at.
+Beyond the command, three things are worth checking only if the report
+flagged something odd — not on every call:
+
+- the harness's own list of background tasks — it knows about jobs the
+  report's `ps`-based scan does not show;
+- a background job's log tail directly, if a stuck run is suspected;
+- `git log origin/HEAD..HEAD --oneline`, if the report flagged divergence.
+
+Don't gather more than the report already pointed at.
 
 ## Format
 

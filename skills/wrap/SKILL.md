@@ -24,7 +24,10 @@ memory index. Git does not arbitrate that — the second write simply
 overwrites the first. If the lock is held, write nothing: wait a minute, try
 once more, and if it's still held, tell the human another session is closing
 and leave the decision to them. Release it at the end of this skill; an
-abandoned lock ages out on its own.
+abandoned lock ages out on its own after about thirty minutes, and whoever
+takes it over then gets a warning that the previous session may have left a
+half-written entry — that warning is the point of the takeover, not a
+side effect: it tells you to go look before trusting what's already there.
 
 ## 1. Select what's worth memory
 
@@ -61,6 +64,19 @@ where the claim came from, not how important it is:
 **If unsure, write `read`**, and say in the note what a measurement would
 need. Marking `measured` something that was actually only read is the
 expensive mistake here — it hands the next session a guess dressed as fact.
+
+A note over ten thousand characters does not pass review. That is not a
+long note — it is two notes written as one. Split it into one fact per
+file; do not raise the cap to make it fit.
+
+## Write for a stranger
+
+Memory gets committed, and it will be read by someone who wasn't in this
+conversation and may not even know who was. Write the **role** ("the
+project owner"), not a name — and don't lean on conversation context:
+"as discussed above" means nothing to a reader who wasn't there. If a fact
+only makes sense with the discussion attached, the discussion belongs in
+the note.
 
 ## 3. Update the current-state file, and journal only if there's something to journal
 
@@ -103,11 +119,14 @@ the memory linter, a guard comparing the file list to what actually changed,
 and releasing the lock. They were folded into two calls not to shorten the
 output, which was already short, but because the cost of ten small steps
 isn't in what they print — it's in the number of points where the model
-stops and decides between them. On a measured run that reasoning came to
-roughly 7.5k tokens across six tool calls for what is now one question,
-answered once. A skill that expands these back into ten separate commands
-undoes exactly that measurement — don't reconstruct the individual `git
-status` / `git diff` / lint calls by hand.
+stops and decides between them. That reasoning cost was measured on a
+`/start` run, not on `/wrap` itself: there it came to roughly 7.5k tokens of
+reasoning across six tool calls. The same arithmetic is why `/wrap`'s own
+ten calls were folded into two — a skill that expands `check`/`commit` back
+into separate commands pays the same tax the measurement found elsewhere,
+even though the number itself was never re-measured on `/wrap` directly.
+Don't reconstruct the individual `git status` / `git diff` / lint calls by
+hand.
 
 The diff prints before the commit on purpose: closing happens right when the
 human has stopped watching closely, so the file list and the size of the
@@ -131,6 +150,17 @@ What a red `check` means:
 `git add -A` is never used — the tree can hold nested repositories and other
 people's working copies; stage by naming the files.
 
+## What wrap commits, and what it never touches
+
+This rite commits **memory, docs, the current-state file, and the session
+procedure itself** — nothing else. `guard` enforces this against a watched
+path list, but the enforcement being in a script is not a reason to leave it
+unsaid here: a limit only a script knows about is a limit nobody can reason
+about ahead of the call that hits it. If the session also touched product
+code, that stays uncommitted — name it in the report to the human and leave
+it for them, don't fold it into this commit because it happened to be open
+in the same session.
+
 ## Workplace memory is a second repository
 
 If any of what got written lives in a workplace-wide private store (see
@@ -140,6 +170,12 @@ project's own `git status` says nothing about it at all. `check` reports its
 state; commit and push it on its own, the same way as this repository — an
 unpushed note there blinds the other machine exactly as an unpushed commit
 here would, silently, with nothing in this repository's status to reveal it.
+
+That repository's own `pre-commit` hook refuses a commit that contains a
+secret. Take a refusal as correct, not as an obstacle: remove the value and
+leave a pointer to where it actually lives instead of the value itself.
+Never answer it with `--no-verify` — the hook exists for exactly the commit
+it just stopped.
 
 ## Report to the human
 
@@ -153,4 +189,7 @@ Four short parts:
 
 If something looks like a scope decision — what can be shared, published, or
 shown outside this project — **ask, don't decide it here**: that call
-belongs to the project's owner.
+belongs to the project's owner. This isn't caution for its own sake: a rule
+in this area that got decided out of caution, without asking, once had to be
+rewritten together with the history it had already produced. Guessing at a
+sharing boundary is not free to undo.

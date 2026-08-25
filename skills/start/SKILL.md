@@ -49,6 +49,19 @@ only says which of them to open and in what order.
    documents said, the command wins, and say so out loud rather than quietly
    answering from the documents.
 
+   When the task is on the process/tooling half itself, this step is
+   **replaced** by, not performed in addition to, the flag that reports the
+   same live facts plus that half's own state — memory lint, the wrap lock,
+   worktrees, recent process edits:
+
+   ```bash
+   bash .floppy/run status --flow
+   ```
+
+   Run one or the other, never both: `--flow` is the plain report with the
+   process-half section appended, so a plain `run status` right after it
+   would just repeat what it already printed.
+
 ## Answering
 
 Give the answer before making any edit, in four short parts:
