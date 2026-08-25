@@ -53,7 +53,7 @@ fi
 
 if ! has_scripts "$floppy_root"; then
   echo "x floppy plugin not found (a cache directory with no scripts/*.sh counts as not found)." >&2
-  echo "  Install it: /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
+  echo "  Install it: /plugin marketplace add spscream/ai-floppy && /plugin install floppy" >&2
   echo "  If it is installed, reinstall: `plugin update` is a no-op while the version is unchanged." >&2
   exit 1
 fi

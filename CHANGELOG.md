@@ -14,6 +14,24 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.4.1 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (the install hints it prints name the
+repository, and the repository was renamed).
+
+- The repository is `spscream/ai-floppy`, was `spscream/ai_floppy`. GitHub
+  redirects the old name for both git and the web, so an existing marketplace
+  entry and any command someone already wrote keep working; what would not
+  have kept working is the hint a failing shim prints, which would have named
+  a repository nobody can find. Nothing else moved: the plugin and the
+  marketplace are still both `floppy`, `floppy@floppy` installs as before, and
+  `AI_FLOPPY_HOME` keeps its underscore — it names an environment variable,
+  not the repository.
+- No behaviour changed anywhere. This version exists so that `plugin update`
+  copies the corrected shim at all: it compares version strings, and under an
+  unchanged one it would report "already at the latest version" over a shim
+  still printing the old name.
+
 ## 0.4.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (new verb, four new config keys).

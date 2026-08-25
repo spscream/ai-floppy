@@ -69,9 +69,9 @@ fi
 
 if ! has_scripts "${FLOPPY_ROOT:-}"; then
   echo "x floppy plugin not found." >&2
-  echo "  Claude Code:  /plugin marketplace add spscream/ai_floppy && /plugin install floppy" >&2
-  echo "  Cursor:       Dashboard -> Plugins -> Add Marketplace -> Import from Repo (spscream/ai_floppy)" >&2
-  echo "  Cursor (dev): ln -s /path/to/ai_floppy ~/.cursor/plugins/local/floppy" >&2
+  echo "  Claude Code:  /plugin marketplace add spscream/ai-floppy && /plugin install floppy" >&2
+  echo "  Cursor:       Dashboard -> Plugins -> Add Marketplace -> Import from Repo (spscream/ai-floppy)" >&2
+  echo "  Cursor (dev): ln -s /path/to/ai-floppy ~/.cursor/plugins/local/floppy" >&2
   echo "  Or point AI_FLOPPY_HOME at a checkout directly." >&2
   echo "  A cache directory that exists but holds no scripts/*.sh counts as not found:" >&2
   echo "  reinstall rather than trusting \`plugin update\`, which is a no-op while the version is unchanged." >&2

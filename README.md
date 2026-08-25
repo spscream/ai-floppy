@@ -26,16 +26,16 @@ Cursor.
 Claude Code:
 
 ```
-claude plugin marketplace add spscream/ai_floppy
+claude plugin marketplace add spscream/ai-floppy
 claude plugin install floppy@floppy
 ```
 
-(equivalently, inside a session: `/plugin marketplace add spscream/ai_floppy`
+(equivalently, inside a session: `/plugin marketplace add spscream/ai-floppy`
 then `/plugin install floppy@floppy` — the marketplace and the plugin inside
 it are both named `floppy`, hence the repeated name)
 
 Cursor, from the repository: Dashboard → Plugins → Add Marketplace → Import
-from Repo, pointing at `spscream/ai_floppy`; then Customize (sidebar) → find
+from Repo, pointing at `spscream/ai-floppy`; then Customize (sidebar) → find
 `floppy` → Install. This needs Cursor to be able to read the repository, so a
 private one has to be reachable by whatever account Cursor is signed in as.
 
@@ -44,7 +44,7 @@ marketplace at all, and the one to use while developing:
 
 ```
 mkdir -p ~/.cursor/plugins/local
-ln -s /path/to/ai_floppy ~/.cursor/plugins/local/floppy
+ln -s /path/to/ai-floppy ~/.cursor/plugins/local/floppy
 ```
 
 Restart Cursor afterwards. Nothing else is needed: the manifest at
