@@ -15,7 +15,7 @@ if   [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]]; t
 elif [[ -n "${AI_FLOPPY_HOME:-}"     && -d "${AI_FLOPPY_HOME}/scripts"     ]]; then
   FLOPPY_ROOT="$AI_FLOPPY_HOME"
 else
-  FLOPPY_ROOT="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort | tail -n1)"
+  FLOPPY_ROOT="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
 fi
 
 if [[ -z "${FLOPPY_ROOT:-}" || ! -d "$FLOPPY_ROOT/scripts" ]]; then
@@ -30,9 +30,13 @@ export FLOPPY_ROOT
 # without a hand-rolled parser, and a hand-rolled config parser fails quietly.
 cfg="$FLOPPY_REPO/.floppy/config"
 cfg_get() { # key default
-  local v=""
-  [[ -f "$cfg" ]] && v="$(sed -n "s/^$1=//p" "$cfg" | head -n1)"
-  printf '%s' "${v:-$2}"
+  local line="" v=""
+  [[ -f "$cfg" ]] && line="$(grep -m1 "^[[:space:]]*$1[[:space:]]*=" "$cfg" 2>/dev/null || true)"
+  if [[ -z "$line" ]]; then printf '%s' "$2"; return; fi
+  v="${line#*=}"
+  v="${v#"${v%%[![:space:]]*}"}"   # leading
+  v="${v%"${v##*[![:space:]]}"}"   # trailing
+  printf '%s' "$v"
 }
 
 export FLOPPY_MEMORY_DIR="$(cfg_get memory_dir .agent-memory)"

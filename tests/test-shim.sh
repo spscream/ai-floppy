@@ -24,10 +24,48 @@ repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"
 out2="$(cd "$repo2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1)"
 assert_contains "memory_dir defaults" "FLOPPY_MEMORY_DIR=.agent-memory" "$out2"
 
-# a missing plugin must fail loudly, not silently
-out3="$(cd "$repo2" && AI_FLOPPY_HOME=/nonexistent CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1)"; rc3=$?
+# a missing plugin must fail loudly, not silently. HOME is pointed at an
+# empty directory so this does not depend on whether the real machine happens
+# to have a floppy plugin cached (it does, on this one).
+empty_home="$(mktemp -d)"
+out3="$(cd "$repo2" && HOME="$empty_home" AI_FLOPPY_HOME=/nonexistent CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1)"; rc3=$?
 assert_rc       "missing plugin exits nonzero" 1 "$rc3"
 assert_contains "missing plugin names the fix" "plugin install floppy" "$out3"
+rm -rf "$empty_home"
 
-rm -rf "$repo" "$repo2"
+# finding 1: an explicitly empty value must not fall back to the default.
+# workplace_repo's own default is already '', which would not distinguish the
+# bug from the fix, so this uses memory_dir (default .agent-memory) instead.
+repo4="$(sandbox)"; cp shim/run "$repo4/.floppy/run"
+printf 'memory_dir=\n' > "$repo4/.floppy/config"
+out4="$(cd "$repo4" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1 | sed -n 's/^FLOPPY_MEMORY_DIR=//p')"
+assert_eq "explicit empty value stays empty, not the default" "" "$out4"
+
+# finding 2a: spaces around "=" must still be recognized as the key.
+repo5="$(sandbox)"; cp shim/run "$repo5/.floppy/run"
+printf 'memory_dir = brain\n' > "$repo5/.floppy/config"
+out5="$(cd "$repo5" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1)"
+assert_contains "key with spaces around '=' is read, not defaulted" "FLOPPY_MEMORY_DIR=brain" "$out5"
+
+# finding 2b: trailing whitespace in the value must be trimmed, not exported
+# verbatim into a path five later tasks read. Exact match, not substring.
+repo6="$(sandbox)"; cp shim/run "$repo6/.floppy/run"
+printf 'memory_dir=brain \n' > "$repo6/.floppy/config"
+out6="$(cd "$repo6" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1 | sed -n 's/^FLOPPY_MEMORY_DIR=//p')"
+assert_eq "trailing space in config value is trimmed" "brain" "$out6"
+
+# finding 3: the plugin-cache fallback must pick the newest version, and
+# lexicographic sort gets that wrong once a double-digit version exists
+# (0.10.0 sorts before 0.9.0). Build a fake cache under a fake HOME, with a
+# scripts/ dir in each version so the existence guard is satisfied either way.
+repo7="$(sandbox)"; cp shim/run "$repo7/.floppy/run"
+fake_home="$(mktemp -d)"
+mkdir -p "$fake_home/.claude/plugins/cache/example/floppy/0.9.0/scripts"
+mkdir -p "$fake_home/.claude/plugins/cache/example/floppy/0.10.0/scripts"
+out7="$(cd "$repo7" && HOME="$fake_home" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
+assert_contains "cache fallback picks 0.10.0, not lexicographically-later 0.9.0" \
+  "FLOPPY_ROOT=$fake_home/.claude/plugins/cache/example/floppy/0.10.0" "$out7"
+rm -rf "$fake_home"
+
+rm -rf "$repo" "$repo2" "$repo4" "$repo5" "$repo6" "$repo7"
 summary
