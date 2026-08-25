@@ -91,6 +91,27 @@ run_in "$plain" env
 assert_contains "in-repo memory is not called external" "FLOPPY_MEMORY_EXTERNAL=0" "$OUT"
 assert_contains "and has no store"                      "FLOPPY_MEMORY_STORE=" "$OUT"
 
+# ---------- the linter reads the notes THROUGH the symlink ----------
+# The first version of this file only asserted that the wrap gates came back
+# green, and they did — for the wrong reason. `find` does not descend into a
+# symlinked starting point unless told to, so every loop in memory-lint.sh
+# iterated over nothing and the run reported "clean: 0 notes": a memory gate
+# that passes because it checked nothing. Assert the count, and then break a
+# note on purpose — a green result means nothing without a positive control
+# proving the checker can go red on this input at all.
+run_in "$repo" lint
+assert_eq       "lint follows the symlink (rc)"     "0" "$RC"
+assert_contains "lint counts the notes it found"    "clean: 1 notes" "$OUT"
+
+printf -- '---\nname: broken\ndescription: d\nmetadata:\n  type: project\n  evidence: guessed\n---\nX.\n' > "$repo/.agent-memory/half/broken.md"
+printf -- '- [Broken](broken.md) — pointer\n' >> "$repo/.agent-memory/half/INDEX.md"
+run_in "$repo" lint
+assert_eq       "positive control: a bad note turns lint red (rc)" "1" "$RC"
+assert_contains "and the bad note is named"         "half/broken.md" "$OUT"
+rm -f "$repo/.agent-memory/half/broken.md"
+grep -v 'Broken' "$repo/.agent-memory/half/INDEX.md" > "$repo/.agent-memory/half/INDEX.tmp"
+mv "$repo/.agent-memory/half/INDEX.tmp" "$repo/.agent-memory/half/INDEX.md"
+
 # ---------- status: the code repo is clean and that is not the whole truth ----------
 # `git status` here is structurally blind to the notes. Without this section
 # /start reports a clean tree while the session's memory sits uncommitted.

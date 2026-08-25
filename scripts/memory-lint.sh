@@ -39,13 +39,22 @@ chars_of() {
 [[ -f "$IDX" ]] || { echo "no $IDX in $repo — this repository does not use this memory layout"; exit 2; }
 
 # Committed notes: everything except local/ and the index itself.
+#
+# `find -L`, not plain `find`: the memory directory is a SYMLINK whenever it is
+# hosted in another repository, and find does not descend into a symlinked
+# starting point unless told to. Without -L that layout made every loop below
+# iterate over nothing and the run print "clean: 0 notes" — green because it
+# checked nothing, which is the one failure mode worse than red. Measured
+# 2026-08-25 on the layout the day it shipped. -L also follows local/, but
+# every query here excludes it by path, so nothing changes for it.
+#
 # No `mapfile`/`declare -A` anywhere in this script: macOS still ships bash 3.2
 # (frozen at the GPLv2 version), where both are missing. The script used them
 # and died on a Mac with "declare: -A: invalid option" — a memory check that
 # cannot run on half the machines is worse than none.
 notes=()
 while IFS= read -r __line; do notes+=("$__line"); done < <(
-  find "$MEM" -name '*.md' -not -path "$MEM/local/*" -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
+  find -L "$MEM" -name '*.md' -not -path "$MEM/local/*" -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
 )
 
 # ---------- frontmatter ----------
@@ -131,14 +140,14 @@ done
 hr "index"
 indexes=("$IDX")
 while IFS= read -r __line; do indexes+=("$__line"); done < <(
-  find "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/local/*" | sort
+  find -L "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/local/*" | sort
 )
 
 # Notes may not sit deeper than the deepest index that could list them.
 while IFS= read -r __deep; do
   [[ -z "$__deep" ]] && continue
   err "${__deep#"$MEM"/}: nested deeper than a sub-index can reach — the index tree stops at three levels"
-done < <(find "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/local/*" | sort)
+done < <(find -L "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/local/*" | sort)
 
 idx_pointers=0
 for f in "${indexes[@]}"; do

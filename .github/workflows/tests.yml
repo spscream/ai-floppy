@@ -1,0 +1,48 @@
+name: tests
+
+# The suite is ~10 seconds and touches nothing outside temporary directories,
+# so there is no reason to run it on anything narrower than every push.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # bash 5 with GNU coreutils — the shape most contributors develop on.
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Every test that reaches wrap-commit makes a real commit, and a runner
+      # has no identity configured: git refuses with "please tell me who you
+      # are" and the failure looks like a bug in the rite rather than a missing
+      # setting. Set globally, not per repository — the tests create their
+      # sandboxes in $TMPDIR, not here.
+      - name: git identity for the sandboxes
+        run: |
+          git config --global user.email "tests@floppy.invalid"
+          git config --global user.name  "floppy tests"
+      - run: bash tests/run.sh
+
+  # The job that actually earns its minutes. macOS ships bash 3.2.57, frozen at
+  # the last GPLv2 release, and this plugin's scripts are required to run there:
+  # no mapfile, no declare -A, no `stat -c`, no GNU-only flags. Three scripts
+  # have already died on that machine in ways no Linux run could reveal.
+  #
+  # /bin/bash explicitly, never a bare `bash`: the runner image has a newer bash
+  # earlier in PATH, so `bash tests/run.sh` here would quietly re-test bash 5 and
+  # report a green macOS badge that means nothing. tests/run.sh propagates the
+  # interpreter it was started with to each test for the same reason.
+  macos-bash-3-2:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: git identity for the sandboxes
+        run: |
+          git config --global user.email "tests@floppy.invalid"
+          git config --global user.name  "floppy tests"
+      # Printed, not asserted, so a runner image that ever stops shipping 3.2
+      # shows up in the log instead of silently changing what this job covers.
+      - name: which bash is under test
+        run: /bin/bash --version | head -1
+      - run: /bin/bash tests/run.sh
