@@ -17,6 +17,13 @@ repo="$(pwd)"
 
 MEM="${FLOPPY_MEMORY_DIR:-.agent-memory}"
 IDX="$MEM/MEMORY.md"
+# The machine-local scope inside the memory: written here, never committed here.
+# Its NAME is a consumer's choice, so it comes from config rather than being
+# spelled into the checks below. Getting this wrong is not cosmetic: the check
+# that committed memory must not link into it is the one protecting against
+# links that are dead on a second machine, and with a name it does not
+# recognize that check silently applies to nothing.
+LOCAL_DIR="${FLOPPY_MEMORY_LOCAL_DIR:-local}"
 fail=0
 
 err() { printf '  x %s\n' "$1"; fail=1; }
@@ -31,6 +38,16 @@ hr() { printf '%s\n' "-- $1"; }
 chars_of() {
   LC_ALL=C awk '{ n += length($0) + 1; c += gsub(/[\200-\277]/, "", $0) } END { print n - c }' "$@"
 }
+
+# Interpolated into grep patterns and find globs, so it must be an ordinary
+# path segment. A name with regex metacharacters would not fail loudly — it
+# would match the wrong thing, which is the failure mode this whole file exists
+# to remove.
+case "$LOCAL_DIR" in
+  ''|*[!A-Za-z0-9._-]*)
+    echo "x memory_local_dir is '$LOCAL_DIR': use a plain name (letters, digits, dot, dash, underscore)" >&2
+    exit 2 ;;
+esac
 
 # Naming the path, not just "no $IDX": this is the message a person gets when
 # the wrong project is active in a harness that can have several open at
@@ -54,7 +71,7 @@ chars_of() {
 # cannot run on half the machines is worse than none.
 notes=()
 while IFS= read -r __line; do notes+=("$__line"); done < <(
-  find -L "$MEM" -name '*.md' -not -path "$MEM/local/*" -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
+  find -L "$MEM" -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
 )
 
 # ---------- frontmatter ----------
@@ -140,14 +157,14 @@ done
 hr "index"
 indexes=("$IDX")
 while IFS= read -r __line; do indexes+=("$__line"); done < <(
-  find -L "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/local/*" | sort
+  find -L "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/$LOCAL_DIR/*" | sort
 )
 
 # Notes may not sit deeper than the deepest index that could list them.
 while IFS= read -r __deep; do
   [[ -z "$__deep" ]] && continue
   err "${__deep#"$MEM"/}: nested deeper than a sub-index can reach — the index tree stops at three levels"
-done < <(find -L "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/local/*" | sort)
+done < <(find -L "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" | sort)
 
 idx_pointers=0
 for f in "${indexes[@]}"; do
@@ -361,12 +378,13 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
 fi
 
 # ---------- links into local/ ----------
-hr "links into local/"
-# Committed memory must not link into local/: a fresh clone does not have it.
+hr "links into $LOCAL_DIR/"
+# Committed memory must not link into the machine-local scope: a fresh clone
+# does not have it.
 for f in "${indexes[@]}" "${notes[@]+"${notes[@]}"}"; do
   rel="${f#"$MEM"/}"
-  if grep -o '](\(local/[^)]*\))' "$f" >/dev/null 2>&1; then
-    err "$rel: link into local/ — dead on a second machine, refer to it by meaning instead"
+  if grep -o "](\($LOCAL_DIR/[^)]*\))" "$f" >/dev/null 2>&1; then
+    err "$rel: link into $LOCAL_DIR/ — dead on a second machine, refer to it by meaning instead"
   fi
 done
 

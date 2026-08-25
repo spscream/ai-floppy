@@ -31,17 +31,26 @@ set -uo pipefail
 
 usage() {
   echo "usage: bash scripts/init.sh --repo <path> [--memory-dir <dir>] [--language <lang>]" >&2
+  echo "       [--memory-repo <git-url> --memory-key <scope>] [--memory-repo-dir <path>]" >&2
+  echo "  --memory-repo/--memory-key host the memory in another repository, for a" >&2
+  echo "  code repository that cannot hold agent notes. Both or neither." >&2
 }
 
 repo_arg=""
 mem_dir=".agent-memory"
 language="en"
+memory_repo=""
+memory_key=""
+memory_repo_dir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)        repo_arg="${2:-}"; shift 2 ;;
     --memory-dir)  mem_dir="${2:-}";  shift 2 ;;
     --language)    language="${2:-}"; shift 2 ;;
+    --memory-repo)     memory_repo="${2:-}";     shift 2 ;;
+    --memory-key)      memory_key="${2:-}";      shift 2 ;;
+    --memory-repo-dir) memory_repo_dir="${2:-}"; shift 2 ;;
     -h|--help)     usage; exit 0 ;;
     *) echo "x unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -55,6 +64,12 @@ fi
 [[ -d "$repo_arg" ]] || { echo "x no such directory: $repo_arg" >&2; exit 2; }
 [[ -n "$mem_dir" ]] || { echo "x --memory-dir must not be empty" >&2; exit 2; }
 [[ -n "$language" ]] || { echo "x --language must not be empty" >&2; exit 2; }
+# Half of this pair is not a layout, it is a broken one: a URL with no scope
+# has nowhere to write, and a scope with no URL has nothing to write into.
+if [[ -n "$memory_repo" && -z "$memory_key" ]] || [[ -z "$memory_repo" && -n "$memory_key" ]]; then
+  echo "x --memory-repo and --memory-key go together: a store without a scope has nowhere to put this project's notes" >&2
+  exit 2
+fi
 
 repo="$(cd "$repo_arg" && pwd)"
 
@@ -82,6 +97,27 @@ chmod +x "$repo/.floppy/run"
 echo "ok .floppy/run"
 
 # ---------- .floppy/config ----------
+# Written into the generated config only when asked for, and commented out
+# otherwise: a project pointed at a store it never chose would write this
+# project's notes into somebody else's repository.
+if [[ -n "$memory_repo" ]]; then
+  store_cfg="
+# This repository does not hold its own memory: memory_dir is a symlink into
+# the store below. Wire it on each machine with \"bash .floppy/run store\".
+memory_repo=$memory_repo
+memory_project_key=$memory_key"
+  [[ -n "$memory_repo_dir" ]] && store_cfg="$store_cfg
+memory_repo_dir=$memory_repo_dir"
+else
+  store_cfg="
+# memory_repo/memory_project_key host the memory in ANOTHER repository, for a
+# code repository that cannot hold agent notes at all. Set both, then run
+# \"bash .floppy/run store\" once per machine and per worktree.
+# memory_repo=git@example.com:workplace/agents-memory.git
+# memory_project_key=your-project-key
+# memory_repo_dir defaults to \$HOME/agents_memory"
+fi
+
 cfg="$repo/.floppy/config"
 if [[ -f "$cfg" ]]; then
   echo "ok .floppy/config already exists, left untouched"
@@ -91,7 +127,7 @@ else
 # for what each key governs.
 memory_dir=$mem_dir
 memory_language=$language
-
+$store_cfg
 # workplace_repo and workplace_project_key have no default on purpose: a
 # fresh project must not silently write into somebody else's private memory.
 # Set both to use "bash .floppy/run workplace".
@@ -113,6 +149,24 @@ memory_language=$language
 # watched_files=AGENTS.md
 EOF
   echo "ok .floppy/config"
+fi
+
+# ---------- the store, when the memory is hosted elsewhere ----------
+# Before the skeleton below on purpose: once the symlink exists, MEMORY.md is
+# written through it and lands in the store, which is where it belongs. The
+# other order would create a real directory in the way and make `store` refuse
+# — correctly, since it never decides the fate of files somebody wrote.
+if [[ -n "$memory_repo" ]]; then
+  echo
+  if FLOPPY_REPO="$repo" FLOPPY_MEMORY_DIR="$mem_dir" \
+     FLOPPY_MEMORY_REPO="$memory_repo" FLOPPY_MEMORY_PROJECT_KEY="$memory_key" \
+     FLOPPY_MEMORY_REPO_DIR="${memory_repo_dir:-$HOME/agents_memory}" \
+     bash "$self_dir/memory-store.sh"; then
+    echo
+  else
+    echo "x wiring the store failed — nothing else was created" >&2
+    exit 1
+  fi
 fi
 
 # ---------- memory skeleton ----------

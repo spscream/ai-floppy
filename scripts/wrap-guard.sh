@@ -160,6 +160,22 @@ for f in "${claimed[@]}"; do
   in_set "$f" "$changed_set" || err "$f — not changed: wrong path, or the edit was lost"
 done
 
+# ---------- memory that nothing will ever commit ----------
+# Ignored AND inside this repository is broken in either layout, and it is the
+# shape a half-finished external setup takes: the ignore line was added, the
+# symlink was not. Notes are then written and read normally on this machine
+# while `git status` cannot show them — the ignore rule is doing exactly what
+# it was told — and none of the external-layout checks below fire, because
+# externality is derived and this memory is not external.
+#
+# Without this the failure still surfaced, but wearing the wrong name: the
+# guard reported "not changed: wrong path, or the edit was lost" for every note,
+# at the end of the session, pointing at the edit instead of at the wiring.
+if [[ "$external" == "0" && -e "$mem_dir" ]] && git check-ignore -q -- "$mem_dir" 2>/dev/null; then
+  hr "memory wiring"
+  err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Either drop the ignore line, or finish the external setup so the path resolves into the store (bash .floppy/run store)"
+fi
+
 # ---------- the external memory is actually wired to publish ----------
 # Two ways this setup fails, and both are silent while notes keep getting
 # written and read on this machine.

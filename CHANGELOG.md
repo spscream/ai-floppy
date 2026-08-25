@@ -14,6 +14,36 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.4.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (new verb, four new config keys).
+
+- New verb `store`: wires memory hosted in another repository — clone or pull,
+  link, add the ignore line, and then the step that actually proves it, writing
+  through the link and confirming the file appears in the store. Idempotent,
+  per machine and per worktree, `--check` reports without changing. It refuses
+  rather than guesses when a real directory sits where the symlink belongs:
+  those notes may be the only copies of something.
+- `init` learned `--memory-repo` / `--memory-key` / `--memory-repo-dir`, and
+  writes the index *through* the new symlink so it lands in the store. Half the
+  pair is refused rather than half-applied. Without the flags nothing changes:
+  the generated config documents the option commented out, because a project
+  pointed at a store it never chose would write its notes into somebody else's
+  repository.
+- **New guard, and it catches a state that was comfortable to live in:** a
+  memory directory that is gitignored *and* inside this repository. That is the
+  shape a half-done external setup takes — ignore line added, symlink never
+  created — and in it notes are written and read normally while nothing will
+  ever commit them. Previously the failure surfaced at the end of the session
+  wearing the wrong name ("not changed: wrong path, or the edit was lost").
+- `memory_local_dir` (default `local`) names the machine-local scope instead of
+  the linter spelling it in. Not cosmetic: the rule "committed memory must not
+  link into that scope" is what protects against links dead on a second
+  machine, and under any other name it had been silently applying to nothing.
+  A name with regex metacharacters is refused rather than matched wrongly.
+
+377 asserts, up from 328.
+
 ## 0.3.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (new config key).

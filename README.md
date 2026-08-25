@@ -148,6 +148,10 @@ these are the defaults when a key is absent.
 | key | default | what it controls |
 |---|---|---|
 | `memory_dir` | `.agent-memory` | where this repository's durable memory lives |
+| `memory_local_dir` | `local` | name of the machine-local scope inside the memory — written on one machine, never committed. Only the name is configurable; the rule is not, and the check that committed memory must never link into it follows this key |
+| `memory_repo` | *(unset)* | git URL of the store that holds this project's memory when the code repository cannot; set with `memory_project_key`, then run `bash .floppy/run store` once per machine and worktree |
+| `memory_project_key` | *(unset)* | this project's scope inside that store (`projects/<key>/memory`) |
+| `memory_repo_dir` | `$HOME/agents_memory` | where that store is (or should be) checked out on this machine |
 | `memory_language` | `en` | the language memory notes are written in — a convention read from this file directly, not something any script acts on. Independent of the language a session replies to its human in, which is never configured here |
 | `workplace_repo` | *(unset)* | git URL of a workplace-wide private memory repository; both this and `workplace_project_key` must be set to use `bash .floppy/run workplace` |
 | `workplace_project_key` | *(unset)* | this project's scope directory (`projects/<key>`) inside the workplace repository |
@@ -167,18 +171,29 @@ somebody else's private memory.
 ## Memory in a repository other than the code's
 
 Some consumers cannot commit agent notes next to the code: a client's checkout
-they do not own, or a policy that keeps them apart. Point `memory_dir` at a
-symlink into a separate git repository and gitignore it — the code repository
-then carries only `.floppy/run` and `.floppy/config`, about 110 lines that
-review in a minute:
+they do not own, or a policy that keeps them apart. The memory then lives in a store repository and the code repository carries only
+`.floppy/run` and `.floppy/config`, about 110 lines that review in a minute.
+
+Set it up when initializing:
 
 ```
-git clone <store-url> ~/agents_memory
-mkdir -p ~/agents_memory/projects/<key>/memory
-ln -s ~/agents_memory/projects/<key>/memory .agent-memory
-printf '/.agent-memory\n' >> .gitignore     # no trailing slash: it is a symlink
-bash .floppy/run link
+--memory-repo git@example.com:workplace/agents-memory.git --memory-key acme
 ```
+
+or on an already-initialized repository, by setting `memory_repo` and
+`memory_project_key` in `.floppy/config` and running:
+
+```
+bash .floppy/run store    # clone or pull, link, ignore, verify a write lands there
+bash .floppy/run link     # then the harness's memory directory, as always
+```
+
+`store` is per machine and per worktree, idempotent, and refuses rather than
+guesses when a real directory sits where the symlink belongs — those notes may
+be the only copies. `bash .floppy/run store --check` reports without changing
+anything. The step that matters most is the last one it performs: writing
+through the link and confirming the file appears in the store. Everything else
+can look correct while a write lands somewhere nobody publishes.
 
 Nothing has to be declared in the config. The layout is **derived** from where
 `memory_dir` resolves to, because a boolean in a config file would disagree
@@ -195,11 +210,16 @@ closed" over unpublished notes, and a `memory_dir` that resolves outside git
 altogether is named as such — it works for reading and writing and publishes
 nothing.
 
-Two costs worth knowing before choosing this. The memory stops being reviewed
-alongside the code, which for the in-repo layout is free. And the setup steps
-above are per machine and per worktree, done by hand; `bash .floppy/run status`
-reports the store's state in its own section so a machine that skipped them is
-visible rather than quietly writing into a directory nobody publishes.
+One cost is worth knowing before choosing this: the memory stops being reviewed
+alongside the code, which in the in-repo layout is free.
+
+The half-done state — ignore line added, symlink never created — is the one to
+know about, because it is comfortable: notes are written and read normally,
+`git status` cannot show them since it was told not to, and nothing publishes
+them. `guard` fails on exactly that combination (ignored, but inside this
+repository) and names it, and `status` reports the store in its own section so
+a machine that skipped the wiring is visible rather than quietly writing into a
+directory nobody reads.
 
 ## `quota.lock`
 

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Wire this repository's memory to a store repository, for the layout where
+# the code repository cannot hold agent notes at all.
+#
+# Not the same thing as `workplace`, though the machinery rhymes. That one
+# attaches a SHARED scope (<memory_dir>/local) for facts true across a
+# workplace's machines. This one moves THIS PROJECT's whole memory out: after
+# it runs, <memory_dir> is a symlink into <store>/projects/<key>/memory and the
+# code repository ignores it.
+#
+# Why a script rather than four commands in a document: those four commands are
+# per machine and per worktree, and the failure of skipping them is silent in a
+# very specific way. Add the ignore line, skip the symlink, and <memory_dir> is
+# an ordinary ignored directory inside the code repository — notes are written
+# and read normally, `git status` cannot show them because it was told not to,
+# and nothing ever publishes them. (wrap-guard now catches exactly that state;
+# this script is how you avoid reaching it.)
+#
+# Idempotent: a second run on a wired machine changes nothing. It never deletes
+# a real directory standing where the symlink belongs — that is memory somebody
+# wrote, and a human decides what happens to it.
+#
+#   bash .floppy/run store            wire it up (idempotent)
+#   bash .floppy/run store --check    report only, change nothing
+#
+# Requires memory_repo and memory_project_key in .floppy/config. Neither has a
+# default: a repository that never opted in must not silently write into
+# somebody else's store.
+set -uo pipefail
+cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+repo="$(pwd)"
+
+check_only=0
+for a in "$@"; do
+  case "$a" in
+    --check) check_only=1 ;;
+    *) echo "x unknown argument: $a"; exit 2 ;;
+  esac
+done
+
+mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
+url="${FLOPPY_MEMORY_REPO:-}"
+key="${FLOPPY_MEMORY_PROJECT_KEY:-}"
+dir="${FLOPPY_MEMORY_REPO_DIR:-$HOME/agents_memory}"
+
+if [[ -z "$url" || -z "$key" ]]; then
+  echo "x memory_repo and memory_project_key are both required in .floppy/config"
+  echo "  This verb moves the memory out of the code repository; without a"
+  echo "  destination and a scope there is nowhere to move it to."
+  echo "  A project that keeps memory in its own repository does not need this verb."
+  exit 2
+fi
+
+target="$dir/projects/$key/memory"
+link="$repo/$mem_dir"
+
+echo "store:      $dir"
+echo "scope:      projects/$key/memory"
+echo "memory_dir: $mem_dir"
+echo
+
+# ---------- report ----------
+if [[ $check_only -eq 1 ]]; then
+  if [[ -L "$link" ]]; then
+    echo "ok $mem_dir -> $(readlink "$link")"
+  elif [[ -e "$link" ]]; then
+    echo "x $mem_dir is a real directory, not a symlink into the store"
+    exit 1
+  else
+    echo "x $mem_dir does not exist — not wired on this machine"
+    exit 1
+  fi
+  git check-ignore -q -- "$mem_dir" 2>/dev/null \
+    && echo "ok $mem_dir is ignored by this repository" \
+    || { echo "x $mem_dir is NOT ignored: this repository can still stage the memory"; exit 1; }
+  exit 0
+fi
+
+# ---------- the store itself ----------
+if [[ ! -d "$dir/.git" ]]; then
+  if [[ -e "$dir" ]]; then
+    echo "x $dir exists but is not a git repository — sort this out by hand"
+    exit 1
+  fi
+  echo "cloning $url"
+  git clone "$url" "$dir" || { echo "x clone failed — check the ssh key for that host"; exit 1; }
+else
+  dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
+  if [[ "$dirty" != "0" ]]; then
+    echo "! $dirty uncommitted change(s) in the store — pull skipped, commit them first"
+  elif git -C "$dir" pull --rebase --quiet 2>/dev/null; then
+    echo "ok pulled"
+  else
+    echo "! pull failed (offline, or the remote refused) — working with the local copy"
+  fi
+fi
+
+# ---------- the secret hook ----------
+# Same reasoning as memory-workplace.sh: a repository can ship
+# .githooks/pre-commit, git does not enable it on clone, and a hook nobody
+# enabled is a rule nobody enforces.
+if [[ -x "$dir/.githooks/pre-commit" ]]; then
+  if [[ "$(git -C "$dir" config core.hooksPath || true)" == ".githooks" ]]; then
+    echo "ok secret hook enabled"
+  else
+    git -C "$dir" config core.hooksPath .githooks && echo "ok secret hook enabled: core.hooksPath=.githooks"
+  fi
+else
+  echo "! no executable .githooks/pre-commit in $dir — secrets are guarded by nothing but the human"
+fi
+
+mkdir -p "$target"
+
+# ---------- the symlink ----------
+if [[ -L "$link" ]]; then
+  if [[ "$(cd "$link" && pwd -P)" == "$(cd "$target" && pwd -P)" ]]; then
+    echo "ok already wired: $mem_dir -> $target"
+  else
+    echo "x $mem_dir points elsewhere: $(readlink "$link")"
+    echo "  expected $target. Sort this out by hand — it may be another store."
+    exit 1
+  fi
+elif [[ -e "$link" ]]; then
+  n="$(find "$link" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+  echo "x a real directory sits where the symlink belongs, with $n memory file(s) in it."
+  echo "  Those notes may be the only copies. Move them into $target yourself,"
+  echo "  check nothing is left, remove the directory, and run this again."
+  echo "  Nothing was moved or deleted: this script does not decide the fate of memory."
+  exit 1
+else
+  ln -s "$target" "$link"
+  echo "ok linked: $mem_dir -> $target"
+fi
+
+# ---------- the ignore line ----------
+# No trailing slash: with one, git does not match a symlink, and the memory
+# would be stageable here after all — the one thing this layout prevents.
+if git check-ignore -q -- "$mem_dir" 2>/dev/null; then
+  echo "ok $mem_dir is ignored by this repository"
+else
+  printf '\n# memory lives in the store repository, not here\n/%s\n' "$mem_dir" >> "$repo/.gitignore"
+  echo "ok added /$mem_dir to .gitignore (commit it)"
+fi
+
+# ---------- does a write reach the store? ----------
+# The step that actually proves the wiring. Everything above can look right
+# while a write lands somewhere else.
+probe="$link/.write-probe-$$"
+if echo "probe" > "$probe" 2>/dev/null && [[ -f "$target/.write-probe-$$" ]]; then
+  rm -f "$probe"
+  echo "ok a write through the link lands in the store"
+else
+  rm -f "$probe"
+  echo "x a write through the link does not reach $target"
+  exit 1
+fi
+
+# ---------- what is not pushed ----------
+ahead="$(git -C "$dir" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')"
+dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
+[[ "$dirty" != "0" ]] && echo "! $dirty uncommitted change(s) in $dir — bash .floppy/run commit closes them"
+[[ "$ahead" != "0" && "$ahead" != "?" ]] && echo "! $ahead commit(s) not pushed in $dir — the next machine cannot see them"
+echo
+echo "next: bash .floppy/run link   (the harness's memory directory, per machine and per worktree)"
+exit 0

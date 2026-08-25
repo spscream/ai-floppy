@@ -133,6 +133,12 @@ policy separating notes from code — so `memory_dir` is a symlink into a
 separate git repository and is gitignored here. The first scope above is then
 hosted elsewhere; it is still this project's memory, not the workplace store.
 
+Wiring that up is `bash .floppy/run store`, once per machine and per worktree;
+`init --memory-repo … --memory-key …` does it at setup time. The state to know
+about is the half-done one — the ignore line added, the symlink never created —
+because it is comfortable: notes are written and read normally while nothing
+will ever commit them. `guard` fails on that combination by name.
+
 Nothing about writing a note changes: same paths, same index, same frontmatter.
 Two things about **closing** a session do, and the shim handles both — `check`
 prints a `memory store` section, because this repository's own diff cannot see

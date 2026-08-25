@@ -255,4 +255,56 @@ assert_contains "and it falls back to the shipped default" "24500" "$OUT8"
 rm -rf "$repo8"
 
 
+# ---------- the machine-local scope is named by config, not by the script ----------
+# The name was spelled into the checks, and the cost of that is not cosmetic:
+# the rule "committed memory must not link into the local scope" is what
+# protects against links that are dead on a second machine, and under any other
+# name it silently applied to nothing.
+repo9="$(sandbox)"; cp shim/run "$repo9/.floppy/run"
+printf 'memory_dir=brain\nmemory_local_dir=private\n' > "$repo9/.floppy/config"
+mkdir -p "$repo9/brain/half" "$repo9/brain/private"
+printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$repo9/brain/MEMORY.md"
+printf '# Half\n- [A note](a-note.md) — pointer\n' > "$repo9/brain/half/INDEX.md"
+cat > "$repo9/brain/half/a-note.md" <<'EOFN'
+---
+name: a-note
+description: a note
+metadata:
+  type: project
+  evidence: read
+---
+Body.
+EOFN
+# A file in the machine-local scope with no frontmatter at all: linted as
+# committed memory it would fail on every field.
+printf 'scratch, not committed memory\n' > "$repo9/brain/private/scratch.md"
+
+lint9() { OUT9="$(cd "$repo9" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RC9=$?; }
+lint9
+assert_rc       "a renamed local scope is excluded from the checks" 0 "$RC9"
+assert_contains "and only the committed note is counted"            "1 notes" "$OUT9"
+
+# Positive control on the same input: with the default name the scope is not
+# recognised and its file is linted, so the assertion above cannot be passing
+# because the linter skips everything.
+printf 'memory_dir=brain\n' > "$repo9/.floppy/config"
+lint9
+assert_rc       "under the default name the same file IS linted" 1 "$RC9"
+assert_contains "and it is the scratch file that fails"          "private/scratch.md" "$OUT9"
+
+# The link rule follows the configured name too.
+printf 'memory_dir=brain\nmemory_local_dir=private\n' > "$repo9/.floppy/config"
+printf 'See [that](private/scratch.md).\n' >> "$repo9/brain/half/a-note.md"
+lint9
+assert_rc       "a link into the renamed scope is caught"  1 "$RC9"
+assert_contains "and names the scope as configured"        "link into private/" "$OUT9"
+
+# A name that would be read as a regex must be refused, not matched wrongly.
+printf 'memory_dir=brain\nmemory_local_dir=.*\n' > "$repo9/.floppy/config"
+lint9
+assert_rc       "a name with metacharacters is refused" 2 "$RC9"
+assert_contains "and says what is allowed"              "plain name" "$OUT9"
+rm -rf "$repo9"
+
+
 summary
