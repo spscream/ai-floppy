@@ -213,20 +213,17 @@ does not contain it.
 |---|---|---|
 | `memory_dir` | `.agent-memory` | the directory of the memory of this repository |
 | `memory_private_dir` | `private` | the name of the private scope in the memory: facts about this project that the code repository must not carry, such as somebody else's checkout or an access note. The workplace repository holds them, so **other machines do read them**. Facts about one machine go to `machines/<name>/` of that repository instead. Only the name is a setting; the rule is not — committed memory must not link into this scope, and the check uses this key |
-| `memory_local_dir` | *(the value of `memory_private_dir`)* | the name this key had before 0.6.0. A config written earlier keeps working |
 | `public_repo` | *(not set)* | the git URL of the repository that holds this project's **public** memory when the code repository cannot. Set `project_key` also. Then run `bash .floppy/run store` one time for each machine and each worktree |
 | `private_repo` | *(not set)* | the git URL of the repository that holds this project's **private** memory: facts the team must not get. `bash .floppy/run workplace` wires it |
-| `memory_repo`, `workplace_repo` | *(the old names)* | what `public_repo` and `private_repo` were called before 0.7.0. A config written earlier keeps working |
 | `machine_key` | *(not set)* | the name of this machine in the memory repositories, chosen by you. `hostname` is not used: on one of the author's machines it is `WIN-GVR0V5UPOD7`. Only needed for a note that is true on one machine |
 | `workplace_key` | *(not set)* | the name of this workplace, when one private repository serves several of them. Only needed for a note that is true at one workplace |
-| `project_key` | *(not set)* | the name of this project in every memory repository it uses, and the name of its directory in `agents_memory_dir`. The scopes are `projects/<key>/shared` (in `memory_repo`) and `projects/<key>/private` (in `workplace_repo`) |
-| `memory_project_key` | *(the value of `project_key`)* | use a different key in the store only. Needed when the same project has two names in two repositories |
+| `project_key` | *(not set)* | the name of this project in every memory repository it uses, and the name of its directory in `agents_memory_dir`. The scopes are `public/projects/<key>` (in `public_repo`) and `private/projects/<key>` (in `private_repo`) |
+| `memory_project_key` | *(the value of `project_key`)* | use a different key in `public_repo` only. Needed when the same project has two names in two repositories |
+| `workplace_project_key` | *(the value of `project_key`)* | the same, for `private_repo` |
 | `agents_memory_dir` | `$HOME/agents_memory` | holds one directory for each project, and the clones in `.clones/`. Each repository URL gets one clone. The name of the clone comes from the URL. floppy derives it; you do not set it. Two different repositories thus cannot use one clone directory. A clone from an earlier layout — under the parent directly, or at the parent itself — is used as it is, but only if its `origin` is the configured URL. See the example above |
-| `memory_repo_dir` | *(derived)* | replaces the derived path of the store on this machine. Set it only if that checkout cannot be below the parent directory |
+| `memory_repo_dir` | *(derived)* | replaces the derived checkout path of `public_repo` on this machine. Set it only if that checkout cannot be below the parent directory |
+| `workplace_memory_dir` | *(derived)* | the same replacement, for `private_repo` |
 | `memory_language` | `en` | the language of the memory notes. No script uses this key. A session reads it from this file. It does not control the language of the answers to a human |
-
-| `workplace_project_key` | *(the value of `project_key`)* | the same, for the workplace repository |
-| `workplace_memory_dir` | *(derived)* | the same replacement, for the workplace repository |
 | `index_chars_max` | `24500` | the maximum number of characters in the memory index. The value comes from the session loader of the agent application. That loader removes text above a limit and does not report the removed section. This is a fact about the application, not about your project. The limits for the corpus are in `quota.lock` |
 | `statuses_now` | `docs/statuses/NOW.md` | the state file. `start` reads all of it. `wrap` keeps it correct |
 | `statuses_now_chars_max` | `12000` | the maximum number of characters in the state file. `wrap-guard` refuses a commit above this limit |
@@ -235,7 +232,7 @@ does not contain it.
 | `commands_dir` | `.claude/commands` | the directory of the command files, if the repository has them in its own language. Only `bash .floppy/run parity` reads this key |
 | `commit_push` | `auto` | the action after each commit. `auto` runs `git pull --rebase`, then pushes. `never` omits both. Use `never` if the repository has no remote, because `auto` fails there. To omit the push one time only, use `--no-push` |
 
-`workplace_repo` and `workplace_project_key` have no default value. This is
+`private_repo` and `workplace_project_key` have no default value. This is
 deliberate. With a default, a repository could write into the private memory of
 a different person.
 
@@ -250,8 +247,8 @@ An example. The configuration of one project is four lines:
 
 ```
 project_key=acme
-memory_repo=git@example.com:team/notes-store.git
-workplace_repo=git@example.com:workplace/agents-memory.git
+public_repo=git@example.com:team/notes-store.git
+private_repo=git@example.com:workplace/agents-memory.git
 agents_memory_dir=$HOME/agents_memory
 ```
 
@@ -263,8 +260,8 @@ The result on disk is:
       shared  -> ../.clones/notes-store/public/projects/acme
       private -> ../.clones/agents-memory/private/projects/acme
    .clones/
-      notes-store/            <- clone of memory_repo
-      agents-memory/          <- clone of workplace_repo
+      notes-store/            <- clone of public_repo
+      agents-memory/          <- clone of private_repo
 ```
 
 `shared` and `private` are symlinks. floppy makes them on each machine, and no
@@ -280,7 +277,7 @@ own directory `~/agents_memory/<other key>/`, and its own scopes
 `public/projects/<other key>` and `private/projects/<other key>` inside the same
 two clones. There is one clone for each repository, never one for each project.
 
-If `memory_repo` and `workplace_repo` hold the same URL, there is one clone,
+If `public_repo` and `private_repo` hold the same URL, there is one clone,
 and both scopes are in it, beside each other.
 
 ### The scope names changed in 0.5.0
@@ -360,7 +357,7 @@ To set this up during `init`, use the flags:
 --memory-repo git@example.com:workplace/agents-memory.git --memory-key acme
 ```
 
-To set it up later, put `memory_repo` and `project_key` in `.floppy/config`.
+To set it up later, put `public_repo` and `project_key` in `.floppy/config`.
 Then run:
 
 ```

@@ -130,7 +130,7 @@ fi
 # even when a note was written. An unpushed note there blinds the second
 # machine exactly like an unpushed commit here.
 #
-# Only shown when workplace_repo is actually configured: on a project that
+# Only shown when private_repo is actually configured: on a project that
 # never opted into a workplace store, printing "not wired" every time is a
 # dead end, not a nudge — following it fails immediately with "set
 # workplace_project_key in .floppy/config" (memory-workplace.sh requires

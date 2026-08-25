@@ -14,6 +14,34 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.8.0 — 2026-08-25
+
+**Refresh `.floppy/run`: yes** (the config parser no longer reads three keys).
+**Breaking, in name only:** a config that still spells a key the old way is now
+read as if the key were absent.
+
+- The compatibility fallbacks for `memory_repo`, `workplace_repo`, and
+  `memory_local_dir` are gone. `public_repo`, `private_repo`, and
+  `memory_private_dir` are the keys. The fallbacks were kept so that a config
+  written before 0.6.0 or 0.7.0 would keep working; checked before removing
+  them, and the only `.floppy/config` outside this repository already spells
+  every key the new way, so the compatibility was documenting keys nobody has.
+- The messages that named a removed key now name the current one: `store`
+  asks for `public_repo`, `workplace` asks for `private_repo`, and the linter's
+  refusal of a scope name with regex metacharacters says `memory_private_dir`.
+  A message that names a key the parser ignores is worse than no message.
+- The config template that `init` writes offers the current names too.
+- README: the key table had a blank line inside it, which split it in two and
+  left everything from `workplace_project_key` down rendering as raw pipes
+  rather than a table. The paired keys sit next to each other again.
+- README: the `project_key` row described the scopes as `projects/<key>/shared`
+  and `projects/<key>/private`, which 0.7.0 replaced; and the example config,
+  the checkout tree, and two sentences still used the pre-0.7.0 repository key
+  names.
+
+437 asserts, down from 440: the three that vanished asserted README documents
+`memory_repo`, `workplace_repo`, and `memory_local_dir`.
+
 ## 0.7.1 — 2026-08-25
 
 **Refresh `.floppy/run`: no.** Needed while migrating to 0.7.0.

@@ -38,7 +38,7 @@ assert_contains "missing plugin also names the AI_FLOPPY_HOME escape hatch" "AI_
 rm -rf "$empty_home"
 
 # finding 1: an explicitly empty value must not fall back to the default.
-# workplace_repo's own default is already '', which would not distinguish the
+# private_repo's own default is already '', which would not distinguish the
 # bug from the fix, so this uses memory_dir (default .agent-memory) instead.
 repo4="$(sandbox)"; cp shim/run "$repo4/.floppy/run"
 printf 'memory_dir=\n' > "$repo4/.floppy/config"

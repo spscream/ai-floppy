@@ -53,7 +53,7 @@ assert_eq       "no local symlink created either"        "absent" "$([[ -e "$rep
 echo "workplace_project_key=test-project" > "$repo3/.floppy/config"
 out6="$(cd "$repo3" && HOME="$home3" AI_FLOPPY_HOME="$ROOT" bash .floppy/run workplace 2>&1)"; rc6=$?
 assert_rc       "workplace refuses without repo url"     1 "$rc6"
-assert_contains "refusal names the repo config key"      "workplace_repo" "$out6"
+assert_contains "refusal names the repo config key"      "private_repo" "$out6"
 assert_eq       "still nothing cloned"                    "absent" "$([[ -e "$home3/agents_memory" ]] && echo exists || echo absent)"
 
 rm -rf "$repo3" "$home3"

@@ -83,12 +83,12 @@ assert_eq       "check does not stage"         ""        "$(git -C "$repo" diff 
 assert_eq       "check does not push"          "$remote_before" "$(git -C "$remote" rev-parse refs/heads/main)"
 assert_contains "check reports the file list"  "NOW.md"  "$out"
 
-# IMPORTANT 4: no workplace_repo in this repo's config — wrap-check.sh must
+# IMPORTANT 4: no private_repo in this repo's config — wrap-check.sh must
 # skip the "workplace memory" section entirely rather than nudge "bash
 # .floppy/run workplace", which then dead-ends on a missing project key.
 case "$out" in
-  *"-- workplace memory"*) fail "check: no workplace section without workplace_repo" "section absent" "$out" ;;
-  *)                       ok   "check: no workplace section without workplace_repo" ;;
+  *"-- workplace memory"*) fail "check: no workplace section without private_repo" "section absent" "$out" ;;
+  *)                       ok   "check: no workplace section without private_repo" ;;
 esac
 
 # check refuses a file outside the watched paths, and refuses loudly

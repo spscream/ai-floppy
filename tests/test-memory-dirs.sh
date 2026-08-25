@@ -60,9 +60,9 @@ mk_remote "$W1/store.git" store
 mk_remote "$W1/wp.git" workplace
 repo1="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H1/agents_memory
-memory_repo=$W1/store.git
+public_repo=$W1/store.git
 memory_project_key=acme
-workplace_repo=$W1/wp.git
+private_repo=$W1/wp.git
 workplace_project_key=acme")"
 
 run_verb "$repo1" "$H1" store
@@ -97,7 +97,7 @@ mk_remote "$W2/wp.git" workplace
 mkdir -p "$H2/agents_memory/.clones"; git clone -q "$W2/store.git" "$H2/agents_memory/.clones/wp"
 repo2="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H2/agents_memory
-workplace_repo=$W2/wp.git
+private_repo=$W2/wp.git
 workplace_project_key=acme")"
 # `init` would have created it; `store` is the only verb that wants it absent.
 mkdir -p "$repo2/.agent-memory"
@@ -118,7 +118,7 @@ mk_remote "$W3/wp.git" workplace
 git clone -q "$W3/wp.git" "$H3/agents_memory"
 repo3="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H3/agents_memory
-workplace_repo=$W3/wp.git
+private_repo=$W3/wp.git
 workplace_project_key=acme")"
 mkdir -p "$repo3/.agent-memory"
 
@@ -142,7 +142,7 @@ mk_remote "$W4/store.git" store
 git clone -q "$W4/wp.git" "$H4/agents_memory"
 repo4="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H4/agents_memory
-memory_repo=$W4/store.git
+public_repo=$W4/store.git
 memory_project_key=acme")"
 
 run_verb "$repo4" "$H4" store
@@ -160,9 +160,9 @@ mk_remote "$W5/store.git" store
 mk_remote "$W5/wp.git" workplace
 repo5="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H5/agents_memory
-memory_repo=$W5/store.git
+public_repo=$W5/store.git
 memory_project_key=acme
-workplace_repo=$W5/wp.git
+private_repo=$W5/wp.git
 workplace_project_key=acme")"
 
 run_verb "$repo5" "$H5" store
@@ -191,7 +191,7 @@ for u in "git@example.com:team/notes-store.git=notes-store" \
   url="${u%=*}"; want="${u#*=}"
   r="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H6/agents_memory
-workplace_repo=$url
+private_repo=$url
 workplace_project_key=acme")"
   got="$(cd "$r" && HOME="$H6" AI_FLOPPY_HOME="$ROOT" CLAUDE_PLUGIN_ROOT= \
     bash .floppy/run env 2>/dev/null | sed -n 's/^FLOPPY_WORKPLACE_MEMORY_DIR=//p')"
@@ -210,7 +210,7 @@ mk_remote "$W7/wp.git" workplace
 repo7="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H7/agents_memory
 project_key=acme
-workplace_repo=$W7/wp.git")"
+private_repo=$W7/wp.git")"
 mkdir -p "$repo7/.agent-memory"
 run_verb "$repo7" "$H7" workplace
 assert_rc "fresh wiring succeeds" 0 "$RC"
@@ -259,7 +259,7 @@ mk_remote "$W8/wp.git" workplace
 repo8="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H8/agents_memory
 project_key=acme
-workplace_repo=$W8/wp.git")"
+private_repo=$W8/wp.git")"
 mkdir -p "$repo8/.agent-memory"
 run_verb "$repo8" "$H8" workplace
 assert_rc "wires up under the new name" 0 "$RC"
@@ -301,7 +301,7 @@ mk_remote "$W9/wp.git" workplace
 repo9="$(mk_consumer "memory_dir=.agent-memory
 agents_memory_dir=$H9/agents_memory
 project_key=acme
-workplace_repo=$W9/wp.git")"
+private_repo=$W9/wp.git")"
 mkdir -p "$repo9/.agent-memory"
 run_verb "$repo9" "$H9" workplace
 assert_rc "wires up" 0 "$RC"

@@ -50,7 +50,7 @@ chars_of() {
 # to remove.
 case "$LOCAL_DIR" in
   ''|*[!A-Za-z0-9._-]*)
-    echo "x memory_local_dir is '$LOCAL_DIR': use a plain name (letters, digits, dot, dash, underscore)" >&2
+    echo "x memory_private_dir is '$LOCAL_DIR': use a plain name (letters, digits, dot, dash, underscore)" >&2
     exit 2 ;;
 esac
 

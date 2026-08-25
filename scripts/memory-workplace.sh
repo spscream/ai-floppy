@@ -49,10 +49,10 @@ repo="$(pwd)"
 # The scope directory inside the workplace repository, and the repository URL
 # itself, are both required: this plugin has no project of its own to default
 # to, and a default here would mean a consuming project silently writes into
-# somebody else's private memory. Set workplace_project_key and workplace_repo
-# in .floppy/config.
+# somebody else's private memory. Set private_repo, and workplace_project_key
+# when the scope is named differently there, in .floppy/config.
 project_key="${FLOPPY_WORKPLACE_PROJECT_KEY:?set project_key in .floppy/config (or workplace_project_key to override it)}"
-url="${FLOPPY_WORKPLACE_REPO:?set workplace_repo in .floppy/config}"
+url="${FLOPPY_WORKPLACE_REPO:?set private_repo in .floppy/config}"
 dir="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
 # 0.7.0: the audience is a namespace directory at the top of the memory
 # repository, and the scope below it answers only "what is this about". The

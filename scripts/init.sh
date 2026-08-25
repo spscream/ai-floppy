@@ -40,7 +40,7 @@ usage() {
 repo_arg=""
 mem_dir=".agent-memory"
 language="en"
-memory_repo=""
+public_repo=""
 memory_key=""
 memory_repo_dir=""
 agents_memory_dir=""
@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
     --repo)        repo_arg="${2:-}"; shift 2 ;;
     --memory-dir)  mem_dir="${2:-}";  shift 2 ;;
     --language)    language="${2:-}"; shift 2 ;;
-    --memory-repo)     memory_repo="${2:-}";     shift 2 ;;
+    --memory-repo)     public_repo="${2:-}";     shift 2 ;;
     --memory-key)      memory_key="${2:-}";      shift 2 ;;
     --memory-repo-dir) memory_repo_dir="${2:-}"; shift 2 ;;
     --agents-memory-dir) agents_memory_dir="${2:-}"; shift 2 ;;
@@ -69,7 +69,7 @@ fi
 [[ -n "$language" ]] || { echo "x --language must not be empty" >&2; exit 2; }
 # Half of this pair is not a layout, it is a broken one: a URL with no scope
 # has nowhere to write, and a scope with no URL has nothing to write into.
-if [[ -n "$memory_repo" && -z "$memory_key" ]] || [[ -z "$memory_repo" && -n "$memory_key" ]]; then
+if [[ -n "$public_repo" && -z "$memory_key" ]] || [[ -z "$public_repo" && -n "$memory_key" ]]; then
   echo "x --memory-repo and --memory-key go together: a store without a scope has nowhere to put this project's notes" >&2
   exit 2
 fi
@@ -103,20 +103,20 @@ echo "ok .floppy/run"
 # Written into the generated config only when asked for, and commented out
 # otherwise: a project pointed at a store it never chose would write this
 # project's notes into somebody else's repository.
-if [[ -n "$memory_repo" ]]; then
+if [[ -n "$public_repo" ]]; then
   store_cfg="
 # This repository does not hold its own memory: memory_dir is a symlink into
 # the store below. Wire it on each machine with \"bash .floppy/run store\".
-memory_repo=$memory_repo
+public_repo=$public_repo
 memory_project_key=$memory_key"
   [[ -n "$memory_repo_dir" ]] && store_cfg="$store_cfg
 memory_repo_dir=$memory_repo_dir"
 else
   store_cfg="
-# memory_repo/memory_project_key host the memory in ANOTHER repository, for a
+# public_repo/memory_project_key host the memory in ANOTHER repository, for a
 # code repository that cannot hold agent notes at all. Set both, then run
 # \"bash .floppy/run store\" once per machine and per worktree.
-# memory_repo=git@example.com:workplace/agents-memory.git
+# public_repo=git@example.com:workplace/agents-memory.git
 # memory_project_key=your-project-key
 # memory_repo_dir overrides the derived checkout path (agents_memory_dir/<repo name>)"
 fi
@@ -132,10 +132,10 @@ memory_dir=$mem_dir
 memory_language=$language${agents_memory_dir:+
 agents_memory_dir=$agents_memory_dir}
 $store_cfg
-# workplace_repo and workplace_project_key have no default on purpose: a
+# private_repo and workplace_project_key have no default on purpose: a
 # fresh project must not silently write into somebody else's private memory.
 # Set both to use "bash .floppy/run workplace".
-# workplace_repo=git@example.com:workplace/agents-memory.git
+# private_repo=git@example.com:workplace/agents-memory.git
 # workplace_project_key=your-project-key
 # Checkout paths are derived: agents_memory_dir (default $HOME/agents_memory)
 # holds one checkout per repository URL. workplace_memory_dir overrides that
@@ -161,7 +161,7 @@ fi
 # written through it and lands in the store, which is where it belongs. The
 # other order would create a real directory in the way and make `store` refuse
 # — correctly, since it never decides the fate of files somebody wrote.
-if [[ -n "$memory_repo" ]]; then
+if [[ -n "$public_repo" ]]; then
   echo
   # A subshell with the target repository as the working directory: the shim
   # derives FLOPPY_REPO from `git rev-parse`, and init's own cwd is the plugin

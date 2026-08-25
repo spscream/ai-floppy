@@ -14,13 +14,13 @@ assert_contains "origin section is printed" "-- origin" "$out"
 assert_contains "status slice section is printed" "-- status slice" "$out"
 case "$out" in *"project"*) fail "no project section without a hook" "absent" "$out";; *) ok "no project section without a hook";; esac
 
-# IMPORTANT 4: no workplace_repo configured — the whole "workplace memory"
+# IMPORTANT 4: no private_repo configured — the whole "workplace memory"
 # section is skipped, not printed with a "not wired" nudge that then
 # dead-ends into "set workplace_project_key in .floppy/config"
 # (memory-workplace.sh requires both keys).
 case "$out" in
-  *"-- workplace memory"*) fail "no workplace section without workplace_repo" "section absent" "$out" ;;
-  *)                       ok   "no workplace section without workplace_repo" ;;
+  *"-- workplace memory"*) fail "no workplace section without private_repo" "section absent" "$out" ;;
+  *)                       ok   "no workplace section without private_repo" ;;
 esac
 
 # 2. a hook that prints something has its output included.
@@ -76,10 +76,10 @@ assert_contains "--flow prints the memory sub-section"      "-- process: memory"
 assert_contains "--flow prints the lock/worktree sub-section" "-- process: lock and worktrees" "$out6"
 assert_contains "--flow prints the recent-edits sub-section"  "-- process: recent edits" "$out6"
 
-# 6. workplace_repo configured: the section reappears (even unwired).
-printf 'workplace_repo=git@example.com:workplace/agents-memory.git\nworkplace_project_key=test\n' > "$repo/.floppy/config"
+# 6. private_repo configured: the section reappears (even unwired).
+printf 'private_repo=git@example.com:workplace/agents-memory.git\nworkplace_project_key=test\n' > "$repo/.floppy/config"
 out7="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
-assert_contains "workplace section appears once workplace_repo is set" "-- workplace memory" "$out7"
+assert_contains "workplace section appears once private_repo is set" "-- workplace memory" "$out7"
 
 rm -rf "$repo"
 
@@ -100,7 +100,7 @@ repoP="$(sandbox)"; cp shim/run "$repoP/.floppy/run"
 homeP="$(cd "$(mktemp -d)" && pwd -P)"
 wpP="$homeP/agents_memory/.clones/agents-memory"
 mkdir -p "$wpP"; git init -q -b main "$wpP"
-printf 'workplace_repo=git@example.com:workplace/agents-memory.git\nproject_key=test\nagents_memory_dir=%s\n' \
+printf 'private_repo=git@example.com:workplace/agents-memory.git\nproject_key=test\nagents_memory_dir=%s\n' \
   "$homeP/agents_memory" > "$repoP/.floppy/config"
 mkdir -p "$repoP/.agent-memory"
 ln -s "$wpP" "$repoP/.agent-memory/private"

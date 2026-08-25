@@ -49,7 +49,7 @@ remote="$(make_store_remote)"
 checkout="$(cd "$(mktemp -d)" && pwd -P)/store"
 cat > "$repo/.floppy/config" <<EOF
 memory_dir=.agent-memory
-memory_repo=$remote
+public_repo=$remote
 memory_project_key=acme
 memory_repo_dir=$checkout
 agents_memory_dir=$views
@@ -89,7 +89,7 @@ assert_contains "and names the link target"         "public/projects/acme" "$OUT
 repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"
 cat > "$repo2/.floppy/config" <<EOF
 memory_dir=.agent-memory
-memory_repo=$remote
+public_repo=$remote
 memory_project_key=acme
 memory_repo_dir=$checkout
 agents_memory_dir=$views
@@ -143,7 +143,7 @@ assert_contains "it wires the store"                "linked" "$init_out"
 # than in a directory that would have blocked the symlink.
 assert_eq "the index landed in the store" "0" \
   "$([[ -f "$checkout2/public/projects/beta/MEMORY.md" ]] && echo 0 || echo 1)"
-assert_contains "the config records where the store is" "memory_repo=$remote" "$(cat "$repo4/.floppy/config")"
+assert_contains "the config records where the store is" "public_repo=$remote" "$(cat "$repo4/.floppy/config")"
 assert_contains "and the scope"                         "memory_project_key=beta" "$(cat "$repo4/.floppy/config")"
 
 # Half a pair is refused rather than half-applied.
@@ -160,9 +160,9 @@ assert_eq "and created nothing" "1" "$([[ -e "$repo5/.floppy" ]] && echo 0 || ec
 repo6="$(cd "$(mktemp -d)" && pwd -P)"; git init -q -b main "$repo6"
 bash scripts/init.sh --repo "$repo6" >/dev/null 2>&1
 cfg6="$(cat "$repo6/.floppy/config")"
-assert_contains "a plain init documents the option" "# memory_repo=" "$cfg6"
+assert_contains "a plain init documents the option" "# public_repo=" "$cfg6"
 case "$cfg6" in
-  *$'\n'memory_repo=*) fail "a plain init does not enable it" "commented out" "$cfg6" ;;
+  *$'\n'public_repo=*) fail "a plain init does not enable it" "commented out" "$cfg6" ;;
   *) ok "a plain init does not enable it" ;;
 esac
 [[ -L "$repo6/.agent-memory" ]] && fail "a plain init keeps memory in the repository" "real dir" "symlink" \

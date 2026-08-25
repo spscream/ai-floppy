@@ -159,7 +159,7 @@ fi
 # all. A check that cries wolf is worse than no check, because it teaches the
 # reader to skip the section.
 #
-# Only shown when workplace_repo is configured — see wrap-check.sh's comment
+# Only shown when private_repo is configured — see wrap-check.sh's comment
 # on the same condition. A project that never opted in gets no section here,
 # not a "not wired" nudge that dead-ends into a config error.
 if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then

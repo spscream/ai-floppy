@@ -23,7 +23,7 @@
 #   bash .floppy/run store            wire it up (idempotent)
 #   bash .floppy/run store --check    report only, change nothing
 #
-# Requires memory_repo and memory_project_key in .floppy/config. Neither has a
+# Requires public_repo and memory_project_key in .floppy/config. Neither has a
 # default: a repository that never opted in must not silently write into
 # somebody else's store.
 set -uo pipefail
@@ -44,7 +44,7 @@ key="${FLOPPY_MEMORY_PROJECT_KEY:-}"
 dir="${FLOPPY_MEMORY_REPO_DIR:-$HOME/agents_memory}"
 
 if [[ -z "$url" || -z "$key" ]]; then
-  echo "x memory_repo and project_key are both required in .floppy/config"
+  echo "x public_repo and project_key are both required in .floppy/config"
   echo "  This verb moves the memory out of the code repository; without a"
   echo "  destination and a scope there is nowhere to move it to."
   echo "  A project that keeps memory in its own repository does not need this verb."

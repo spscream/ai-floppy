@@ -261,7 +261,7 @@ rm -rf "$repo8"
 # protects against links that are dead on a second machine, and under any other
 # name it silently applied to nothing.
 repo9="$(sandbox)"; cp shim/run "$repo9/.floppy/run"
-printf 'memory_dir=brain\nmemory_local_dir=mine\n' > "$repo9/.floppy/config"
+printf 'memory_dir=brain\nmemory_private_dir=mine\n' > "$repo9/.floppy/config"
 mkdir -p "$repo9/brain/half" "$repo9/brain/mine"
 printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$repo9/brain/MEMORY.md"
 printf '# Half\n- [A note](a-note.md) — pointer\n' > "$repo9/brain/half/INDEX.md"
@@ -293,14 +293,14 @@ assert_rc       "under the default name the same file IS linted" 1 "$RC9"
 assert_contains "and it is the scratch file that fails"          "mine/scratch.md" "$OUT9"
 
 # The link rule follows the configured name too.
-printf 'memory_dir=brain\nmemory_local_dir=mine\n' > "$repo9/.floppy/config"
+printf 'memory_dir=brain\nmemory_private_dir=mine\n' > "$repo9/.floppy/config"
 printf 'See [that](mine/scratch.md).\n' >> "$repo9/brain/half/a-note.md"
 lint9
 assert_rc       "a link into the renamed scope is caught"  1 "$RC9"
 assert_contains "and names the scope as configured"        "link into mine/" "$OUT9"
 
 # A name that would be read as a regex must be refused, not matched wrongly.
-printf 'memory_dir=brain\nmemory_local_dir=.*\n' > "$repo9/.floppy/config"
+printf 'memory_dir=brain\nmemory_private_dir=.*\n' > "$repo9/.floppy/config"
 lint9
 assert_rc       "a name with metacharacters is refused" 2 "$RC9"
 assert_contains "and says what is allowed"              "plain name" "$OUT9"

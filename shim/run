@@ -163,12 +163,13 @@ if [[ "$FLOPPY_MEMORY_EXTERNAL" == "1" && -d "$_mem_real" ]]; then
 fi
 export FLOPPY_MEMORY_EXTERNAL FLOPPY_MEMORY_STORE
 export FLOPPY_MEMORY_REAL="$_mem_real"
-# private_repo/public_repo, 0.7.0. The old names paired an audience with a
-# validity value and made two independent questions look like one axis:
-# `memory_repo` is "public, but not in the code repository", and
-# `workplace_repo` is "private" — neither name says so. Both old keys are read
-# as a fallback, so a config written earlier keeps working.
-export FLOPPY_PRIVATE_REPO="$(cfg_get private_repo "$(cfg_get workplace_repo '')")"
+# private_repo/public_repo, 0.7.0. The names they replaced paired an audience
+# with a validity value and made two independent questions look like one axis:
+# `memory_repo` meant "public, but not in the code repository", and
+# `workplace_repo` meant "private" — neither name said so. They are gone rather
+# than kept as a fallback: nothing outside this repository was ever configured
+# with them, so the compatibility would have documented a key nobody has.
+export FLOPPY_PRIVATE_REPO="$(cfg_get private_repo '')"
 export FLOPPY_WORKPLACE_REPO="$FLOPPY_PRIVATE_REPO"
 # One key names this project in every memory repository it uses, and it is
 # also the directory a human opens under agents_memory_dir. The two older,
@@ -259,17 +260,16 @@ export FLOPPY_WORKPLACE_MEMORY_DIR="$(_checkout_dir "$FLOPPY_WORKPLACE_REPO" "$(
 # shared repository. Machine facts live in machines/<name>/ of that repository
 # instead, where the other machine can read them.
 #
-# memory_local_dir still works, for a config written before 0.6.0. Only the
-# NAME is configurable; the rule that committed memory must not link into this
-# scope is not.
-export FLOPPY_MEMORY_PRIVATE_DIR="$(cfg_get memory_private_dir "$(cfg_get memory_local_dir private)")"
+# Only the NAME is configurable; the rule that committed memory must not link
+# into this scope is not. The pre-0.6.0 key `memory_local_dir` is not read.
+export FLOPPY_MEMORY_PRIVATE_DIR="$(cfg_get memory_private_dir private)"
 # The old variable name, for a plugin script or a project hook still reading it.
 export FLOPPY_MEMORY_LOCAL_DIR="$FLOPPY_MEMORY_PRIVATE_DIR"
 # Where this project's memory is hosted when it cannot live in this repository.
 # No defaults, deliberately: a project that never opted in must not be pointed
 # at somebody else's store. Read by `store`; the rest of the rite derives the
 # layout from the filesystem instead.
-export FLOPPY_PUBLIC_REPO="$(cfg_get public_repo "$(cfg_get memory_repo '')")"
+export FLOPPY_PUBLIC_REPO="$(cfg_get public_repo '')"
 export FLOPPY_MEMORY_REPO="$FLOPPY_PUBLIC_REPO"
 export FLOPPY_MEMORY_PROJECT_KEY="$(cfg_get memory_project_key "$FLOPPY_PROJECT_KEY")"
 export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get memory_repo_dir '')")"

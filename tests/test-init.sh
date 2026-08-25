@@ -34,8 +34,8 @@ esac
 
 assert_contains "config carries memory_dir"      "memory_dir=.agent-memory" "$(cat "$repo/.floppy/config")"
 assert_contains "config carries memory_language" "memory_language=en"      "$(cat "$repo/.floppy/config")"
-live_workplace_line="$(grep -v '^[[:space:]]*#' "$repo/.floppy/config" | grep '^workplace_repo=' || true)"
-assert_eq "workplace_repo not given a live default (uncommented)" "" "$live_workplace_line"
+live_workplace_line="$(grep -v '^[[:space:]]*#' "$repo/.floppy/config" | grep '^private_repo=' || true)"
+assert_eq "private_repo not given a live default (uncommented)" "" "$live_workplace_line"
 
 assert_contains "gitignore has local without a trailing slash" "/.agent-memory/local" "$(cat "$repo/.gitignore")"
 case "$(cat "$repo/.gitignore")" in
