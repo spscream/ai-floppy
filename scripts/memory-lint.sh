@@ -51,7 +51,7 @@ slug_records=""
 slug_file() {  # $1 = slug; prints the file that claimed it, empty if free
   printf '%s\n' "$slug_records" | awk -F'\t' -v s="$1" '$1 == s { print $2; exit }'
 }
-for f in "${notes[@]}"; do
+for f in "${notes[@]+"${notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   if [[ "$(head -n1 "$f")" != "---" ]]; then
     err "$rel: no frontmatter"
@@ -171,7 +171,7 @@ for f in "${indexes[@]}"; do
 done
 
 # Every note is listed in the index of its own half, root notes in MEMORY.md.
-for f in "${notes[@]}"; do
+for f in "${notes[@]+"${notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   dir="$(dirname "$f")"
   base="$(basename "$f")"
@@ -244,7 +244,11 @@ LOCK="$MEM/quota.lock"
 lock_val() { sed -n "s/^$1=//p" "$LOCK" | head -n1; }
 
 if [[ ! -f "$LOCK" ]]; then
-  err "quota.lock is missing — without it nothing bounds the size of this memory"
+  # Not an error: a fresh memory has nothing to measure yet, and a ceiling
+  # copied from another project's corpus would bound nothing about this one.
+  # This is the one check in this script that a clean run is expected to
+  # print, not silence.
+  warn "quota.lock is missing — measure the numbers once the first dozen notes exist, not before"
 else
   chars_max="$(lock_val chars_max)"
   note_chars_max="$(lock_val note_chars_max)"
@@ -272,7 +276,7 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   # One note. A note over the cap is not a long note, it is two notes that were
   # written as one; on this corpus the cap caught exactly the pair that
   # flow/memory-hygiene-lessons already calls a session dump.
-  for f in "${notes[@]}"; do
+  for f in "${notes[@]+"${notes[@]}"}"; do
     rel="${f#"$MEM"/}"
     c="$(chars_of "$f")"
     [[ "$c" -le "$note_chars_max" ]] && continue
@@ -291,7 +295,7 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   # routing by pointers_max, context cost by chars_max, dumps by
   # note_chars_max.
   total_chars=0
-  for f in "${notes[@]}"; do total_chars=$((total_chars + $(chars_of "$f"))); done
+  for f in "${notes[@]+"${notes[@]}"}"; do total_chars=$((total_chars + $(chars_of "$f"))); done
   if [[ "$total_chars" -gt "$chars_max" ]]; then
     err "$total_chars characters, over the $chars_max in quota.lock — raise chars_max in the same commit and say why, or drop what went stale"
   fi
@@ -308,7 +312,7 @@ fi
 # ---------- links into local/ ----------
 hr "links into local/"
 # Committed memory must not link into local/: a fresh clone does not have it.
-for f in "${indexes[@]}" "${notes[@]}"; do
+for f in "${indexes[@]}" "${notes[@]+"${notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   if grep -o '](\(local/[^)]*\))' "$f" >/dev/null 2>&1; then
     err "$rel: link into local/ — dead on a second machine, refer to it by meaning instead"
@@ -317,7 +321,7 @@ done
 
 # ---------- [[slug]] links ----------
 hr "[[slug]] links"
-for f in "${notes[@]}"; do
+for f in "${notes[@]+"${notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   while IFS= read -r slug; do
     [[ -z "$slug" ]] && continue
