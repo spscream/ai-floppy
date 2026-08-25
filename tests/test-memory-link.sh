@@ -16,6 +16,11 @@ assert_contains "unwired names the fix"       "run link" "$out"
 out2="$(cd "$repo" && HOME="$home" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"
 assert_contains "wiring reports success"      "ok" "$out2"
 
+# IMPORTANT 7: this script wires Claude Code's own memory path specifically
+# and does nothing for any other harness the plugin ships to — it must say
+# so rather than run silently as if it were harness-agnostic.
+assert_contains "wiring says it is Claude-Code-specific" "Cursor" "$out2"
+
 out3="$(cd "$repo" && HOME="$home" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rc3=$?
 assert_rc       "wired machine passes"        0 "$rc3"
 

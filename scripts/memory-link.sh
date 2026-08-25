@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # Attach .agent-memory to the Claude Code memory directory ON THIS MACHINE.
 #
-# Why a script: the memory directory path is encoded from the checkout
-# location, so it differs on every machine. As prose it had two silent failure
-# modes. First: the incantation runs in the wrong directory — the agent does
-# not see the memory and starts a second copy, without a word. Second: the
-# project directory is computed correctly, but Claude Code encodes the path
-# differently — same result.
+# This script is Claude-Code-only, and says so: it wires a path under
+# ~/.claude/projects specifically, and does nothing for any other harness
+# this plugin ships to — Cursor, named in .cursor-plugin/plugin.json, reads
+# skills straight out of the repository and has no equivalent per-project
+# memory directory of its own to wire. Run it under Cursor and it still
+# succeeds (it only ever touches ~/.claude), but succeeding is not the same
+# as doing something useful there — the memory is exactly as visible to a
+# Cursor session with or without this having run.
+#
+# Why a script, for the harness it does apply to: the memory directory path
+# is encoded from the checkout location, so it differs on every machine. As
+# prose it had two silent failure modes. First: the incantation runs in the
+# wrong directory — the agent does not see the memory and starts a second
+# copy, without a word. Second: the project directory is computed correctly,
+# but Claude Code encodes the path differently — same result.
 #
 # The script is idempotent: a second run on a configured machine changes nothing.
 # Output is English on purpose: the tool is reusable, the memory is not.
@@ -36,6 +45,7 @@ link="$proj/memory"
 if [[ $check_only -eq 0 ]]; then
   echo "repository:        $repo"
   echo "project directory: $proj"
+  echo "(this wires Claude Code's per-project memory only — Cursor has no equivalent to wire)"
   echo
 fi
 
