@@ -11,10 +11,15 @@ ROOT="$(pwd -P)"
 
 # A plugin root that is a faithful copy of this checkout's shim and scripts —
 # what an up-to-date install looks like.
+#
+# Since 0.14.0 that means the dispatcher and the config parser too: the shim
+# only locates the plugin and execs `scripts/run`, so a fake root without one
+# is not an install at all and every case below would fail for that reason
+# instead of the one it is about.
 fake_plugin() { # -> path
   local p; p="$(cd "$(mktemp -d)" && pwd -P)"
   mkdir -p "$p/scripts" "$p/shim"
-  cp scripts/memory-lint.sh "$p/scripts/"
+  cp scripts/memory-lint.sh scripts/run scripts/lib-config.sh "$p/scripts/"
   cp shim/run "$p/shim/run"
   printf '%s\n' "$p"
 }

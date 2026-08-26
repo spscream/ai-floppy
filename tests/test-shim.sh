@@ -4,6 +4,18 @@ cd "$(dirname "$0")/.."
 . tests/lib.sh
 ROOT="$(pwd)"
 
+# A directory that resolves as an installed plugin, for the resolution cases
+# below. Since 0.14.0 the shim only locates the plugin and execs its
+# `scripts/run`, so a root holding scripts/*.sh and nothing else is an install
+# too old to dispatch — every case here would then fail on that instead of on
+# the question it asks. The dispatcher is a stand-in that reports the one fact
+# these cases are about: which root the shim resolved.
+fake_root() { # dir
+  mkdir -p "$1/scripts"
+  touch "$1/scripts/x.sh"
+  printf '#!/usr/bin/env bash\nprintf "FLOPPY_ROOT=%%s\\n" "$FLOPPY_ROOT"\n' > "$1/scripts/run"
+}
+
 repo="$(sandbox)"
 cp shim/run "$repo/.floppy/run"
 cat > "$repo/.floppy/config" <<'EOF'
@@ -67,10 +79,8 @@ assert_eq "trailing space in config value is trimmed" "brain" "$out6"
 # scripts/ dir in each version so the existence guard is satisfied either way.
 repo7="$(sandbox)"; cp shim/run "$repo7/.floppy/run"
 fake_home="$(mktemp -d)"
-mkdir -p "$fake_home/.claude/plugins/cache/example/floppy/0.9.0/scripts"
-mkdir -p "$fake_home/.claude/plugins/cache/example/floppy/0.10.0/scripts"
-touch "$fake_home/.claude/plugins/cache/example/floppy/0.9.0/scripts/x.sh"
-touch "$fake_home/.claude/plugins/cache/example/floppy/0.10.0/scripts/x.sh"
+fake_root "$fake_home/.claude/plugins/cache/example/floppy/0.9.0"
+fake_root "$fake_home/.claude/plugins/cache/example/floppy/0.10.0"
 out7="$(cd "$repo7" && HOME="$fake_home" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "cache fallback picks 0.10.0, not lexicographically-later 0.9.0" \
   "FLOPPY_ROOT=$fake_home/.claude/plugins/cache/example/floppy/0.10.0" "$out7"
@@ -82,8 +92,7 @@ rm -rf "$fake_home"
 repoCu1="$(sandbox)"; cp shim/run "$repoCu1/.floppy/run"
 home_cu1="$(mktemp -d)"
 sha="ed18232fd3b616d570a707fb8464b678b8542dbf"
-mkdir -p "$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha/scripts"
-touch "$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha/scripts/x.sh"
+fake_root "$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha"
 out_cu1="$(cd "$repoCu1" && HOME="$home_cu1" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "Cursor cache: a SHA-named directory resolves" \
   "FLOPPY_ROOT=$home_cu1/.cursor/plugins/cache/floppy/floppy/$sha" "$out_cu1"
@@ -94,8 +103,7 @@ rm -rf "$repoCu1" "$home_cu1"
 # human symlink it there by hand), nothing to pick among.
 repoCu2="$(sandbox)"; cp shim/run "$repoCu2/.floppy/run"
 home_cu2="$(mktemp -d)"
-mkdir -p "$home_cu2/.cursor/plugins/local/floppy/scripts"
-touch "$home_cu2/.cursor/plugins/local/floppy/scripts/x.sh"
+fake_root "$home_cu2/.cursor/plugins/local/floppy"
 out_cu2="$(cd "$repoCu2" && HOME="$home_cu2" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "Cursor local dev checkout resolves" \
   "FLOPPY_ROOT=$home_cu2/.cursor/plugins/local/floppy" "$out_cu2"
@@ -114,8 +122,8 @@ repoCu3="$(sandbox)"; cp shim/run "$repoCu3/.floppy/run"
 home_cu3="$(mktemp -d)"
 older="$home_cu3/.cursor/plugins/cache/mp/floppy/zzz-alphabetically-last"
 newer="$home_cu3/.cursor/plugins/cache/mp/floppy/aaa-alphabetically-first"
-mkdir -p "$older/scripts" "$newer/scripts"
-touch "$older/scripts/x.sh" "$newer/scripts/x.sh"
+fake_root "$older"
+fake_root "$newer"
 touch -t 202001010000 "$older"
 touch -t 202401010000 "$newer"
 out_cu3="$(cd "$repoCu3" && HOME="$home_cu3" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
@@ -194,7 +202,7 @@ esac
 
 # The same directory becomes valid the moment it holds a real script: the
 # guard must gate on content, not punish the layout.
-touch "$home_stale/.claude/plugins/cache/mp/floppy/0.1.0/scripts/workstatus.sh"
+fake_root "$home_stale/.claude/plugins/cache/mp/floppy/0.1.0"
 out_filled="$(cd "$repoStale" && HOME="$home_stale" AI_FLOPPY_HOME= CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"
 assert_contains "cache with one script resolves" \
   "FLOPPY_ROOT=$home_stale/.claude/plugins/cache/mp/floppy/0.1.0" "$out_filled"
@@ -202,42 +210,52 @@ rm -rf "$repoStale" "$home_stale"
 
 
 # ---------- an unknown verb points at the likeliest cause ----------
-# The shim is a COPY in the consumer repository, so a verb added upstream is
-# unreachable until that copy is refreshed — and from inside the shim a stale
-# copy and a typo are the same event. Measured when `parity` was added: the
-# plugin was current, the repository's shim was not, and "unknown verb" alone
-# sent the reader looking in the wrong place.
+# Until 0.14.0 the verb table lived in the consumer's copy of the shim, so an
+# unknown verb was as likely to mean a stale copy as a typo — measured when
+# `parity` was added: the plugin was current, the repository's shim was not,
+# and "unknown verb" alone sent the reader looking in the wrong place. The
+# table is in the plugin now, so a verb added upstream needs no refresh
+# anywhere, and the only remaining causes are a typo and a plugin too old.
 repoU="$(sandbox)"
 cp shim/run "$repoU/.floppy/run"
 unknown="$(cd "$repoU" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run nosuchverb 2>&1)"
 assert_contains "unknown verb names the verb"            "unknown verb: nosuchverb" "$unknown"
 assert_contains "unknown verb lists the known ones"      "status"                   "$unknown"
-assert_contains "unknown verb names the stale-copy case" "copy, not a link"         "$unknown"
-assert_contains "unknown verb says how to refresh"       "cp "                      "$unknown"
+assert_contains "unknown verb names the remaining cause" "plugin is behind"         "$unknown"
+assert_contains "unknown verb names the root it used"    "$ROOT"                    "$unknown"
+# The advice it must NOT give any more: refreshing the copy cannot add a verb
+# to a table the copy no longer holds.
+case "$unknown" in
+  *"copy, not a link"*) fail "unknown verb no longer blames the shim copy" "no shim-refresh advice" "$unknown" ;;
+  *) ok "unknown verb no longer blames the shim copy" ;;
+esac
 
 
-# ---------- a verb the installed plugin is too old for ----------
-# The reverse of the case above, and it travels the other way: the shim is
-# committed in the consumer repository, so `git pull` carries a new verb to a
-# second machine while the plugin there — installed per machine — stays behind.
-# `exec` alone reported that as "No such file or directory" naming a path
-# inside a plugin cache, which reads as a broken install rather than an
-# un-updated one.
+# ---------- a plugin too old to dispatch at all ----------
+# The shim is committed in the consumer repository and reaches a second machine
+# with `git pull`; the plugin there is installed per machine and does not. From
+# 0.14.0 the mismatch is coarser than it was: the shim carries no verb table to
+# fall back on, so a pre-0.14.0 plugin cannot serve ANY verb, not just the new
+# ones. That is a deliberate trade — the alternative is keeping the table in the
+# copy, which is the whole cost this release removes — and it is only defensible
+# while the refusal says exactly which side is old and how to fix it.
 oldroot="$(cd "$(mktemp -d)" && pwd -P)"
 mkdir -p "$oldroot/scripts"
-cp scripts/memory-lint.sh "$oldroot/scripts/"   # enough to resolve as a plugin
+cp scripts/memory-lint.sh scripts/workstatus.sh "$oldroot/scripts/"   # resolves as a plugin, has no dispatcher
 repoO="$(sandbox)"
 cp shim/run "$repoO/.floppy/run"
 behind="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run status 2>&1)"
 behind_rc=$?
 assert_eq       "old plugin: the verb fails"                "1" "$behind_rc"
-assert_contains "old plugin: names the missing script"      "workstatus.sh"      "$behind"
-assert_contains "old plugin: says which side is behind"     "plugin is behind"   "$behind"
+assert_contains "old plugin: names what is missing"         "scripts/run"        "$behind"
+assert_contains "old plugin: says which side is old"        "predates"           "$behind"
 assert_contains "old plugin: names the resolved root"       "$oldroot"           "$behind"
-# A verb the old plugin DOES have must still work — the guard is per script,
-# not a blanket refusal on a version mismatch it has no way to detect.
-still="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1; echo "rc=$?")"
-assert_contains "old plugin: a verb it does have still runs" "repo: $repoO" "$still"
+assert_contains "old plugin: says update is version-gated"  "no-op"              "$behind"
+# The deliberate loss, asserted rather than left to be discovered: a verb whose
+# script the old plugin does have is refused too, because nothing can dispatch
+# it. Before 0.14.0 this one still ran.
+also="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run lint 2>&1)"
+assert_contains "old plugin: even a verb it has is refused" "predates" "$also"
 rm -rf "$oldroot" "$repoO"
 
 # ---------- a variable that names the plugin, pointed at no plugin ----------
@@ -251,8 +269,7 @@ repoE="$(sandbox)"; cp shim/run "$repoE/.floppy/run"
 homeE="$(mktemp -d)"
 # A WORKING cache under the fake HOME, so a pass here proves refusal rather
 # than the absence of anywhere to fall through to.
-mkdir -p "$homeE/.claude/plugins/cache/example/floppy/9.9.9/scripts"
-touch "$homeE/.claude/plugins/cache/example/floppy/9.9.9/scripts/x.sh"
+fake_root "$homeE/.claude/plugins/cache/example/floppy/9.9.9"
 emptyE="$(mktemp -d)"
 
 outE="$(cd "$repoE" && HOME="$homeE" AI_FLOPPY_HOME="$emptyE" CLAUDE_PLUGIN_ROOT= bash .floppy/run env 2>&1)"; rcE=$?

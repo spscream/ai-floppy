@@ -104,6 +104,15 @@ update does not change it. Git moves it with your repository.
 Thus `.floppy/run` can be older than the plugin. On a second machine it can
 also be newer than the plugin.
 
+Since 0.14.0 this matters much less. The file does one thing: it finds the
+plugin and gives the call to it. The commands and the configuration keys are
+in the plugin. A new command, a new key or a new default reaches your
+repository with a plugin update alone. You do not copy the file again for them.
+
+One thing still travels in the copy: the search for the plugin. If that search
+changes, an old copy can fail to find a plugin that is there. This failure is
+loud. It says `floppy plugin not found` and names the install commands.
+
 At each call, `.floppy/run` compares itself with the file in the plugin. If the
 two files are different, it prints one line on stderr. That line contains the
 `cp` command that corrects the copy.
@@ -112,8 +121,9 @@ The correction is a `cp` command, not a floppy command. This is deliberate. A
 shim file that is old enough to need a correction does not know the new
 commands.
 
-**Caution:** a stale shim file usually causes no error. It continues to use the
-old configuration parser, or the old search order, and stays silent.
+**Caution:** a plugin older than the copy is now a full stop, not a partial
+one. A plugin from before 0.14.0 has no dispatcher, so no command runs against
+it. The message says so and names the plugin directory it used.
 
 ## `init`
 

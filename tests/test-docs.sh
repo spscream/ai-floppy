@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # CRITICAL 2: README.md and LICENSE exist and cover what they're required to.
 # Structural, like test-skills.sh — there is no behaviour to run, only shape
-# to guard: the required sections stay named, and every config key the shim
-# actually reads (shim/run's cfg_get calls) is documented in the README, not
-# just some of them.
+# to guard: the required sections stay named, and every config key the plugin
+# actually reads (scripts/lib-config.sh's cfg_get calls) is documented in the
+# README, not just some of them.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 . tests/lib.sh
@@ -32,9 +32,14 @@ done
 floppy_prefixed_count="$(grep -oE 'floppy:(init|agent-memory|start|workstatus|wrap)' README.md | wc -l | tr -d ' ')"
 assert_eq "README uses the floppy: prefix form exactly once (the explanation)" "1" "$floppy_prefixed_count"
 
-# Every key shim/run's cfg_get resolves must be documented — a key read but
+# Every key the config parser resolves must be documented — a key read but
 # never documented is exactly the class of defect this fix wave was about.
-keys="$(grep -oE 'cfg_get [a-z_]+' shim/run | awk '{print $2}' | sort -u)"
+# The parser moved into the plugin in 0.14.0 (scripts/lib-config.sh); reading
+# it from shim/run still "passed" for a while afterwards, silently, because an
+# empty key list makes this loop assert nothing at all.
+keys="$(grep -oE 'cfg_get [a-z_]+' scripts/lib-config.sh | awk '{print $2}' | sort -u)"
+assert_eq "the config parser is where this test thinks it is" "0" \
+  "$([[ -n "$keys" ]] && echo 0 || echo 1)"
 while IFS= read -r key; do
   [[ -z "$key" ]] && continue
   assert_contains "README documents config key: $key" "\`$key\`" "$readme"

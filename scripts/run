@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# The dispatcher: one verb in, one script out. Lives in the PLUGIN and is
+# reached by `.floppy/run`, the stub this plugin copies into a consumer
+# repository, which does nothing but locate the plugin and exec this file.
+#
+# Why the split (0.14.0). The stub is a COPY, carried by the consumer's git and
+# untouched by `plugin update`, so everything inside it goes stale silently and
+# has to be re-copied by hand. Measured over the first 24 commits that touched
+# it: at least 7 changed only the config parser or this verb table — that is,
+# a third of the refreshes it ever demanded of every consumer bought them
+# nothing they could not have had for free. Both of those parts now live here,
+# where an update delivers them. What CANNOT move is finding the plugin in the
+# first place, which is the whole of what the stub still does.
+#
+# The direction of the staleness therefore reverses, and improves. A NEW VERB
+# no longer needs a fresh stub: it appears here, and every repository that has
+# ever run `init` can call it. What a fresh stub is still needed for is a
+# change to how the plugin is located — and that failure is loud (`plugin not
+# found`), never silent.
+#
+# Runs on macOS bash 3.2: no mapfile, no declare -A, no GNU-only flags.
+set -uo pipefail
+
+# Loud on purpose: every verb below trusts FLOPPY_REPO as the root all its
+# paths are relative to. A silent `|| pwd` fallback here would mean a run
+# from outside any git repository quietly derives every downstream path —
+# memory dir, statuses file, watched dirs — from the wrong place instead of
+# failing where the mistake is obvious.
+if ! FLOPPY_REPO="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "x not inside a git repository: $(pwd)" >&2
+  echo "  floppy's session ritual is git-based; cd into the repository first" >&2
+  exit 1
+fi
+export FLOPPY_REPO
+# One parser for the whole plugin, in the plugin.
+. "$FLOPPY_ROOT/scripts/lib-config.sh"
+
+# Every verb below acts on FLOPPY_REPO, resolved above, and several projects
+# can be open in the same harness at once (Cursor especially) with no other
+# indication which one a given shell landed in. Naming it costs nothing — the
+# value is already computed — so it is the first line of every verb's output,
+# in one shape, printed here rather than duplicated in each script. `commit`
+# additionally names the branch and push target itself, before its gates run:
+# see wrap-commit.sh.
+name_repo() { printf 'repo: %s\n' "$FLOPPY_REPO"; }
+
+# This file and the scripts it names ship together, so a missing one is a
+# broken install rather than a version skew — which is exactly what changed in
+# 0.14.0: the verb table used to live in the consumer's copy, where it could be
+# newer than the plugin it dispatched into. `exec` alone reports the case as a
+# bare "No such file or directory" naming a path inside a plugin cache, which
+# reads like a bug in the rite.
+run_script() { # script-name, then its args
+  local s="$FLOPPY_ROOT/scripts/$1"; shift
+  if [[ ! -f "$s" ]]; then
+    echo "x verb '$verb' resolves to $(basename "$s"), which this plugin copy does not have" >&2
+    echo "  The install is incomplete, not out of date: this dispatcher and that script" >&2
+    echo "  are shipped together. Reinstall the plugin, and remember that \`plugin update\`" >&2
+    echo "  is a no-op while the version string is unchanged." >&2
+    echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
+    exit 1
+  fi
+  exec bash "$s" "$@"
+}
+
+verb="${1:-}"; shift 2>/dev/null || true
+case "$verb" in
+  env)       env | grep '^FLOPPY_' | sort ;;
+  lint)      name_repo; run_script memory-lint.sh      "$@" ;;
+  link)      name_repo; run_script memory-link.sh      "$@" ;;
+  workplace) name_repo; run_script memory-workplace.sh "$@" ;;
+  store)     name_repo; run_script memory-store.sh     "$@" ;;
+  guard)     name_repo; run_script wrap-guard.sh       "$@" ;;
+  lock)                 run_script wrap-lock.sh        "$@" ;;
+  status)    name_repo; run_script workstatus.sh       "$@" ;;
+  check)     name_repo; run_script wrap-check.sh       "$@" ;;
+  commit)    name_repo; run_script wrap-commit.sh      "$@" ;;
+  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|store|guard|lock|status|check|commit}" ;;
+  # Until 0.14.0 this table lived in the consumer's `.floppy/run`, and an
+  # unknown verb there was as likely to mean a stale copy as a typo — the two
+  # were indistinguishable from inside the file. Measured the first time a verb
+  # was added after extraction (`parity`, 2026-08-25): the plugin was current,
+  # the repository's copy was not, and the message said only "unknown". Now the
+  # table is in the plugin, so this branch can only be a typo or a plugin too
+  # old for the verb — and a verb added upstream no longer needs anyone to
+  # re-copy anything.
+  *)         echo "x unknown verb: $verb" >&2
+             echo "  known: env lint link workplace store guard lock status check commit" >&2
+             echo "  If it exists upstream, this machine's plugin is behind: update it, and" >&2
+             echo "  remember that \`plugin update\` is a no-op while the version is unchanged." >&2
+             echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
+             exit 2 ;;
+esac

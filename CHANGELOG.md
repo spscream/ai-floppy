@@ -11,8 +11,63 @@ One column matters more than the rest and is called out per release:
 > shim, updating the plugin is only half the job:
 > `cp "$FLOPPY_ROOT/shim/run" .floppy/run`. Since 0.2.1 the shim notices this
 > itself and prints the command; before that it was silent.
+>
+> Since 0.14.0 the answer is usually **no**. The copy holds only the search for
+> the plugin; verbs, config keys and defaults live in the plugin and arrive with
+> `plugin update`. A release says **yes** here only when that search changes.
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
+
+## 0.14.0 — 2026-08-26
+
+**Refresh `.floppy/run`: yes, once — and much less often after that.** The shim
+in a consumer repository is now a stub: it finds the plugin and execs it. The
+verb table and the config parser moved into the plugin
+(`scripts/run`, `scripts/lib-config.sh`), where `plugin update` delivers them.
+
+Asked what the shim is even for, the honest answer had two halves and only one
+of them justified a copy in someone else's repository. Measured over the 24
+commits that have touched `shim/run`: 14 changed the config parser, 12 the
+plugin resolver, 6 the verb table — and **at least 7 of the 24 changed only the
+parser or the table**. Every one of those obliged every consumer to re-copy a
+file for something a plugin update could have carried. Worse, that class is the
+silent one: a stale parser does not announce itself, it keeps applying the old
+default. The resolver cannot move — code that finds the plugin cannot live in
+the plugin — but its failures are loud, and now it is all that travels.
+
+The staleness therefore reverses direction, and improves:
+
+- **A new verb needs no refresh anywhere.** It appears in the plugin, and every
+  repository that has ever run `init` can call it. This was the case that
+  motivated the unknown-verb message in the first place, back when `parity` was
+  added; it cannot happen again.
+- **A new config key or default needs no refresh either.**
+- **A plugin older than the stub is now a full stop, not a partial one.** A
+  pre-0.14.0 plugin has no dispatcher, so no verb runs against it, including
+  verbs whose scripts it does have. Before, only the missing verb failed. The
+  refusal names what is missing, which side is old, and the resolved plugin
+  root. This is the release's one deliberate loss, and it is asserted in
+  `tests/test-shim.sh` rather than left to be discovered.
+
+Also, from the same measurement session:
+
+- **`CURSOR_PLUGIN_ROOT` is now consulted**, right after `CLAUDE_PLUGIN_ROOT`
+  and before any cache guess. Cursor exports it the way Claude Code exports its
+  own (measured 2026-08-26 against a cross-harness plugin that branches on the
+  two by name); floppy never tried it. On the owner's machine
+  `~/.cursor/plugins/cache/floppy/floppy/` exists and is **empty**, so the cache
+  branch resolves nothing there and only the local symlink saves the run — an
+  answer from the harness beats three guesses. `init`'s bootstrap search learns
+  the same variable.
+- The stale-copy hint now names this file by its own absolute path rather than
+  one derived from the repository root, which the stub no longer resolves.
+
+`tests/test-docs.sh` read the config keys out of `shim/run` to check the README
+documents them. After the move that grep matched nothing and the loop asserted
+nothing — green, and checking nothing. It reads `scripts/lib-config.sh` now and
+fails if the key list ever comes back empty.
+
+482 asserts, up from 479.
 
 ## 0.13.0 — 2026-08-26
 

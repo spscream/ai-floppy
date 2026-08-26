@@ -29,11 +29,14 @@ Several projects can be open in the same harness at once (Cursor especially),
 and the shell a skill runs in is not necessarily the one the human was
 talking about. One line naming it is enough.
 
-Whether the harness sets `CLAUDE_PLUGIN_ROOT` while a skill runs has not been
-measured, so do not rely on it alone. Locate the plugin the same three ways
-`.floppy/run` locates itself once installed — `CLAUDE_PLUGIN_ROOT`, then
-`AI_FLOPPY_HOME` for development, then the newest checkout under the plugin
-cache — and fail loudly, naming the install command, if none resolves. This
+Neither harness is trusted to hand a skill the plugin root, so do not rely on
+a variable alone. Claude Code sets `CLAUDE_PLUGIN_ROOT` and Cursor sets
+`CURSOR_PLUGIN_ROOT` (measured 2026-08-26), but each only in some contexts, and
+a variable a harness did not set is indistinguishable here from one it did.
+Locate the plugin the same ways `.floppy/run` locates it once installed — the
+two harness variables, then `AI_FLOPPY_HOME` for development, then the newest
+checkout under the plugin cache — and fail loudly, naming the install command,
+if none resolves. This
 duplicates shim/run's search (shim/run:11-26) rather than reading it from
 there, because `.floppy/run` does not exist yet in this repository —
 creating it is the first thing the script below does — and that search
@@ -45,6 +48,8 @@ has_scripts() { [[ -n "${1:-}" ]] && ls "$1"/scripts/*.sh >/dev/null 2>&1; }
 
 if   has_scripts "${CLAUDE_PLUGIN_ROOT:-}"; then
   floppy_root="$CLAUDE_PLUGIN_ROOT"
+elif has_scripts "${CURSOR_PLUGIN_ROOT:-}"; then
+  floppy_root="$CURSOR_PLUGIN_ROOT"
 elif has_scripts "${AI_FLOPPY_HOME:-}"; then
   floppy_root="$AI_FLOPPY_HOME"
 else
