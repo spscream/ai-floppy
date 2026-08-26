@@ -77,29 +77,6 @@ else
   echo "$guard_out" | grep -E '^safe to stage' | sed 's/^/  /'
 fi
 
-# ---------- localized commands against the skills ----------
-# Only for a repository that keeps the rite in its own language as well. The
-# section is a gate, not a note: a command that lost a step is this
-# repository's own file and fixable in this same wrap, unlike a neighbouring
-# session's half-written memory note. Silence was the whole defect — parity was
-# held by eye, and an eye does not run on every close.
-parity_out="$(bash "$here/parity.sh" 2>&1)"
-parity_rc=$?
-case "$parity_out" in
-  "no localized commands"*) : ;;   # English skills used directly: no section
-  *)
-    hr "localized commands"
-    if [[ $parity_rc -eq 0 ]]; then
-      echo "$parity_out" | grep -E '^clean:' | sed 's/^/  /'
-    else
-      rc=1
-      echo "  LOCALIZED COMMANDS HAVE DRIFTED from the skills they translate"
-      echo "$parity_out" | grep -E '^(--|  x)' | head -10
-      echo "  (full report: bash .floppy/run parity)"
-    fi
-    ;;
-esac
-
 # ---------- what is actually going out ----------
 # The commit closes the session, which is the moment the human has already
 # turned away. So the file list and the size of the change belong in the

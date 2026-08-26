@@ -14,6 +14,43 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.13.0 — 2026-08-26
+
+**Refresh `.floppy/run`: yes** (the verb table lost an entry and the config
+parser lost a key). **`parity` is gone, with everything around it** — the
+`--scaffold` generator that 0.12.0 added the same day, the `commands_dir`
+config key, and the `localized commands` section of `check`.
+
+The feature was built on an assumption nobody had checked. The premise was
+that a team which works in its own language needs the rite in that language,
+so the plugin must guard two copies of every procedure against drift. Asked
+what part of a command file a person actually reads, the answer turned out to
+be: the command name, the `description` in the picker, and `argument-hint`.
+The body is a prompt. It is loaded into the model's context on invocation and
+is never shown to anyone. Claude Code's own documentation also states that
+custom commands and skills are now the same thing: `.claude/commands/wrap.md`
+and `.claude/skills/wrap/SKILL.md` both produce `/wrap` and behave alike.
+
+So the work the plugin was automating — translating hundreds of lines of prose
+— produced no text a user would ever see, and created the second copy that
+`parity` then existed to police. Removing the copy removes the drift, the
+check, and the generator together.
+
+- `bash .floppy/run parity` is no longer a verb. An old shim that still has it
+  will report a missing script rather than fail obscurely; refresh the copy.
+- `commands_dir` is no longer read from `.floppy/config`. A line left in the
+  file is ignored, as any unknown key is.
+- `check` no longer has a `localized commands` section, and the `wrap` skill no
+  longer lists a drifted command among the things to fix before committing.
+- `scripts/parity.sh` and `tests/test-parity.sh` are deleted. The two shim
+  tests that used `parity` as their example verb now use `status`.
+
+If localized rites are ever wanted again, the cheap version is the one this
+release did not have to build: translate `description` and `argument-hint`,
+which is the whole of what a person sees, and leave the body alone.
+
+479 asserts, down from 536.
+
 ## 0.12.0 — 2026-08-26
 
 **Refresh `.floppy/run`: no** (the shim is unchanged; the new behaviour is a

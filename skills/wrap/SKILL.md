@@ -180,14 +180,6 @@ What a red `check` means:
   repair blind — name it in the report and leave it exactly as found.
 - **this session's own file** — stop and fix it. The next session will not
   find a note that never got written correctly.
-- **localized commands** — this repository keeps the rite in its own language
-  as well, and a command file no longer makes the same calls as the skill it
-  translates, or lost a numbered step. That file belongs to this repository
-  and is fixable right here; this skill is the source of truth, so the command
-  gets the step, not the other way round. `bash .floppy/run parity` names the
-  divergence. If the skill is what's actually behind, say so — that fix lives
-  in the plugin, not in this repository, and does not belong in this commit.
-
 `git add -A` is never used — the tree can hold nested repositories and other
 people's working copies; stage by naming the files.
 

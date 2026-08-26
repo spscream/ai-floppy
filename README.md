@@ -168,66 +168,6 @@ short name. Only the short name is correct in both applications.
   the agent runs `bash .floppy/run commit`, which stages, commits, pushes, and
   releases the lock.
 
-## `parity` — for a procedure kept in two languages
-
-A repository can keep the procedure two times: these skills in English, and
-command files in the language of its people. An example is
-`.claude/commands/wrap.md` beside `skills/wrap/SKILL.md`.
-
-Two copies of one procedure become different with time. Usually a **step** is
-lost, not a meaning. This does not cause an error.
-
-```
-bash .floppy/run parity
-```
-
-`parity` compares only two things: the set of `bash .floppy/run <verb>` calls
-in each file, and the sequence of numbered headings. It ignores the words, the
-section titles, and the length. A translation can move a section, or add a
-table for its project. A check on those items would give a failure that nobody
-corrects.
-
-The English skill is the source of truth. If the two files are different, add
-the step to the command file.
-
-### How to make the command files
-
-The plugin writes the first version of them:
-
-```
-bash .floppy/run parity --scaffold
-```
-
-This makes one file for each of the three rites in `commands_dir`. Each file
-has the numbered headings and the `bash .floppy/run` calls of its skill. It
-does not have the English prose. The command does not write over a file that
-is already there. For Cursor, set `commands_dir=.cursor/commands` first.
-
-Then translate the prose in each file. Two items must stay the same:
-
-- The **numbers** of the `## N.` headings. The titles are yours.
-- Each **`bash .floppy/run` line**, in ASCII letters. The arguments are yours.
-  The comparison stops at `<`, at a quote and at `$`, so `check <files>` and
-  `check <файлы>` are one call.
-
-Make the files for all three rites, not for one. A rite with no command file,
-while its two siblings have one, is a defect of the same kind: a person who
-reads the commands has a rite that does not exist in their language. `parity`
-reports it.
-
-A new file from `--scaffold` passes `parity` before you translate it. Run the
-check again after the translation.
-
-The `check` step of `wrap` runs `parity`. A difference makes `check` fail. Thus
-the difference becomes visible at the end of a session.
-
-If a repository has no command files, this section does not apply to it. Use
-the skills directly. This is the usual condition.
-
-The measurement that caused this check: in the project that this plugin comes
-from, the `workstatus` skill documented `bash .floppy/run status --flow`, but
-the `/workstatus` command file did not mention the flag. No check failed.
-
 ## `.floppy/config`
 
 The file contains one `key=value` line for each setting. The shim file
@@ -258,7 +198,6 @@ does not contain it.
 | `statuses_regress_marks` | *(empty)* | the words that mark a regression in the direction cell of a trend table, in your own language. Use a comma between them. `wrap-guard` then refuses to delete only the rows carrying one of these words. While the key is empty, no trend row may be deleted at all — safe, but it makes a rewritten file grow like an append-only one, because a one-time "done" row can never leave |
 | `watched_dirs` | `docs` | the directories, in addition to `memory_dir`, that `wrap` can commit. Use a comma between the names |
 | `watched_files` | `AGENTS.md` | the single files that `wrap` can commit. Patterns are permitted. Use a comma between the names |
-| `commands_dir` | `.claude/commands` | the directory of the command files, if the repository has them in its own language. Only `bash .floppy/run parity` reads this key |
 | `commit_push` | `auto` | the action after each commit. `auto` runs `git pull --rebase`, then pushes. `never` omits both. Use `never` if the repository has no remote, because `auto` fails there. To omit the push one time only, use `--no-push` |
 
 `private_repo` and `workplace_project_key` have no default value. This is

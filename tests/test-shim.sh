@@ -211,7 +211,7 @@ repoU="$(sandbox)"
 cp shim/run "$repoU/.floppy/run"
 unknown="$(cd "$repoU" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run nosuchverb 2>&1)"
 assert_contains "unknown verb names the verb"            "unknown verb: nosuchverb" "$unknown"
-assert_contains "unknown verb lists the known ones"      "parity"                   "$unknown"
+assert_contains "unknown verb lists the known ones"      "status"                   "$unknown"
 assert_contains "unknown verb names the stale-copy case" "copy, not a link"         "$unknown"
 assert_contains "unknown verb says how to refresh"       "cp "                      "$unknown"
 
@@ -228,10 +228,10 @@ mkdir -p "$oldroot/scripts"
 cp scripts/memory-lint.sh "$oldroot/scripts/"   # enough to resolve as a plugin
 repoO="$(sandbox)"
 cp shim/run "$repoO/.floppy/run"
-behind="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run parity 2>&1)"
+behind="$(cd "$repoO" && AI_FLOPPY_HOME="$oldroot" CLAUDE_PLUGIN_ROOT= bash .floppy/run status 2>&1)"
 behind_rc=$?
 assert_eq       "old plugin: the verb fails"                "1" "$behind_rc"
-assert_contains "old plugin: names the missing script"      "parity.sh"          "$behind"
+assert_contains "old plugin: names the missing script"      "workstatus.sh"      "$behind"
 assert_contains "old plugin: says which side is behind"     "plugin is behind"   "$behind"
 assert_contains "old plugin: names the resolved root"       "$oldroot"           "$behind"
 # A verb the old plugin DOES have must still work — the guard is per script,
