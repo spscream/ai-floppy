@@ -49,6 +49,17 @@ commands_dir="${FLOPPY_COMMANDS_DIR:-.claude/commands}"
 # enrol it here; tests/test-parity.sh asserts the two stay in step.
 RITES="start workstatus wrap"
 
+# `--scaffold` writes the skeletons this script exists to compare. It lives in
+# this file rather than beside it because the generator and the checker have to
+# agree on one thing — what in a rite is load-bearing — and two files that must
+# agree are the exact arrangement `parity` was written to police.
+mode="check"
+case "${1:-}" in
+  --scaffold) mode="scaffold" ;;
+  "")         ;;
+  *)          echo "usage: bash .floppy/run parity [--scaffold]" >&2; exit 2 ;;
+esac
+
 # Every `bash .floppy/run <verb> [sub|flag]` invocation in a file, normalized
 # and deduplicated. The trailing token is taken only when it is a bare word or
 # a flag, which is what distinguishes a real part of the call (`lock acquire`,
@@ -69,6 +80,189 @@ steps() {
     | grep -oE '[0-9]+' \
     | tr '\n' ' '
 }
+
+# ---------- the generator ----------
+# One skeleton, on stdout, from one skill. What it keeps is exactly what this
+# script compares, and it keeps it verbatim: the numbered headings with their
+# numbers, and every `.floppy/run` call. What it drops is the English prose,
+# which is the whole point — a translator who is handed a copy translates a
+# copy, and the steps survive by luck.
+#
+# A call written inline in prose (`… run \`bash .floppy/run status --flow\` when
+# …`) is the case that makes this more than `grep`: dropping that paragraph
+# would drop the call, and the file would be red before its author had typed a
+# word. Such calls are re-emitted under the step whose prose mentioned them, and
+# the ones outside any step go into a section of their own at the end.
+#
+# Everything is buffered and printed in END so the header can name the sections
+# that were left out, which is only known after the whole file has been read.
+# $2 is how the skill is named in the generated text, not where it is read
+# from: the absolute path of a plugin checkout is one machine's detail, and it
+# would be committed into someone's repository on every line that points back
+# at the source.
+scaffold_one() { # skill_path display_name
+  awk -v skill="$2" '
+    # One scanner, two jobs. what == "note" files a call under the section that
+    # mentions it; what == "emitted" marks it as already present in the text
+    # being generated, so it is not repeated. The regex is the one invocations()
+    # uses above, and it has to stay that one: it is the whole of what the
+    # generator and the checker agree on.
+    function scan(line, what,   rest, call) {
+      rest = line
+      while (match(rest, /\.floppy\/run[ \t]+[a-z][a-z-]*([ \t]+(--?[a-z][a-z-]*|[a-z][a-z-]*))?/)) {
+        call = substr(rest, RSTART, RLENGTH)
+        sub(/^\.floppy\/run[ \t]+/, "", call)
+        gsub(/[ \t]+/, " ", call)
+        if (what == "emitted") emitted[call] = 1
+        # Ordered lists, not just maps: `for (k in a)` has no defined order in
+        # awk, and a generator whose output moves between runs cannot be read
+        # as a diff.
+        else if (sec == 1) { if (!(call in secseen)) { secseen[call] = 1; seclist[++nsec] = call } }
+        else               { if (!(call in preseen)) { preseen[call] = 1; prelist[++npre] = call } }
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+    }
+    function out(s) { body = body s "\n" }
+    function flush(   i, n) {
+      if (sec != 1) return
+      out(heading); out("")
+      out("<!-- " prose " line(s) of prose here in " skill " — translate them -->")
+      out("")
+      for (i = 1; i <= nkeep; i++) out(keep[i])
+      n = 0
+      for (i = 1; i <= nsec; i++) if (!(seclist[i] in emitted)) n++
+      if (n > 0) {
+        out("<!-- calls this step mentions in its prose — keep them, they are compared -->")
+        out("```bash")
+        for (i = 1; i <= nsec; i++) if (!(seclist[i] in emitted)) {
+          out("bash .floppy/run " seclist[i]); emitted[seclist[i]] = 1
+        }
+        out("```"); out("")
+      }
+    }
+    function reset() { sec=1; prose=0; nkeep=0; split("", keep); nsec=0; split("", seclist); split("", secseen) }
+
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm == 1 && $0 == "---" { fm = 0; next }
+    fm == 1 { if ($0 ~ /^description:[ \t]/) desc = substr($0, index($0, ":") + 2); next }
+
+    # A fence is copied whole or not at all, and only when it carries a call: a
+    # fence of example output is prose in a code font and belongs to whoever
+    # writes the translation.
+    /^```/ {
+      if (infence == 0) {
+        infence = 1; nf = 0; split("", fbuf); fhas = 0
+        fbuf[++nf] = $0; scan($0, "note")
+        next
+      }
+      infence = 0
+      fbuf[++nf] = $0
+      if (fhas && sec == 1) {
+        for (i = 1; i <= nf; i++) { keep[++nkeep] = fbuf[i]; scan(fbuf[i], "emitted") }
+        keep[++nkeep] = ""
+      }
+      next
+    }
+    infence == 1 {
+      fbuf[++nf] = $0
+      if ($0 ~ /\.floppy\/run/) fhas = 1
+      scan($0, "note")
+      next
+    }
+
+    /^## / {
+      flush()
+      if ($0 ~ /^##[ \t]+[0-9]+\./) { reset(); heading = $0 }
+      else { sec = 2; unnum[++nun] = substr($0, 4) }
+      next
+    }
+
+    { if (sec == 1 && $0 ~ /[^ \t]/) prose++; scan($0, "note") }
+
+    END {
+      flush()
+      # Calls from the preamble and from unnumbered sections have no step to
+      # belong to, and a section of their own is honest about that.
+      n = 0
+      for (i = 1; i <= npre; i++) if (!(prelist[i] in emitted)) n++
+      if (n > 0) {
+        out("## Calls outside the numbered steps")
+        out("")
+        out("<!-- from prose that is not part of a step — keep them, they are compared -->")
+        out("```bash")
+        for (i = 1; i <= npre; i++) if (!(prelist[i] in emitted)) {
+          out("bash .floppy/run " prelist[i]); emitted[prelist[i]] = 1
+        }
+        out("```")
+      }
+
+      # Frontmatter first, before any comment: a harness reads it only at the
+      # very top of the file.
+      print "---"
+      print "description: <translate> " desc
+      print "---"
+      print ""
+      print "<!--"
+      print "Localized copy of " skill ", generated by the scaffold verb of this"
+      print "plugin and then translated by a human. The English skill stays the"
+      print "source of truth: where the two differ, the command file is what gets"
+      print "fixed."
+      print ""
+      print "Translate the prose. Two things have to survive the translation exactly:"
+      print "  * the numbers of the `## N.` headings — the titles are yours;"
+      print "  * every `.floppy/run` line, in ASCII. Argument placeholders — whatever"
+      print "    follows `<`, a quote or `$` — are yours to translate."
+      print ""
+      print "Check the result with the parity verb; the check step of the wrap rite"
+      print "runs it on every close."
+      if (nun > 0) {
+        print ""
+        print "Left out, because they are not steps and are not compared. They carry"
+        print "meaning: dropping one is a decision, not an oversight."
+        for (i = 1; i <= nun; i++) print "  * " unnum[i]
+      }
+      print "-->"
+      print ""
+      printf "%s", body
+    }
+  ' "$1"
+}
+
+if [[ "$mode" == "scaffold" ]]; then
+  rc=0
+  mkdir -p "$commands_dir" || exit 1
+  for rite in $RITES; do
+    skill="$skills_dir/$rite/SKILL.md"
+    cmd="$commands_dir/$rite.md"
+    if [[ ! -f "$skill" ]]; then
+      echo "  x no skill at $skill — nothing to generate from"
+      rc=1
+      continue
+    fi
+    # Never over an existing file. A translation of wrap.md is hours of work and
+    # lives in exactly the path this would write.
+    if [[ -f "$cmd" ]]; then
+      echo "  kept $cmd — already there, not overwritten"
+      continue
+    fi
+    scaffold_one "$skill" "skills/$rite/SKILL.md" > "$cmd"
+    # The generator is held to the checker in the same run: a skeleton that
+    # cannot pass parity untranslated would teach its reader that the check is
+    # wrong, which is the one lesson this whole arrangement cannot afford.
+    if [[ -n "$(comm -3 <(invocations "$skill") <(invocations "$cmd"))" ]] \
+       || [[ "$(steps "$skill")" != "$(steps "$cmd")" ]]; then
+      echo "  x $cmd was generated but does not match $skill — this is a bug in --scaffold"
+      rc=1
+      continue
+    fi
+    echo "  wrote $cmd"
+  done
+  echo
+  if [[ $rc -eq 0 ]]; then
+    echo "translate the prose, keep the numbers and the calls, then: bash .floppy/run parity"
+  fi
+  exit $rc
+fi
 
 rc=0
 compared=0

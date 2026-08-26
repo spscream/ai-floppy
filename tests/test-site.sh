@@ -43,7 +43,12 @@ done
 index="$(cat "$out/index.md" 2>/dev/null || true)"
 assert_contains "index is the README"          "$(head -1 README.md)" "$index"
 assert_contains "index carries the whole README" "## \`quota.lock\`"   "$index"
-assert_contains "changelog page exists"        "## 0.11.0"            "$(cat "$out/changelog.md" 2>/dev/null || true)"
+# Against the version the plugin actually ships, not a version spelled out
+# here: a release that moves plugin.json and forgets the changelog publishes a
+# site whose newest entry is the release before it, and nothing says so.
+version="$(grep -m1 '"version"' .claude-plugin/plugin.json | sed 's/.*: *"//; s/".*//')"
+assert_contains "changelog page covers the shipped version ($version)" "## $version" \
+  "$(cat "$out/changelog.md" 2>/dev/null || true)"
 
 # The README stays a README: Jekyll front matter in it would render as a table
 # at the top of the repository's front page. The site's copy gets the front

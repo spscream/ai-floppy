@@ -40,6 +40,12 @@ while IFS= read -r key; do
   assert_contains "README documents config key: $key" "\`$key\`" "$readme"
 done <<< "$keys"
 
+# The check without the recipe is what this repository shipped for its first
+# eleven releases: a repository was told its command files must not drift, and
+# never told how to write one.
+assert_contains "README says how to make the command files" "parity --scaffold" "$readme"
+assert_contains "README names what must survive translation" "numbers" "$readme"
+
 assert_contains "README explains quota.lock is measured per project" "measur" "$readme"
 case "$readme" in
   *"never copied"*) ok "README states quota.lock is never copied between projects" ;;

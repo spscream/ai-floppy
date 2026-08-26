@@ -213,4 +213,125 @@ case "$check_out" in
   *) ok "no section without localized commands" ;;
 esac
 
+# ---------- --scaffold ----------
+# The verb that produces the files every test above compares. It exists because
+# the README documented the check for months and never documented the artifact:
+# a repository was told its command files must not drift, and never told how to
+# write one.
+#
+# A skill with everything the generator has to survive: frontmatter, prose
+# before the first step, a call that appears only inline in prose (never in a
+# fence), a fenced call, and an unnumbered section.
+SKILL_RICH='---
+name: wrap
+description: Close the session and save what it learned. Use at the end of a session.
+---
+
+Intro prose, before any step, mentioning `bash .floppy/run status` in passing.
+
+## 0. Lock
+
+Prose explaining in English why the lock comes first.
+
+```bash
+bash .floppy/run lock acquire "<thread>"
+```
+
+## 1. Check
+
+Prose that mentions `bash .floppy/run status --flow` inline and nowhere else.
+
+```bash
+bash .floppy/run check <file>
+```
+
+## Write for a stranger
+
+An unnumbered section: meaning, no steps.'
+
+# `env`, not a bare assignment prefix: bash decides what is an assignment
+# before it expands anything, so an expanded `${SCAFFOLD_ENV}` would land in
+# the command-name position and the test would fail with 127 while the script
+# under test was never run.
+scaffold() { # dir — extra environment via SCAFFOLD_ENV
+  local d="$1"
+  OUT="$(cd "$d" && env FLOPPY_REPO="$d" FLOPPY_ROOT="$d" ${SCAFFOLD_ENV:-} \
+    bash "$ROOT/scripts/parity.sh" --scaffold 2>&1)"
+  RC=$?
+}
+
+d="$(sandbox)"
+mkdir -p "$d/skills/wrap"
+printf '%s\n' "$SKILL_RICH" > "$d/skills/wrap/SKILL.md"
+for r in start workstatus; do
+  mkdir -p "$d/skills/$r"
+  printf '## 0. Step\n' > "$d/skills/$r/SKILL.md"
+done
+skill_before="$(cat "$d/skills/wrap/SKILL.md")"
+scaffold "$d"
+assert_eq       "scaffold succeeds (rc)"        "0" "$RC"
+assert_contains "scaffold names what it wrote"  ".claude/commands/wrap.md" "$OUT"
+for r in start workstatus wrap; do
+  assert_eq "scaffold wrote $r.md" "0" "$([[ -f "$d/.claude/commands/$r.md" ]] && echo 0 || echo 1)"
+done
+
+# THE test. A generator whose output does not pass the checker in the same file
+# is worse than no generator: it hands a human a file that goes red before they
+# have typed anything, and the first thing they learn about parity is that it
+# is wrong.
+run_parity "$d"
+assert_eq       "scaffolded commands pass parity untranslated (rc)" "0" "$RC"
+assert_contains "and parity says so"                "clean: 3 localized rite" "$OUT"
+
+cmd="$(cat "$d/.claude/commands/wrap.md")"
+assert_eq       "the file opens with frontmatter, so the harness parses it" "---" "$(head -1 "$d/.claude/commands/wrap.md")"
+assert_contains "numbered headings survive verbatim"    "## 0. Lock"      "$cmd"
+assert_contains "so does the second one"                "## 1. Check"     "$cmd"
+assert_contains "fenced calls survive verbatim"         'bash .floppy/run lock acquire "<thread>"' "$cmd"
+# The two that are easy to lose: a call written inline in prose that is dropped,
+# and a call that appears before the first step. Both would leave a file that
+# fails parity the moment it is written.
+assert_contains "a call inline in prose is carried over"     "status --flow"   "$cmd"
+assert_contains "a call before the first step is carried over" "run status"    "$cmd"
+assert_contains "the prose is not carried over"         "translate"       "$cmd"
+case "$cmd" in
+  *"Prose explaining in English"*) fail "English prose is left out of the skeleton" "no prose" "$cmd" ;;
+  *) ok "English prose is left out of the skeleton" ;;
+esac
+# Unnumbered sections are not steps and are not generated, but dropping one has
+# to be a decision: the skeleton names them.
+assert_contains "sections left out are named"           "Write for a stranger" "$cmd"
+assert_contains "the skeleton says how to check itself" "parity"          "$cmd"
+assert_eq       "the skill itself is untouched"         "$skill_before"   "$(cat "$d/skills/wrap/SKILL.md")"
+
+# ---------- a file that already exists is never overwritten ----------
+# The scaffold writes into someone's repository. A translation of wrap.md is
+# hours of work and lives in exactly the path the generator wants.
+d="$(sandbox)"
+mkdir -p "$d/skills/wrap" "$d/.claude/commands"
+printf '%s\n' "$SKILL_RICH" > "$d/skills/wrap/SKILL.md"
+for r in start workstatus; do
+  mkdir -p "$d/skills/$r"; printf '## 0. Step\n' > "$d/skills/$r/SKILL.md"
+done
+printf 'ПЕРЕВЕДЁННЫЙ ВРУЧНУЮ ФАЙЛ\n' > "$d/.claude/commands/wrap.md"
+scaffold "$d"
+assert_eq       "scaffold over an existing file still succeeds (rc)" "0" "$RC"
+assert_eq       "the existing file is untouched" "ПЕРЕВЕДЁННЫЙ ВРУЧНУЮ ФАЙЛ" "$(cat "$d/.claude/commands/wrap.md")"
+assert_contains "and it says it kept it"         "kept"  "$OUT"
+assert_eq       "the missing siblings are still written" "0" \
+  "$([[ -f "$d/.claude/commands/start.md" && -f "$d/.claude/commands/workstatus.md" ]] && echo 0 || echo 1)"
+
+# ---------- it writes where commands_dir says, creating it ----------
+d="$(sandbox)"
+for r in start workstatus wrap; do
+  mkdir -p "$d/skills/$r"; printf '## 0. Step\n' > "$d/skills/$r/SKILL.md"
+done
+SCAFFOLD_ENV="FLOPPY_COMMANDS_DIR=.cursor/commands" scaffold "$d"
+unset SCAFFOLD_ENV
+assert_eq       "scaffold honours commands_dir (rc)" "0" "$RC"
+assert_eq       "and creates the directory"          "0" \
+  "$([[ -f "$d/.cursor/commands/wrap.md" ]] && echo 0 || echo 1)"
+assert_eq       "nothing lands in the default path"  "1" \
+  "$([[ -d "$d/.claude/commands" ]] && echo 0 || echo 1)"
+
 summary

@@ -14,6 +14,45 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.12.0 — 2026-08-26
+
+**Refresh `.floppy/run`: no** (the shim is unchanged; the new behaviour is a
+flag on a verb it already dispatches). **`parity` can now write the files it
+checks**, and the README says how to write them by hand.
+
+Asked how to create `.claude/commands/wrap.md`, this repository had no answer.
+`parity` had guarded localized command files since 0.9.0 and the README
+explained the check at length, but nothing anywhere described the artifact: a
+repository was told its two copies must not drift, and never told how to make
+the second copy. The only working example lived in `tests/test-parity.sh`.
+
+- `bash .floppy/run parity --scaffold` writes one skeleton per rite into
+  `commands_dir`: the numbered headings and every `bash .floppy/run` call,
+  verbatim, with the English prose replaced by a marker that says how many
+  lines were dropped and where to read them. It never writes over a file that
+  exists — a translation of `wrap.md` is hours of work and lives in exactly
+  the path the generator wants.
+- The generator is in `scripts/parity.sh`, next to the checker, not beside it.
+  The two have to agree on one thing — what in a rite is load-bearing — and two
+  files that must agree are the arrangement `parity` exists to police.
+- Calls that appear only inline in prose are the case that makes this more than
+  a copy: dropping that paragraph would drop the call. They are re-emitted
+  under the step whose prose mentioned them; calls outside any step get a
+  section of their own.
+- The generated file passes `parity` before a word of it is translated, and the
+  test asserts exactly that round trip. A generator whose output starts red
+  teaches its reader that the check is wrong.
+- README: a new subsection on making the command files — all three rites, not
+  one; the numbers of the `## N.` headings and the `bash .floppy/run` lines
+  survive translation, the titles and the argument placeholders do not.
+  `tests/test-docs.sh` now asserts the subsection is there.
+
+Also: the site test now checks the changelog against the version in
+`plugin.json`, so a release that moves the version and forgets this file goes
+red instead of publishing a site whose newest entry is the release before it.
+
+536 asserts, up from 481.
+
 ## 0.11.0 — 2026-08-25
 
 **Refresh `.floppy/run`: yes** (the shim derives one more path). **`commit` now

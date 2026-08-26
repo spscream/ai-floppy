@@ -190,6 +190,34 @@ corrects.
 The English skill is the source of truth. If the two files are different, add
 the step to the command file.
 
+### How to make the command files
+
+The plugin writes the first version of them:
+
+```
+bash .floppy/run parity --scaffold
+```
+
+This makes one file for each of the three rites in `commands_dir`. Each file
+has the numbered headings and the `bash .floppy/run` calls of its skill. It
+does not have the English prose. The command does not write over a file that
+is already there. For Cursor, set `commands_dir=.cursor/commands` first.
+
+Then translate the prose in each file. Two items must stay the same:
+
+- The **numbers** of the `## N.` headings. The titles are yours.
+- Each **`bash .floppy/run` line**, in ASCII letters. The arguments are yours.
+  The comparison stops at `<`, at a quote and at `$`, so `check <files>` and
+  `check <файлы>` are one call.
+
+Make the files for all three rites, not for one. A rite with no command file,
+while its two siblings have one, is a defect of the same kind: a person who
+reads the commands has a rite that does not exist in their language. `parity`
+reports it.
+
+A new file from `--scaffold` passes `parity` before you translate it. Run the
+check again after the translation.
+
 The `check` step of `wrap` runs `parity`. A difference makes `check` fail. Thus
 the difference becomes visible at the end of a session.
 
