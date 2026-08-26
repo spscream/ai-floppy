@@ -2,3 +2,10 @@
 
 # plan-execution scratch directory: drafts, not history
 .superpowers/
+
+# assembled documentation site: every file in it is generated from a document
+# that is already tracked, and committing it would create the second, drifting
+# copy the build exists to prevent
+.site/
+_site/
+

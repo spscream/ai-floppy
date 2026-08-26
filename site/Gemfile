@@ -1,0 +1,10 @@
+# Dependencies of the documentation site, and of nothing else: no script, no
+# skill and no test in this repository needs Ruby. The site is built by
+# .github/workflows/pages.yml, which copies this file into the assembled root.
+#
+# Versions are pinned rather than floated. A theme that silently moves a minor
+# version rewrites the sidebar and the search of a site nobody is watching.
+source "https://rubygems.org"
+
+gem "jekyll", "~> 4.4"
+gem "just-the-docs", "0.12.0"

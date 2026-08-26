@@ -1,0 +1,76 @@
+name: pages
+
+# Builds the documentation site and publishes it to GitHub Pages.
+#
+# The site's pages are not files in this repository: scripts/site-build.sh
+# assembles them from README.md, docs/*.md, skills/*/SKILL.md and CHANGELOG.md
+# every time this runs, so a merged documentation change is on the site without
+# anyone remembering a second place to edit. tests/test-site.sh asserts that
+# this workflow is the thing that calls that script — a deploy that stopped
+# calling it would keep publishing, silently, whatever it built last.
+#
+# Ruby appears nowhere else in this repository, and does not become a
+# requirement for contributors: the scripts, the skills and the test suite need
+# bash and git and nothing more.
+on:
+  push:
+    branches: [main]
+    # Documents, the builder, and this file. A push that only touches scripts
+    # or tests rebuilds nothing — the site would come out byte-identical.
+    paths:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - 'skills/**'
+      - 'site/**'
+      - 'scripts/site-build.sh'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Deploys are serialised, and a running one is not cancelled: a half-deployed
+# site is worse than a slightly late one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Before Ruby is set up, not after: the Gemfile the next step installs
+      # from is the copy this script places in the assembled root.
+      - name: assemble the site sources
+        run: bash scripts/site-build.sh .site
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: .site
+
+      - name: build
+        working-directory: .site
+        env:
+          JEKYLL_ENV: production
+        run: bundle exec jekyll build --destination ../_site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
