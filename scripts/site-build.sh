@@ -34,8 +34,9 @@ blob="$repo/blob/main"
 pages='README.md|index.md|Home|1
 docs/memory-model.md|memory-model.md|The memory model|2
 docs/lessons.md|lessons.md|Lessons|3
-|skills.md|The five skills|4
-CHANGELOG.md|changelog.md|Changelog|5'
+|knowledge.md|The knowledge base|4
+|skills.md|The five skills|5
+CHANGELOG.md|changelog.md|Changelog|6'
 
 # ---------- link rewriting ----------
 # Built from the table, so a page added above is linkable from every other page
@@ -59,6 +60,11 @@ EOF
 # Whatever is left pointing into the repository goes to GitHub. `[^):]*` is
 # what keeps absolute URLs out of it: no repository-relative path contains a
 # colon, and every http link does.
+# The knowledge base has a page but no source row: its page is generated from
+# knowledge/README.md plus the notes, so the loop above cannot derive this. Without
+# it a document linking to the base would be sent to GitHub for something the site
+# already carries.
+rewrite+=(-e "s,\]\(knowledge/README\.md\),](knowledge.html),g")
 rewrite+=(-e "s,\]\(LICENSE\),](${blob}/LICENSE),g")
 rewrite+=(-e "s,\]\(([^):]*\.md)\),](${blob}/\1),g")
 
@@ -103,7 +109,44 @@ EOF
     printf '## `%s`\n\n%s\n\n[SKILL.md on GitHub](%s/%s)\n\n' \
       "$name" "$desc" "$blob" "$f"
   done
-} | emit skills.md "The five skills" 4
+} | emit skills.md "The five skills" 5
 printf 'ok skills/*/SKILL.md -> skills.md\n'
+
+# ---------- the knowledge base page ----------
+# Same shape as the skills page and for the same reason: the note list is the
+# notes' own front matter, read at build time, so the site cannot describe a
+# note differently from the file. knowledge/README.md carries the prose; there
+# is no hand-written index anywhere to drift from this.
+#
+# The notes live outside docs/ deliberately. A page that links to a docs/ file
+# with no page of its own degrades into a GitHub link, and tests/test-site.sh
+# fails exactly that — the reader would leave the site mid-sentence.
+front() { awk -v k="$2: " 'index($0, k) == 1 { sub("^" k, ""); gsub(/^"|"$/, ""); print; exit }' "$1"; }
+{
+  cat knowledge/README.md
+  printf '\n## The notes\n\n'
+  printf 'Each entry is generated from the note'"'"'s own front matter: what it claims,\n'
+  printf 'what it was verified against, and how to check it is still true.\n\n'
+  for area in harness memory shell practice; do
+    listed=0
+    for f in knowledge/notes/"$area"/*.md; do
+      [[ -f "$f" ]] || continue
+      if [[ $listed -eq 0 ]]; then printf '### %s\n\n' "$area"; listed=1; fi
+      printf '**%s**\n\n' "$(front "$f" description)"
+      printf -- '- verified %s against %s\n' "$(front "$f" verified_on)" "$(front "$f" verified_against)"
+      printf -- '- recheck: `%s`\n' "$(front "$f" recheck)"
+      # Whether a person or a machine stands behind the claim is the first thing a
+      # reader wants and the last thing such a list usually says.
+      if [[ -n "$(front "$f" recheck_cmd)" ]]; then
+        where="$(front "$f" platforms)"; [[ -n "$where" ]] || where="any platform"
+        printf -- '- checked by machine on %s — `scripts/knowledge-recheck.py`\n' "$where"
+      else
+        printf -- '- confirmed by a person, not by a runnable check\n'
+      fi
+      printf -- '- [the note on GitHub](%s/%s)\n\n' "$blob" "$f"
+    done
+  done
+} | emit knowledge.md "The knowledge base" 4
+printf 'ok knowledge/notes/**/*.md -> knowledge.md\n'
 
 printf '\nsite assembled in %s\n' "$out"

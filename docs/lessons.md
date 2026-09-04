@@ -4,6 +4,15 @@ Things this plugin learned the expensive way. Each one is a decision or a
 failure that shaped the code, written down so the next change does not repeat
 it. The design these refer to is in [memory-model.md](memory-model.md).
 
+**What is here and what is not.** These are lessons about *floppy* — a reader
+who does not use it has no use for them. A lesson that turns out to hold
+regardless of floppy belongs in the knowledge base instead
+([knowledge/README.md](knowledge/README.md)), which carries a verification
+contract this file does not: a date, the environment, and a way to re-check.
+Two lessons moved there on 2026-09-05 — `find` not following a symlinked root,
+and the test suite hanging on an unclosed stdin. Neither was about this plugin;
+both were about the ground it stands on.
+
 ## Renaming a scope in live memory costs a migration
 
 On 2026-08-25 the memory layout was renamed **four times in one day**:
@@ -60,52 +69,3 @@ Applying it:
   under any layout, and exactly the shape of a half-finished setup;
 - the derivation must be cheap and portable. Here it is `cd && pwd -P`, because
   `realpath` and `readlink -f` on macOS are not the ones you want.
-
-## `find` does not follow a symlinked root
-
-Measured 2026-08-25: `find <symlink-to-dir> -name '*.md'` yields **0**,
-`find <real path>` yields 2, `find -L <symlink>` yields 2. There is no error.
-An empty result is indistinguishable from "nothing to find".
-
-The incident: the memory linter walked the directory with a plain `find`, and
-in the layout where memory is moved into another repository that directory is a
-symlink. Every loop ran over an empty list and the run printed `clean: 0
-notes`. That linter is the **first commit gate**, so the entire quality check
-on memory was dead in that layout while staying green.
-
-Applying it:
-
-- walking a tree a symlink can reach (memory, an external store) — use
-  `find -L`. `-not -path` exclusions keep working: paths are built from the
-  starting point;
-- **assert the number found, not the colour**: `clean: N notes`, with N
-  expected. An assertion on `rc=0` passes for a check that looked at nothing;
-- keep a positive control next to it — a deliberately broken file that must go
-  red;
-- the same holds for `grep -r` and any walk: a symlink is not expanded by
-  default.
-
-## The test suite hangs without a closed stdin
-
-`bash tests/run.sh` hangs forever if stdin is not closed. Measured 2026-08-25:
-the process lived nine minutes without moving; the process tree showed
-`tests/test-shim.sh` → `scripts/wrap-guard.sh`. In the same session another
-such process from an earlier run was found, hung for 4.7 hours.
-
-The mechanism: `test-shim.sh` loops over every verb and takes `head -1` of the
-output. `guard` with no arguments reads its file list from stdin. Under an
-agent's tool runner stdin is a pipe that never closes, so `guard` waits for
-input forever and `head` waits for `guard`.
-
-Run it as:
-
-```
-bash tests/run.sh </dev/null
-```
-
-CI does not show this: there stdin gives EOF at once and the jobs are green.
-A green CI says nothing about this failure — it is about the calling
-environment, not about the code.
-
-Stopping a hung run: only by PID taken from `ps`. `pkill -f` in such an
-environment matches the caller's own shell and kills it.

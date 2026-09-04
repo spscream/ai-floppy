@@ -411,10 +411,23 @@ Read it before changing any path in the scripts. It exists because the layout
 was renamed three times in one day, and each rename corrected a model that
 nobody had written down.
 
-[docs/lessons.md](docs/lessons.md) — what those renames cost, why the external
-layout is derived from the filesystem instead of a config flag, how a linter
-walked an empty tree and stayed green, and why the suite hangs on an open
-stdin.
+[docs/lessons.md](docs/lessons.md) — what those renames cost, and why the
+external layout is derived from the filesystem instead of a config flag. These
+are lessons about *floppy*.
+
+## The knowledge base
+
+[knowledge/README.md](knowledge/README.md) — findings about the coding harness
+itself, true whether or not you use floppy: why a linter walked an empty tree
+and stayed green, why a suite hangs on an open stdin, where the ban on
+subagents actually comes from, what `/rewind` does not restore.
+
+It is separate from `docs/lessons.md` by audience, and it carries a contract
+that file does not: every note names the date and environment it was verified
+against and a command to re-check it, because nobody re-reads a note about
+somebody else's tool until it has already burned them.
+`python3 scripts/knowledge-rot-check.py` lists the ones that have aged out — it
+reports, it does not gate.
 
 ## Releases
 
