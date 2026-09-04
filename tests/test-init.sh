@@ -136,4 +136,53 @@ assert_rc "custom dir: lint is green" 0 "$rc3"
 
 rm -rf "$repo3"
 
+# ---------- adopting a repository that already has notes ----------
+# The case the "no quota.lock" assert near the top deliberately does NOT cover: an
+# empty corpus has nothing to measure, one that already exists has. Everything
+# here is about measuring it and reporting what the linter thinks — never about
+# rewriting a note somebody wrote under other conventions.
+repo4="$(sandbox)"
+rmdir "$repo4/.floppy" 2>/dev/null || true
+mkdir -p "$repo4/.agent-memory"
+
+# One of the three notes is deliberately over the 10000-character cap, so the
+# grandfathered branch has something to catch. Without it that branch would be
+# asserted by nothing and could rot green.
+printf -- '---\nname: small-one\ndescription: d\nmetadata:\n  type: project\n---\n\nbody\n' \
+  > "$repo4/.agent-memory/small-one.md"
+printf -- '---\nname: small-two\ndescription: d\nmetadata:\n  type: project\n---\n\nbody\n' \
+  > "$repo4/.agent-memory/small-two.md"
+{ printf -- '---\nname: fat-one\ndescription: d\nmetadata:\n  type: project\n---\n\n'
+  i=0; while [[ $i -lt 1200 ]]; do printf 'ten chars.\n'; i=$((i+1)); done; } \
+  > "$repo4/.agent-memory/fat-one.md"
+printf -- '- [Small one](small-one.md) — a\n- [Small two](small-two.md) — b\n- [Fat one](fat-one.md) — c\n' \
+  > "$repo4/.agent-memory/MEMORY.md"
+
+out4="$(bash scripts/init.sh --repo "$repo4" --memory-dir .agent-memory --language en 2>&1)"
+
+assert_contains "adopt: existing notes are counted" "3 note(s) were already here" "$out4"
+assert_eq "adopt: quota.lock seeded" "0" \
+  "$([[ -f "$repo4/.agent-memory/quota.lock" ]] && echo 0 || echo 1)"
+
+lock4="$(cat "$repo4/.agent-memory/quota.lock" 2>/dev/null || true)"
+# The number, not merely the key. A lock seeded from a constant would carry the
+# key too, and this corpus sits nowhere near any plausible imported default.
+seeded="$(printf '%s\n' "$lock4" | grep '^chars_max=' | cut -d= -f2)"
+measured="$(cat "$repo4/.agent-memory"/*.md | wc -m | tr -d ' ')"
+assert_eq "adopt: chars_max is above the measured corpus" "0" \
+  "$([[ "${seeded:-0}" -gt "$measured" ]] && echo 0 || echo 1)"
+assert_eq "adopt: chars_max is not an imported default" "0" \
+  "$([[ "${seeded:-0}" -lt $((measured * 2)) ]] && echo 0 || echo 1)"
+assert_contains "adopt: the over-cap note is grandfathered, not failed" "fat-one.md" "$lock4"
+assert_contains "adopt: lock records what it was seeded from" "notes," "$lock4"
+assert_contains "adopt: the linter's verdict is reported" "memory-lint" "$out4"
+
+# Idempotent on this path too. Reseeding a lock that already exists is exactly how
+# a ratchet turns into a rubber band.
+out4b="$(bash scripts/init.sh --repo "$repo4" --memory-dir .agent-memory --language en 2>&1)"
+assert_contains "adopt: second run leaves quota.lock alone" "quota.lock already exists" "$out4b"
+assert_eq "adopt: second run did not change the lock" "$lock4" "$(cat "$repo4/.agent-memory/quota.lock")"
+
+rm -rf "$repo4"
+
 summary

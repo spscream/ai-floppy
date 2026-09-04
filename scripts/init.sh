@@ -14,10 +14,16 @@
 #   AGENTS.md                 gains a section naming .floppy/ and pointing at
 #                              agent-memory
 #
-# What it deliberately does NOT create: <memory_dir>/quota.lock. On an empty
-# corpus there is nothing to measure, and a ceiling copied from another
-# project is that project's ceiling, which is the same as no ceiling at all.
-# `memory-lint.sh` warns about the missing ratchet rather than failing.
+# What it deliberately does NOT create on an EMPTY memory: <memory_dir>/quota.lock.
+# There is nothing to measure, and a ceiling copied from another project is that
+# project's ceiling, which is the same as no ceiling at all. `memory-lint.sh`
+# warns about the missing ratchet rather than failing.
+#
+# On a memory that ALREADY has notes — a repository adopting floppy after keeping
+# its notes some other way — the opposite holds: there is something to measure, and
+# the numbers are this project's own. So init seeds the ratchet from the corpus in
+# front of it and reports what the linter makes of that corpus, grouped by kind.
+# It rewrites no note. See "an existing corpus" near the end.
 #
 # Idempotent: every step here checks whether it is already done before doing
 # it, so a second run with the same flags changes nothing — not one touched
@@ -266,6 +272,104 @@ built on top of it. Settings live in \`.floppy/config\`; the memory itself is
 under \`$mem_dir\`.
 EOF
   echo "ok AGENTS.md: floppy section added"
+fi
+
+# ---------- an existing corpus: measure it, never rewrite it ----------
+# The counterpart to the header's rule about quota.lock, for the adoption case.
+#
+# Seeding the ratchet at adoption is what a ratchet is for: it does not retrofit
+# an ideal size, it freezes today's and makes every increase afterwards a
+# deliberate act visible in a diff. A project arriving already over some imported
+# default would go red on its first run, and a linter that is red on day one is a
+# linter that gets switched off.
+#
+# `find -L`, not `find`: memory_dir is a symlink in the external layout, and a
+# plain walk of it yields nothing while exiting 0 — docs/lessons.md records what
+# that cost the linter itself.
+mem_abs="$repo/$mem_dir"
+existing_notes="$(find -L "$mem_abs" -type f -name '*.md' \
+  ! -name 'MEMORY.md' ! -name 'INDEX.md' 2>/dev/null | wc -l | tr -d ' ')"
+
+if [[ "${existing_notes:-0}" -gt 0 ]]; then
+  echo
+  echo "-- existing memory: $existing_notes note(s) were already here"
+
+  lock="$mem_abs/quota.lock"
+  if [[ -f "$lock" ]]; then
+    echo "ok quota.lock already exists, left untouched"
+  else
+    note_cap=10000
+    total=0; grand=""
+    while IFS= read -r f; do
+      c="$(wc -m < "$f" | tr -d ' ')"
+      total=$((total + c))
+      if [[ "$c" -gt "$note_cap" ]]; then
+        rel="${f#"$mem_abs"/}"
+        grand="${grand:+$grand,}$rel"
+      fi
+    done < <(find -L "$mem_abs" -type f -name '*.md' ! -name 'MEMORY.md' ! -name 'INDEX.md')
+
+    ptr=0
+    while IFS= read -r idx; do
+      n="$(grep -c '^- \[' "$idx" 2>/dev/null)"
+      [[ "${n:-0}" -gt "$ptr" ]] && ptr="$n"
+    done < <(find -L "$mem_abs" -type f \( -name 'MEMORY.md' -o -name 'INDEX.md' \))
+    [[ "$ptr" -lt 40 ]] && ptr=40
+
+    # A tenth of headroom, rounded up to the next 5000. Enough that the next
+    # session does not trip the ceiling on its first note; small enough that a
+    # month of growth is a decision rather than a drift.
+    chars_cap=$(( (total * 11 / 10 + 4999) / 5000 * 5000 ))
+
+    cat > "$lock" <<EOF
+# Quota ratchet for the agent memory. Read by \`bash .floppy/run lint\`.
+#
+# Seeded by \`init\` on $(date +%Y-%m-%d), from the corpus that was already here:
+# $existing_notes notes, $total characters, longest index $ptr pointers.
+#
+# These numbers are a ratchet, not a style preference. They are not an opinion
+# about how big this memory should be — they are how big it was on the day floppy
+# arrived. Growth past them has to be a deliberate act that shows up in a diff.
+#
+# Raising a number is allowed. Raise it in the SAME commit as the notes that need
+# the room, and say in the commit message why the memory deserves to be bigger.
+# Editing this file to turn a red run green, in its own commit, is the failure
+# mode this file exists to make visible.
+
+# Total characters across the notes. Seeded at the measured $total plus a tenth.
+chars_max=$chars_cap
+
+# One note. A note over the cap is not a long note, it is two notes written as
+# one. This number is the convention's, not a measurement of this corpus.
+note_chars_max=$note_cap
+
+# Notes that were already over the cap when floppy arrived. They warn, they do not
+# fail, and the list is meant to shrink. Do not add to it: a new note over the cap
+# is a note that should have been two.
+grandfathered=$grand
+
+# Pointer lines in one index. Seeded at the longest index found here. An index
+# that outgrows this splits into sub-indexes; it does not raise the number.
+pointers_max=$ptr
+EOF
+    echo "ok quota.lock seeded from this corpus: chars_max=$chars_cap, pointers_max=$ptr"
+    [[ -n "$grand" ]] && echo "   grandfathered over the $note_cap-character note cap: $grand"
+  fi
+
+  # What the linter makes of a corpus written under other conventions, grouped by
+  # kind. Ninety-four identical lines are not a report — they are the raw material
+  # a report is made from, and the shape of the gap is what decides whether
+  # adoption is an afternoon or a week.
+  lint_raw="$(cd "$repo" && bash "$self_dir/memory-lint.sh" 2>&1)"
+  if printf '%s\n' "$lint_raw" | grep -q '^clean:'; then
+    echo "ok memory-lint is clean on this corpus under the seeded ratchet"
+  else
+    echo "!  memory-lint has findings on the notes that were already here."
+    echo "   Nothing was rewritten. Grouped by kind, count first:"
+    printf '%s\n' "$lint_raw" | grep '^  x' | sed 's/.*: //' \
+      | sed 's/[0-9][0-9]*/N/g' | sort | uniq -c | sort -rn | sed 's/^/     /'
+    echo "   full list: bash .floppy/run lint"
+  fi
 fi
 
 # ---------- what this machine still owes ----------

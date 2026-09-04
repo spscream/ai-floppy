@@ -395,9 +395,27 @@ not in `.floppy/config`. One size limit is a fact about the agent application
 instead: `index_chars_max`, in the table above.
 
 The plugin does not supply a `quota.lock` file, and the file is **never copied**
-from one project to a different project. `init` does not create it. Its numbers
-must come from a measurement of the corpus of this project. A limit from a
-different project describes that project, and controls nothing here.
+from one project to a different project. Its numbers must come from a
+measurement of the corpus of this project. A limit from a different project
+describes that project, and controls nothing here.
+
+`init` therefore creates it in exactly one case: the repository **already had
+notes** when floppy arrived. Then there is a corpus to measure, and the numbers
+are this project's own — `chars_max` at the measured total plus a tenth,
+`pointers_max` at the longest index found, and any note already over
+`note_chars_max` listed in `grandfathered` rather than failing the first run. On
+an empty memory `init` creates nothing: there is nothing to measure, and a
+ceiling invented for an empty directory bounds nothing.
+
+Seeding at adoption is what a ratchet is for. It does not say how big this
+memory should be — it says how big it was on the day floppy arrived, so that
+every increase afterwards is a deliberate act visible in a diff. A project
+arriving already over some imported default would go red on its first run, and a
+linter that is red on day one is a linter that gets switched off.
+
+`init` also prints what `lint` makes of an inherited corpus, grouped by kind with
+a count in front of each: ninety-four identical lines are the raw material of a
+report, not a report. It rewrites no note.
 
 While the file is absent, `bash .floppy/run lint` gives a warning. It does not
 fail.
