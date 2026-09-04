@@ -268,5 +268,26 @@ EOF
   echo "ok AGENTS.md: floppy section added"
 fi
 
+# ---------- what this machine still owes ----------
+# Everything above is a file, and a file arrives with `git pull`. The memory link
+# does not: its path is encoded from the checkout location, so it is per machine
+# and per worktree, and skipping it is the one failure here that is completely
+# silent — the session writes its memory into a second copy under ~/.claude, the
+# working copy looks correct, and nothing says otherwise until someone notices
+# the repository never got a note.
+#
+# So init does not end on the word "done". It ends by asking the same checker
+# `status` asks, and naming the command if the answer is no. Adopting several
+# repositories in a loop is what makes this matter: one unwired checkout is
+# noticed, ten are not.
+echo
+if (cd "$repo" && bash "$self_dir/memory-link.sh" --check) >/dev/null 2>&1; then
+  echo "ok memory wiring on this machine is in place"
+else
+  echo "!  not wired on this machine yet — memory would land in a second copy"
+  echo "   under ~/.claude, silently. From $repo run:"
+  echo "     bash .floppy/run link"
+fi
+
 echo
 echo "done"

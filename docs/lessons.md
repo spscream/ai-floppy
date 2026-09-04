@@ -46,6 +46,40 @@ the `git mv` to run**, instead of migrating by itself. Migrating by itself is a
 fork on the other machine; printing the command is cheap. The verb does repair
 the links, because there is no content behind them.
 
+## Folding calls removed the turns it aimed at, and wrap still doubled
+
+Measured 2026-09-05 over **48 `/wrap` runs** in two consumer repositories,
+classifying every assistant turn by the tools it used. The fold of ten commands
+into `check` and `commit` did what it set out to do: calls to the pre-plugin
+`tools/*.sh` were **29% of turns before 2026-08-25 and zero after**. And the
+verbs that replaced them are **3.6% of all 1281 turns** — the mechanical half of
+wrap is now nearly free, and delegating it to a subagent would cost more than it
+saves, since dispatching one and reading its report is two turns for two turns.
+
+The total went the other way. Median turns per wrap: **16 before, 35 after**.
+Both repositories, independently — 32 and 37.
+
+This is not the fold's doing, and the honest reading is that a lot landed on the
+same day: memory moved into a second repository, the state file split from the
+journal, indexes became a tree. Wrap acquired work rather than shedding it. What
+grew: ad-hoc `python3` heredocs **6 turns → 65**, writes to files that are
+neither memory nor the state slice **12 → 84**, reads **13 → 70**.
+
+The part that was stable across both eras is the one worth naming: **17% of all
+turns call no tool at all** — 223 turns of narration, median 97 characters. At
+turns × window, a 97-character sentence in a 238k-token window costs what a file
+edit costs.
+
+Two things follow, and only the second is about code:
+
+- **the unit to count is the turn, and the thing to count it against is a
+  measured baseline.** "We folded ten calls into two" was true and did not make
+  wrap cheaper, because nobody re-measured the total afterwards. A fold that hits
+  its target while the total doubles is indistinguishable, from the bill, from no
+  fold at all;
+- **narration between tool calls is not free.** It is the cheapest turn to
+  remove and the easiest to add without noticing.
+
 ## Derived state beats a config flag
 
 Designing the "memory outside the code repository" layout, a boolean key in the

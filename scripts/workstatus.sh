@@ -210,7 +210,16 @@ echo "  last commit: $(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M' 2>
 # happened should not look like "this project has no project section".
 if [[ -x "$hook" ]]; then
   hr "project"
-  bash "$hook" || echo "  ! project hook exited nonzero — its output above may be partial"
+  # The status and the path, not just "nonzero": the reader's next move is to run
+  # that file and see for themselves, and a warning that names neither leaves them
+  # guessing which of the repository's own scripts spoke. Measured in a consumer
+  # repository on 2026-09-05, where the hook returned 1 on its success path — a
+  # guard clause `[[ cond ]] && echo` on the last line makes the false condition
+  # the script's exit status — and the warning appeared on every healthy session.
+  bash "$hook"; hook_rc=$?
+  if [[ $hook_rc -ne 0 ]]; then
+    echo "  ! ${hook#"$repo"/} exited $hook_rc — its output above may be partial"
+  fi
 elif [[ -e "$hook" ]]; then
   hr "project"
   echo "  ! project hook exists but is not executable — chmod +x ${hook#"$repo"/}"

@@ -45,7 +45,12 @@ chmod +x "$repo/.floppy/workstatus-project.sh"
 out3="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"; rc3=$?
 assert_rc       "broken hook does not fail the report" 0 "$rc3"
 assert_contains "broken hook's partial output still shows" "partial output before the crash" "$out3"
-assert_contains "broken hook is reported"              "project hook exited nonzero" "$out3"
+# Both halves of the warning, not the sentence. The reader's next move is to run
+# that file, so the path has to be in it; the exit status is what says whether the
+# hook meant it. `3` is this fixture's own code, and asserting the number is what
+# would catch a report printing a fixed "nonzero" whatever the hook returned.
+assert_contains "broken hook is reported by path"      ".floppy/workstatus-project.sh" "$out3"
+assert_contains "broken hook's exit status is named"   "exited 3" "$out3"
 
 # 4. a hook that exists but is not executable must not silently vanish: it is
 # reported, and — this is the point of the check — it is NOT run. A marker
