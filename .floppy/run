@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# The only file of this plugin that lands in a consumer repository, as
+# .floppy/run. Since 0.14.0 it does ONE thing: find the plugin and hand the
+# call to it. The verb table and the config parser moved into the plugin
+# (scripts/run, scripts/lib-config.sh), where `plugin update` delivers them.
+#
+# Why that shape. This file is a COPY, carried by the consumer's git, and no
+# plugin update touches it — so whatever lives here goes stale silently and is
+# fixed only when a human remembers to re-copy it. Measured over the first 24
+# commits that touched this file: at least 7 changed only the config parser or
+# the verb table. A third of the refreshes it demanded of every consumer bought
+# them nothing. Locating the plugin is what cannot move — code that finds the
+# plugin cannot itself live in the plugin — and it is also the part whose
+# failures are loud: "plugin not found", never a wrong default applied quietly.
+#
+# Runs on macOS bash 3.2: no mapfile, no declare -A, no GNU-only flags.
+set -uo pipefail
+
+# The plugin cache path carries a version (Claude Code) or a git commit SHA
+# (Cursor) in its last segment and changes on every update, so the only
+# stable handles across both harnesses are the harness-set variable and an
+# explicit override.
+#
+# Each candidate below only counts if it actually has SCRIPTS in scripts/ —
+# a cache entry that exists but is mid-write, or a stale leftover from a
+# broken install, must not be trusted just because it is the newest thing on
+# disk. The directory alone is not evidence, and testing for it was not
+# enough: on 2026-08-25 Claude Code held a cache from a moment when scripts/
+# held only .gitkeep, `claude plugin update` called it "already at the latest
+# version" because the version string had not moved, and every verb died with
+# "No such file or directory" from inside the resolved root. Gating on at
+# least one *.sh makes that candidate fall through to the next layout, or to
+# the install hint below — which is what a broken install should produce.
+#
+# skills/init/SKILL.md duplicates this exact search rather than sourcing it
+# from here: `init` runs before this file exists in the target repository
+# (creating it is init's own first step), so it cannot read this copy. Keep
+# the two in sync by hand if this search ever changes.
+has_scripts() { [[ -n "${1:-}" ]] && ls "$1"/scripts/*.sh >/dev/null 2>&1; }
+claude_cache="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
+cursor_local="$HOME/.cursor/plugins/local/floppy"
+# Cursor's cache path ends in a git commit SHA, not a version — measured on
+# the owner's own machine:
+#   ~/.cursor/plugins/cache/floppy/floppy/ed18232fd3b616d570a707fb8464b678b8542dbf
+# Sorting SHAs with `sort -V` (or any lexicographic sort) orders them by hash
+# value, which has no relationship to recency at all: on a machine with two
+# cached copies it would silently pick an arbitrary one, quite possibly the
+# stale one — exactly the failure mode this whole guard exists to prevent.
+# `ls -dt` sorts candidate directories by modification time instead, which
+# is what "newest" actually means here, and it does so portably across BSD
+# (macOS) and GNU `ls` without touching `stat`'s incompatible flags. Kept as
+# a second, separate lookup rather than unified with claude_cache's sort -V:
+# a mechanism correct for a version-named directory is not correct for a
+# SHA-named one, and unifying them would make one of the two wrong.
+cursor_cache="$(ls -dt "$HOME"/.cursor/plugins/cache/*/floppy/*/ 2>/dev/null | head -n1)"
+
+# A cache path is a guess, and falling through a wrong guess in silence is
+# right. A variable somebody SET is not a guess — it states where the plugin
+# is — and falling through that in silence is how a call ends up against a
+# different copy than the one named. Measured 2026-08-25: AI_FLOPPY_HOME was
+# pointed at a directory holding no plugin, the search fell through to the
+# Claude Code cache, an older copy answered, and a script that had just been
+# fixed was reported as still broken. Nothing in the output said which copy
+# had run.
+#
+# The two variables are not treated alike, because they are not alike.
+# AI_FLOPPY_HOME belongs to floppy and nothing else sets it, so a bad value is
+# a mistake and this stops. CLAUDE_PLUGIN_ROOT is set by the harness per
+# plugin, and a call made from inside some other plugin's skill can carry that
+# other plugin's root through no fault of anyone's — so that one warns, names
+# the root it used instead, and carries on.
+if [[ -n "${AI_FLOPPY_HOME:-}" ]] && ! has_scripts "$AI_FLOPPY_HOME"; then
+  echo "x AI_FLOPPY_HOME is set to '$AI_FLOPPY_HOME', which holds no scripts/*.sh" >&2
+  echo "  That variable names where the plugin is, so this stops rather than" >&2
+  echo "  searching the caches behind your back: a run against a copy other than" >&2
+  echo "  the one you named is how a fixed script gets reported as still broken." >&2
+  echo "  Unset it, or point it at a floppy checkout." >&2
+  exit 1
+fi
+
+# CURSOR_PLUGIN_ROOT before the caches, and it was missing entirely until
+# 0.14.0. Cursor exports it the way Claude Code exports CLAUDE_PLUGIN_ROOT
+# (measured 2026-08-26 from a cross-harness plugin that branches on the two by
+# name), and an answer from the harness beats the guesswork below: on the
+# owner's own machine `~/.cursor/plugins/cache/floppy/floppy/` exists and is
+# EMPTY, so the cache branch resolves nothing and only the local symlink saves
+# the run. A variable naming the root cannot be wrong about which copy is live.
+if   has_scripts "${CLAUDE_PLUGIN_ROOT:-}"; then
+  FLOPPY_ROOT="$CLAUDE_PLUGIN_ROOT"
+elif has_scripts "${CURSOR_PLUGIN_ROOT:-}"; then
+  FLOPPY_ROOT="$CURSOR_PLUGIN_ROOT"
+elif has_scripts "${AI_FLOPPY_HOME:-}"; then
+  FLOPPY_ROOT="$AI_FLOPPY_HOME"
+elif has_scripts "$claude_cache"; then
+  FLOPPY_ROOT="$claude_cache"
+elif has_scripts "$cursor_local"; then
+  FLOPPY_ROOT="$cursor_local"
+elif has_scripts "$cursor_cache"; then
+  FLOPPY_ROOT="$cursor_cache"
+fi
+
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && ! has_scripts "$CLAUDE_PLUGIN_ROOT"; then
+  echo "! CLAUDE_PLUGIN_ROOT is set to '$CLAUDE_PLUGIN_ROOT', which holds no scripts/*.sh." >&2
+  echo "  Ignoring it and using ${FLOPPY_ROOT:-nothing found} instead." >&2
+fi
+
+if ! has_scripts "${FLOPPY_ROOT:-}"; then
+  echo "x floppy plugin not found." >&2
+  echo "  Claude Code:  /plugin marketplace add spscream/ai-floppy && /plugin install floppy" >&2
+  echo "  Cursor:       Dashboard -> Plugins -> Add Marketplace -> Import from Repo (spscream/ai-floppy)" >&2
+  echo "  Cursor (dev): ln -s /path/to/ai-floppy ~/.cursor/plugins/local/floppy" >&2
+  echo "  Or point AI_FLOPPY_HOME at a checkout directly." >&2
+  echo "  A cache directory that exists but holds no scripts/*.sh counts as not found:" >&2
+  echo "  reinstall rather than trusting \`plugin update\`, which is a no-op while the version is unchanged." >&2
+  exit 1
+fi
+export FLOPPY_ROOT
+
+# Is this copy the same file as the plugin's? Both are on disk now, so the
+# question is one `cmp` away.
+#
+# Why every call and not just a red one: this file is a COPY in the consumer
+# repository and does not arrive with `plugin update`, and the ways it goes
+# stale are mostly SILENT. A missing verb announces itself; a fixed config
+# parser, a fixed repository resolver, a corrected search order do not — the
+# old copy simply keeps doing the old thing. Measured over the first week after
+# extraction: the shim took 9 commits, and 4 of the 8 after the first were in
+# the plugin resolver — the one part that by construction cannot move into the
+# plugin, so no amount of shrinking this file removes them. A content
+# comparison covers all 8.
+#
+# The hint is a bare `cp` rather than a verb like `refresh` on purpose: a shim
+# old enough to need refreshing is by definition too old to know the verb that
+# would do it.
+#
+# Silent when the plugin ships no shim/ (some install layouts flatten it) —
+# a check with nothing to compare against must not invent a warning. Silent
+# too when this IS the plugin's own copy, which is the case while developing
+# the plugin itself.
+self="${BASH_SOURCE[0]:-$0}"
+# Absolute, because the hint below is a command a human is meant to paste, and
+# this file is normally invoked as the relative `.floppy/run` — from a shell
+# whose working directory the reader may no longer be in by the time they read
+# the warning.
+case "$self" in
+  /*) ;;
+  *)  self="$(cd "$(dirname "$self")" 2>/dev/null && pwd -P)/$(basename "$self")" ;;
+esac
+plugin_shim="$FLOPPY_ROOT/shim/run"
+if [[ -f "$self" && -f "$plugin_shim" ]] && ! cmp -s "$self" "$plugin_shim"; then
+  # Its own path, not one derived from the repository root: this file no longer
+  # resolves the repository (scripts/run does), and a hint that names the wrong
+  # copy is worse than none where several checkouts are open at once.
+  echo "! .floppy/run differs from the installed plugin's shim — usually stale: cp \"$plugin_shim\" \"$self\"" >&2
+fi
+# Everything else is the plugin's. A plugin new enough to be found but too old
+# to have a dispatcher is named as such: the alternative is `bash: .../run: No
+# such file or directory`, which reads as a broken install.
+if [[ ! -f "$FLOPPY_ROOT/scripts/run" ]]; then
+  echo "x the installed plugin has no scripts/run — it predates 0.14.0" >&2
+  echo "  This copy of .floppy/run only locates the plugin; the verbs live in the" >&2
+  echo "  plugin itself now. Update the plugin on this machine, and remember that" >&2
+  echo "  \`plugin update\` is a no-op while the version string is unchanged." >&2
+  echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
+  exit 1
+fi
+exec bash "$FLOPPY_ROOT/scripts/run" "$@"

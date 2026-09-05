@@ -1,0 +1,44 @@
+# floppy config — flat key=value, one per line. See the agent-memory skill
+# for what each key governs.
+memory_dir=.agent-memory
+memory_language=en
+
+# This repository does not hold its own memory: memory_dir is a symlink into
+# the store below. Wire it on each machine with "bash .floppy/run store".
+public_repo=git@github.com:spscream/ai_floppy_memory.git
+# One key, not two: project_key is the default of both memory_project_key and
+# workplace_project_key, so the project is named the same in every store it
+# uses. init writes the narrow memory_project_key when given --memory-key,
+# which would leave the workplace scope needing a second key that can drift
+# from this one.
+project_key=ai_floppy
+
+# The private scope: facts about this project the public repository must not
+# carry. A second store entirely, and the personal one — the same repository
+# agents_harness and effectssdk already use, so this project appears there as
+# private/projects/ai_floppy beside them.
+private_repo=git@github.com:spscream/agents_memory.git
+# Checkout paths are derived: agents_memory_dir (default /home/amalaev/agents_memory)
+# holds one checkout per repository URL. workplace_memory_dir overrides that
+# for this repository only, and is rarely needed.
+# workplace_memory_dir=/path/to/your/workplace-memory-checkout
+
+# commit_push controls what "bash .floppy/run commit" does after committing:
+# auto (default) pulls --rebase then pushes, same as always. A repository
+# with no upstream configured fails that every time — set commit_push=never
+# to keep every commit local instead (the --no-push flag does this per call).
+# commit_push=never
+
+# statuses_now=docs/statuses/NOW.md
+# statuses_now_chars_max=12000
+
+# What wrap may commit here. Deliberately narrow: in THIS repository the
+# session procedure is the product — skills/, scripts/, shim/, tests/ are the
+# tool itself, and they belong in ordinary reviewed commits, not in a closing
+# rite. docs/ and the two wiring files are the whole of it.
+watched_dirs=docs
+watched_files=AGENTS.md,.floppy/run,.floppy/config
+
+# A metric that got worse stays in the current-state file, marked. The mark is
+# the word the file is written in, and this memory is English.
+statuses_regress_marks=worse

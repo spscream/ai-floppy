@@ -9,3 +9,10 @@
 .site/
 _site/
 
+
+# memory lives in the store repository, not here
+/.agent-memory
+
+# floppy: the private memory scope — a symlink into the private memory
+# repository, never committed here (see agent-memory)
+/.agent-memory/private
