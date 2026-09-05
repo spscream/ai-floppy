@@ -392,9 +392,34 @@ This file is in the memory directory. It contains four limits:
 - `pointers_max` — the pointers in one index.
 - `pointer_line_max` — the characters in one pointer line. The default is 170.
 
-All four are facts about **this** corpus. Thus they stay with the memory, and
+A fifth is optional and written once per half: `half_chars_max.<half>` bounds
+one half of the tree on its own, and `half_chars_max.root` covers the notes
+that sit directly in the memory directory. A half with no key of its own is not
+bounded, so a corpus that sets none behaves exactly as it did before the keys
+existed.
+
+All of them are facts about **this** corpus. Thus they stay with the memory, and
 not in `.floppy/config`. One size limit is a fact about the agent application
 instead: `index_chars_max`, in the table above.
+
+**Every one of these ceilings warns before it refuses.** At 96% of a ceiling
+`lint` prints a `!` line naming it — the run still passes — and the corpus
+ceiling brings the per-half breakdown with it, so the line says which half
+grew. The exception is `pointer_line_max`: it bounds one line, and a line at
+165 of 170 characters is not approaching anything, it is a line that fits.
+
+The band exists because of who a hard stop lands on. A ceiling that only
+refuses stops whoever crosses it, and on a memory written from several machines
+that is routinely not whoever filled it. The ratchet below says a number may be
+raised only in the same commit as the notes that needed the room — so a session
+that meets a bare refusal has to either raise a ceiling it did not fill, or
+prune a half it did not write, and pruning another session's notes is the one
+thing the wrap rite forbids outright. The warning reaches the session that is
+doing the filling, while the work of trimming is still its own.
+
+The 96% is derived from each ceiling, not configured. Two numbers that have to
+be kept in a fixed relation are two chances to set them wrong, and nobody has a
+reason to want the warning at some other fraction.
 
 The plugin does not supply a `quota.lock` file, and the file is **never copied**
 from one project to a different project. Its numbers must come from a
@@ -417,7 +442,11 @@ linter that is red on day one is a linter that gets switched off.
 
 `init` also prints what `lint` makes of an inherited corpus, grouped by kind with
 a count in front of each: ninety-four identical lines are the raw material of a
-report, not a report. It rewrites no note.
+report, not a report. It rewrites no note. A clean verdict comes with the
+linter's warnings printed under it, because "nothing is wrong" and "nothing to
+do" are different reports — and one warning is created by adoption itself:
+`pointers_max` is seeded at the longest index found, which leaves that index at
+100% of its own ceiling from the first run.
 
 While the file is absent, `bash .floppy/run lint` gives a warning. It does not
 fail.

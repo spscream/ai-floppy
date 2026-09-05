@@ -35,6 +35,32 @@ err() { printf '  x %s\n' "$1"; fail=1; }
 warn() { printf '  ! %s\n' "$1"; }
 hr() { printf '%s\n' "-- $1"; }
 
+# The fraction of a ceiling at which this script starts saying so, shared by
+# every ceiling it checks: the index, the corpus, one half, one note, one
+# index's pointers. Derived rather than configured, for the reason the index
+# section states below — two numbers that must be kept in a fixed relation are
+# two chances to set them wrong — and shared rather than per-ceiling for the
+# same reason multiplied by five.
+#
+# Why a band and not just a cap. A ceiling that only fails stops whoever
+# CROSSES it, and that is routinely not whoever filled it: the halves grow on
+# different machines, and the ratchet rule says a ceiling may be raised only in
+# the same commit as the notes that needed the room. So the session that trips
+# a hard stop has to either raise a number it did not fill or prune a half it
+# did not write — and pruning a neighbouring session's notes is the one thing
+# the wrap procedure forbids outright. The band is what lets the session that
+# IS filling a ceiling see that happening, while the fix is still its own work.
+#
+# Measured on a consumer corpus 2026-09-05, and this is what the band is for:
+# a half budget set that day at +10% over a 68311-character measurement stood
+# at 72694 of 75000 — 96.9% — four commits later the same day. 66% of the
+# headroom went in one day, and every run in between printed `clean`.
+#
+# pointer_line_max is deliberately not in this list. It bounds one line, and a
+# line at 165 of 170 characters is not approaching anything — it is a line that
+# fits. The other five bound something that accumulates.
+WARN_PCT=96
+
 # Characters, not bytes: the memory is Russian, so a byte count runs ~1.55x
 # ahead of what a reader (or the session loader) counts. LC_ALL=C keeps awk on
 # bytes and the UTF-8 continuation bytes (0x80-0xBF) are subtracted. This
@@ -293,7 +319,7 @@ case "$IDX_MAX" in
   ''|*[!0-9]*) err "index_chars_max is '$IDX_MAX' in .floppy/config, expected a number — falling back to 24500"
                IDX_MAX=24500 ;;
 esac
-IDX_WARN=$(( IDX_MAX * 96 / 100 ))
+IDX_WARN=$(( IDX_MAX * WARN_PCT / 100 ))
 
 # Read before the quota section below, because it is used here. Absent
 # quota.lock is normal on a fresh memory, so the default has to stand on its
@@ -319,7 +345,7 @@ for f in "${indexes[@]}"; do
   elif [[ "$f" == "$IDX" && "$chars" -gt "$IDX_MAX" ]]; then
     err "$rel: $chars characters, over the $IDX_MAX cap — the session loader truncates the tail and nobody is told which section it dropped"
   elif [[ "$chars" -gt "$IDX_WARN" ]]; then
-    printf '  ! %s\n' "$rel: $chars characters, approaching the $IDX_MAX cap — shorten pointer lines or split the half"
+    warn "$rel: $chars characters, approaching the $IDX_MAX cap — shorten pointer lines or split the half"
   fi
 
   while IFS= read -r __long; do
@@ -380,10 +406,21 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   # One note. A note over the cap is not a long note, it is two notes that were
   # written as one; on this corpus the cap caught exactly the pair that
   # flow/memory-hygiene-lessons already calls a session dump.
+  #
+  # The band matters most here of all the ceilings, because a note is written
+  # in one sitting: the session inside the band is the very session that is
+  # about to cross it, and it is holding the material to split. A session that
+  # opens the file later and finds it already over has to reconstruct which two
+  # facts it was.
+  note_warn=$(( note_chars_max * WARN_PCT / 100 ))
   for f in "${notes[@]+"${notes[@]}"}"; do
     rel="${f#"$MEM"/}"
     c="$(chars_of "$f")"
-    [[ "$c" -le "$note_chars_max" ]] && continue
+    [[ "$c" -le "$note_warn" ]] && continue
+    if [[ "$c" -le "$note_chars_max" ]]; then
+      warn "$rel: $c characters, approaching the $note_chars_max cap — the next paragraph makes it a second note, not a longer one"
+      continue
+    fi
     case "$grandfathered" in
       *",$rel,"*) warn "$rel: $c characters, over the $note_chars_max cap — grandfathered in quota.lock, still worth splitting" ;;
       *) err "$rel: $c characters, over the $note_chars_max cap — split it into one fact per file instead of raising the cap" ;;
@@ -420,11 +457,21 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   done
   halves="$(printf '%s' "$half_tally" | awk 'NF { n[$1] += $2 } END { for (h in n) printf "%s %d\n", h, n[h] }' | sort -k2,2nr)"
 
+  # Printed with the corpus line and nowhere else: this script says nothing when
+  # clean, and a breakdown nobody asked for is the kind of line that trains
+  # people to skim. It goes with the warning as well as the failure, because
+  # "the memory is nearly full" without "and this half is why" leaves the reader
+  # to measure the corpus by hand — which is the work the tally already did.
+  by_half() {
+    printf '    by half: %s\n' "$(printf '%s\n' "$halves" | awk 'NF { printf "%s%s %s", (c++ ? ", " : ""), $1, $2 } END { print "" }')"
+  }
+
   if [[ "$total_chars" -gt "$chars_max" ]]; then
     err "$total_chars characters, over the $chars_max in quota.lock — raise chars_max in the same commit and say why, or drop what went stale"
-    # Printed only on the failure: this script says nothing when clean, and a
-    # breakdown nobody asked for is the kind of line that trains people to skim.
-    printf '    by half: %s\n' "$(printf '%s\n' "$halves" | awk 'NF { printf "%s%s %s", (c++ ? ", " : ""), $1, $2 } END { print "" }')"
+    by_half
+  elif [[ "$total_chars" -gt $(( chars_max * WARN_PCT / 100 )) ]]; then
+    warn "$total_chars characters, approaching the $chars_max in quota.lock — drop what went stale now, while this is still the session that grew it"
+    by_half
   fi
 
   # Optional per-half budgets: `half_chars_max.<half>=N`. A half with no key is
@@ -440,17 +487,30 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
         err "quota.lock: half_chars_max.$__h is '$__hm', expected a number — that half is not bounded"
         continue ;;
     esac
-    [[ "$__c" -gt "$__hm" ]] && err "$__h: $__c characters, over the $__hm for that half in quota.lock — prune the half that grew rather than the corpus that did not"
+    if [[ "$__c" -gt "$__hm" ]]; then
+      err "$__h: $__c characters, over the $__hm for that half in quota.lock — prune the half that grew rather than the corpus that did not"
+    elif [[ "$__c" -gt $(( __hm * WARN_PCT / 100 )) ]]; then
+      warn "$__h: $__c characters, approaching the $__hm for that half in quota.lock — prune it in this session, which is the one adding to it"
+    fi
   done <<EOF
 $halves
 EOF
 
   # One index. Past a point a half index stops being a router and becomes a
   # list nobody reads to the end; the fix is sub-indexes, not a bigger number.
+  # Splitting a half is the largest of the fixes this script asks for, so it is
+  # the one that least wants to be discovered by a session that came to write
+  # one note — hence the band here too. An index sitting exactly at the cap is
+  # inside it by definition: full, and refusing the next note.
+  ptr_warn=$(( pointers_max * WARN_PCT / 100 ))
   for f in "${indexes[@]}"; do
     rel="${f#"$MEM"/}"
     n="$(grep -c '^- \[' "$f")"
-    [[ "$n" -gt "$pointers_max" ]] && err "$rel: $n pointer lines, over the $pointers_max in quota.lock — split the half into sub-indexes"
+    if [[ "$n" -gt "$pointers_max" ]]; then
+      err "$rel: $n pointer lines, over the $pointers_max in quota.lock — split the half into sub-indexes"
+    elif [[ "$n" -gt "$ptr_warn" ]]; then
+      warn "$rel: $n pointer lines, approaching the $pointers_max in quota.lock — plan the sub-index split before the cap forces it"
+    fi
   done
 fi
 

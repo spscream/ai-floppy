@@ -193,4 +193,30 @@ assert_eq "adopt: second run did not change the lock" "$lock4" "$(cat "$repo4/.a
 
 rm -rf "$repo4"
 
+# ---------- adoption reports the warnings, not only the verdict ----------
+# "clean" means nothing is wrong, which is not the same report as "nothing to
+# do": a ceiling inside its warning band passes the run and still asks for work.
+# The case that makes this load-bearing is the one adoption creates itself —
+# pointers_max is seeded at the longest index found, so that index sits at 100%
+# of its own ceiling from the first run. A note grandfathered over the note cap
+# is the same shape and far cheaper to build, so it is what this pins down.
+repo5="$(sandbox)"
+rmdir "$repo5/.floppy" 2>/dev/null || true
+mkdir -p "$repo5/.agent-memory"
+note5() { # $1 name, $2 how many body lines
+  { printf -- '---\nname: %s\ndescription: d\nmetadata:\n  type: project\n  evidence: read\n---\n\n' "$1"
+    i=0; while [[ $i -lt "$2" ]]; do printf 'ten chars.\n'; i=$((i+1)); done; }
+}
+note5 small-one 1  > "$repo5/.agent-memory/small-one.md"
+note5 fat-one   1200 > "$repo5/.agent-memory/fat-one.md"
+printf -- '- [Small one](small-one.md) — a\n- [Fat one](fat-one.md) — b\n' \
+  > "$repo5/.agent-memory/MEMORY.md"
+
+out5="$(bash scripts/init.sh --repo "$repo5" --memory-dir .agent-memory --language en 2>&1)"
+assert_contains "adopt: an otherwise clean corpus is reported clean" \
+  "memory-lint is clean" "$out5"
+assert_contains "adopt: and the warning is printed beside the verdict" \
+  "grandfathered in quota.lock" "$out5"
+rm -rf "$repo5"
+
 summary

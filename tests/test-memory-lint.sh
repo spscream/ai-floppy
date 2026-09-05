@@ -436,4 +436,83 @@ assert_contains "and the breakdown names the largest half first" "by half: alpha
 rm -rf "$repoH"
 
 
+# ---------- the warning band on every ceiling ----------
+# A ceiling that only fails stops whoever CROSSES it, and that is routinely not
+# whoever filled it: the halves grow on different machines, and the ratchet says
+# a number may be raised only in the same commit as the notes that needed the
+# room. So the session that trips a hard stop must either raise a ceiling it did
+# not fill or prune a half it did not write. The band is what lets the session
+# that IS filling one see it happening.
+#
+# The numbers below are exact character counts, not estimates: note_body writes
+# 79 + length(name) + padding characters, so big is 2082 and small is 134, and
+# the pair is 2216. A band assertion is only worth anything if the corpus really
+# sits inside the band, so these are placed by arithmetic rather than by eye.
+repoW="$(sandbox)"; cp shim/run "$repoW/.floppy/run"
+echo "memory_dir=brain" > "$repoW/.floppy/config"
+mkdir -p "$repoW/brain/alpha" "$repoW/brain/beta"
+printf '# Index\n- [Alpha](alpha/INDEX.md) — pointer\n- [Beta](beta/INDEX.md) — pointer\n' > "$repoW/brain/MEMORY.md"
+printf '# Alpha\n- [Big](big.md) — pointer\n' > "$repoW/brain/alpha/INDEX.md"
+printf '# Beta\n- [Small](small.md) — pointer\n' > "$repoW/brain/beta/INDEX.md"
+note_body big 2000 > "$repoW/brain/alpha/big.md"   # 2082 characters
+note_body small 50 > "$repoW/brain/beta/small.md"  #  134 characters
+
+lintW() { OUTW="$(cd "$repoW" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RCW=$?; }
+
+# Far below every ceiling: still silent. Without this the assertions after it
+# would pass just as well on a script that warns about everything always.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repoW/brain/quota.lock"
+lintW
+assert_rc "a corpus well under its ceilings passes" 0 "$RCW"
+case "$OUTW" in
+  *approaching*) fail "and says nothing about approaching anything" "silence" "$OUTW" ;;
+  *)             ok   "and says nothing about approaching anything" ;;
+esac
+
+# The corpus, at 2216 of 2250 — 98.5%, inside the band, under the cap.
+printf 'chars_max=2250\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repoW/brain/quota.lock"
+lintW
+assert_rc       "a corpus inside the band does not fail the run" 0 "$RCW"
+assert_contains "and the corpus cap is named as approaching" "approaching the 2250" "$OUTW"
+# Naming which half grew is the whole point of the per-half tally, and a
+# warning that omits it sends the reader to measure the corpus by hand.
+assert_contains "and the breakdown comes with the warning too" "by half: alpha" "$OUTW"
+
+# One half, at 2082 of 2100 — 99.1%. The corpus cap is nowhere near, so nothing
+# but the half can be the source of this line.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\nhalf_chars_max.alpha=2100\ngrandfathered=\n' > "$repoW/brain/quota.lock"
+lintW
+assert_rc       "a half inside its band does not fail the run" 0 "$RCW"
+assert_contains "and the half that is filling up is named" "alpha: 2082 characters, approaching" "$OUTW"
+case "$OUTW" in
+  *"beta:"*) fail "and a half with no key is still unbounded" "beta unmentioned" "$OUTW" ;;
+  *)         ok   "and a half with no key is still unbounded" ;;
+esac
+
+# One note, at 2082 of 2100. A note approaching the cap is a note about to
+# become two, and the band is when splitting it is still cheap.
+printf 'chars_max=100000\nnote_chars_max=2100\npointers_max=40\ngrandfathered=\n' > "$repoW/brain/quota.lock"
+lintW
+assert_rc       "a note inside its band does not fail the run" 0 "$RCW"
+assert_contains "and the note is named"  "alpha/big.md: 2082 characters, approaching" "$OUTW"
+case "$OUTW" in
+  *"beta/small.md"*) fail "and a small note is not mentioned" "small unmentioned" "$OUTW" ;;
+  *)                 ok   "and a small note is not mentioned" ;;
+esac
+
+# Pointers, at 2 of 2 in MEMORY.md: full is inside the band by definition, and
+# the fix — split the half — is the same one the failure asks for, only while
+# there is still room to do it calmly.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=2\ngrandfathered=\n' > "$repoW/brain/quota.lock"
+lintW
+assert_rc       "an index inside its pointer band does not fail the run" 0 "$RCW"
+assert_contains "and the index is named" "MEMORY.md: 2 pointer lines, approaching" "$OUTW"
+
+# Over is still over: the band must not have turned a failure into a hint.
+printf 'chars_max=100\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repoW/brain/quota.lock"
+lintW
+assert_rc "a corpus over its cap still fails" 1 "$RCW"
+rm -rf "$repoW"
+
+
 summary

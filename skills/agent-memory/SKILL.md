@@ -99,6 +99,16 @@ different people, and one number for the whole corpus cannot say which is which.
 When the corpus cap does trip, the linter now prints the per-half breakdown
 beside it, whether or not any per-half key is set.
 
+**Every ceiling warns at 96% before it refuses at 100%.** The run still passes;
+`lint` prints a `!` line naming the ceiling and, for the corpus one, the
+breakdown by half. This is what you act on: at a warning the fix is still small
+and still yours — drop what went stale, split the note you are writing, plan
+the sub-index. Wait for the refusal and it lands on whichever session crosses
+the line, which on a memory written from two machines is routinely not the one
+that filled it, and that session may not raise the ceiling (the ratchet below)
+nor prune a neighbour's notes (the wrap rite). `pointer_line_max` has no band:
+it bounds one line, and a line near the limit is a line that fits.
+
 All of them are facts about **this** corpus, which is why they live with the
 memory. The one size limit that is not — the ceiling on the index the harness
 loads into every session, which it truncates in silence — is a fact about the

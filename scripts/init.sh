@@ -377,6 +377,14 @@ EOF
   lint_raw="$(cd "$repo" && bash "$self_dir/memory-lint.sh" 2>&1)"
   if printf '%s\n' "$lint_raw" | grep -q '^clean:'; then
     echo "ok memory-lint is clean on this corpus under the seeded ratchet"
+    # Clean means nothing is WRONG, not that nothing needs doing, and the two
+    # are not the same report. A ceiling inside its warning band passes the run
+    # and still asks for work — and `pointers_max` is seeded at the longest
+    # index found here, which puts that index at 100% of its own ceiling by
+    # construction: the next pointer added to that half fails. Printing the
+    # verdict and dropping the `!` lines would hide, on the one run an adopter
+    # reads line by line, exactly the warning that exists to be read early.
+    printf '%s\n' "$lint_raw" | grep '^  !' | sed 's/^  !/   !/'
   else
     echo "!  memory-lint has findings on the notes that were already here."
     echo "   Nothing was rewritten. Grouped by kind, count first:"

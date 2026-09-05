@@ -18,6 +18,62 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.16.0 — 2026-09-05
+
+**Refresh `.floppy/run`: no.** The change is entirely inside the plugin.
+
+Every ceiling `memory-lint` enforces now **warns at 96% before it refuses at
+100%**. Until this release exactly one of them did — the index, through a
+derived `IDX_WARN` — and `chars_max`, `half_chars_max.<half>`, `note_chars_max`
+and `pointers_max` went from silence straight to a failed run.
+
+Reported from a consumer corpus of 158 notes across four halves ([#1]). Its
+`flow` half sat at **72694 of 75000 — 96.9%** while `lint` printed
+`clean: 158 notes, 166 pointers across 8 indexes`. The budget had been set the
+same day at +10% over a 68311-character measurement: 66% of that headroom went
+in one day, four commits, with nothing said.
+
+The band is not cosmetic, because of who a bare refusal lands on. It stops
+whichever session *crosses* a ceiling, and on a memory written from several
+machines that is routinely not the session that filled it. The ratchet says a
+number may be raised only in the same commit as the notes that needed the room
+— so that session must either raise a ceiling it did not fill, or prune a half
+it did not write, and pruning a neighbouring session's notes is the one thing
+the wrap rite forbids outright. A warning reaches the session doing the
+filling, while trimming is still its own work.
+
+- One fraction, shared by all five ceilings and derived from each, rather than
+  a knob per ceiling: the argument the index section already made — two numbers
+  kept in a fixed relation are two chances to set them wrong — does not get
+  better when repeated five times.
+- The per-half breakdown now prints with the corpus **warning** as well as the
+  corpus failure. Naming which half grew is the whole point of the per-half
+  tally, and "the memory is nearly full" without it sends the reader to measure
+  by hand.
+- `pointer_line_max` deliberately has no band. It bounds one line, and a line
+  at 165 of 170 characters is not approaching anything — it is a line that
+  fits. The other five bound something that accumulates.
+
+Warnings do not fail a run: every `x` in this release's output was an `x`
+before it, and rc is unchanged for every corpus that was passing or failing.
+What changes is that a passing run can now be talkative. Two cases are worth
+expecting on the first run after the update:
+
+- A corpus seeded by `init` has `pointers_max` at the longest index it found,
+  which is 100% of that ceiling by construction — so the index that set the
+  number now says so. That is accurate: the next pointer added to that half
+  fails. Plan the sub-index split, or raise the number deliberately.
+- `chars_max` seeded by `init` carries a tenth of headroom, so a freshly
+  adopted corpus sits at ~91% and stays quiet.
+
+And because of the first of those, `init` now prints the linter's `!` lines
+beside its verdict instead of only the verdict. It reported `memory-lint is
+clean` and dropped them — true, and not the same report as "nothing to do".
+The warning that adoption itself creates was landing on the one run an adopter
+reads line by line, and being swallowed there.
+
+[#1]: https://github.com/spscream/ai-floppy/issues/1
+
 ## 0.15.1 — 2026-09-05
 
 **Refresh `.floppy/run`: no.** The shim is unchanged; the fix is in `init`.
