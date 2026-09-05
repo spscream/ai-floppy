@@ -131,3 +131,73 @@ Applying it:
   under any layout, and exactly the shape of a half-finished setup;
 - the derivation must be cheap and portable. Here it is `cd && pwd -P`, because
   `realpath` and `readlink -f` on macOS are not the ones you want.
+
+## A test that recomputes the rule agrees with any rule, including a wrong one
+
+The general form of this is old and in every book about testing. What is
+written down here is not the maxim — it is that this repository **argued its
+way into the exception, in writing, in the same release that fixed the same
+class of bug**, and paid for it twice within a day.
+
+`tests/test-memory-link.sh` needed to know where Claude Code puts a project's
+memory directory, so it computed the answer the way the script computes it:
+
+```sh
+enc="$(printf '%s' "$repo2" | tr '/.' '--')"
+```
+
+**2026-09-05, first bite.** 0.16.1 fixed `link` for a checkout path containing
+`_`, which the harness folds like `/` and `.` and the script did not. Nothing
+had been red. The script created the directory it had computed and reported
+success, `--check` agreed because it asked the same line, and `status` reported
+the wiring as present — while two of one machine's three consumers wrote memory
+into a directory the harness never opens, one of them across fifteen sessions.
+The test agreed throughout, because it derived its expectation by performing the
+subject's transformation.
+
+The regression test for that release asserted the **result** instead — a
+hardcoded directory name — and its comment said so, explicitly, while excusing
+the line above it:
+
+> line 30 above still does exactly that, deliberately — it only needs to agree
+> with the script, not to judge it
+
+**2026-09-05, second bite.** That reasoning survived nine hours. macOS CI began
+failing and passing on the same commit: its `TMPDIR` is
+`/var/folders/<random>/T/`, the random component carries `_` some of the time,
+and on those runs the test's pre-created directory landed where `--check` no
+longer looked. Linux never showed it — `TMPDIR` there is `/tmp`. A red `main`,
+and a job that reads as flaky when it is perfectly deterministic on an input
+nobody was looking at.
+
+Why the excuse was wrong. "It only needs to agree with the script" is true and
+useless: agreement is exactly what a wrong rule also produces. A check derived
+from its subject has no opinion about the subject. It reports whether the code
+is self-consistent, which it always is, and the moment the rule moves the check
+moves with it — silently, in the same commit, with no diff to review, because
+the two copies of the rule are in different files and only one of them was
+edited.
+
+**Rule: build the state, do not address it.** The fix wires the repository, asks
+the filesystem which directory the script actually made, and replaces it with a
+directory. The test no longer contains the encoding rule in any form, so it
+cannot hold a stale copy of one.
+
+Three things follow:
+
+- **a test may not re-derive the value it is checking.** Assert a literal, or
+  read the artefact back out of the world. If the expected value is expensive to
+  write down, that cost is the test doing its job;
+- **"it only needs to agree" is the sound the trap makes.** The same sentence
+  fits every tautological check ever written, which is why it convinces. Treat
+  a written justification for recomputation as a defect report, not as a comment;
+- **falsify the replacement.** Both fixes on 2026-09-05 were checked by putting
+  the defect back and confirming the test went red. Replacing a check that
+  agreed with anything by a check that passes for a different wrong reason is
+  the same bug with new spelling, and nothing else in a green run distinguishes
+  them.
+
+This is the same blindness as `form-checks-cannot-see-false` in the
+[knowledge base](knowledge/README.md), one level down: there a linter sees a
+note's shape and not its truth, here a test sees the code's self-consistency and
+not its correctness. Both stay green by construction.
