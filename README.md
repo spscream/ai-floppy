@@ -141,7 +141,9 @@ Run `init` one time in each repository.
 - writes `.floppy/config`.
 - creates the memory index `<memory_dir>/MEMORY.md`.
 - creates the state file `docs/statuses/NOW.md`.
-- adds the machine-local memory directory to `.gitignore`.
+- adds the private memory scope to `.gitignore`. That path becomes a symlink
+  into the private memory repository, and the code repository must not carry
+  it. The name is `memory_private_dir`, so it matches what `workplace` creates.
 - adds a pointer to `agent-memory` in your `AGENTS.md`.
 
 `init` is idempotent. If the repository is already prepared, a second run

@@ -18,6 +18,37 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.15.1 — 2026-09-05
+
+**Refresh `.floppy/run`: no.** The shim is unchanged; the fix is in `init`.
+
+- `init` wrote the wrong name into `.gitignore`. The line it appended was
+  `/<memory_dir>/local` — the name the private scope carried **before 0.6.0**,
+  and the one `memory-workplace.sh` now migrates away from — while the symlink
+  that script actually creates is `/<memory_dir>/<memory_private_dir>`, default
+  `private`. So a freshly initialised repository ignored a path nothing
+  creates, and on the first `workplace` the real symlink came out untracked:
+  either committed into the code repository, which is the one thing the ignore
+  exists to prevent, or tripping over the guard on every wrap.
+
+  Nothing reported it, in either direction. The `.gitignore` looks configured,
+  and the test suite asserted the wrong name back — with an exact-line
+  assertion, which made it look rigorous. `init` now takes the leaf from
+  `memory_private_dir` when the config already carries the key and defaults to
+  `private` otherwise, and a regression test refuses the pre-0.6.0 name
+  outright.
+
+  A repository initialised before this release has the wrong line already.
+  Re-running `init` does not remove it — `init` never deletes: fix it by hand,
+  or add the right line beside it. Check with
+  `git check-ignore -v <memory_dir>/private`; on effectssdk, the first consumer,
+  the line had already been corrected by hand.
+
+- README said `init` "adds the machine-local memory directory to
+  `.gitignore`". Nothing about that scope is machine-local — a hundred lines
+  below, the same file explains that this is exactly why the name was dropped
+  in 0.7.0.
+
 ## 0.15.0 — 2026-09-05
 
 **Refresh `.floppy/run`: no.** The change is entirely inside the plugin.

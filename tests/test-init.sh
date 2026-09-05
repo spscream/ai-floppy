@@ -37,14 +37,22 @@ assert_contains "config carries memory_language" "memory_language=en"      "$(ca
 live_workplace_line="$(grep -v '^[[:space:]]*#' "$repo/.floppy/config" | grep '^private_repo=' || true)"
 assert_eq "private_repo not given a live default (uncommented)" "" "$live_workplace_line"
 
-assert_contains "gitignore has local without a trailing slash" "/.agent-memory/local" "$(cat "$repo/.gitignore")"
+assert_contains "gitignore has the private scope without a trailing slash" "/.agent-memory/private" "$(cat "$repo/.gitignore")"
 case "$(cat "$repo/.gitignore")" in
-  *"/.agent-memory/local/"*) fail "gitignore line has no trailing slash" "absent" "with slash" ;;
+  *"/.agent-memory/private/"*) fail "gitignore line has no trailing slash" "absent" "with slash" ;;
   *) ok "gitignore line has no trailing slash" ;;
 esac
 # exact-line assertion: a substring check would pass whether or not the slash is there
-gi_line="$(grep -x '/.agent-memory/local' "$repo/.gitignore")"
-assert_eq "gitignore line matches exactly" "/.agent-memory/local" "$gi_line"
+gi_line="$(grep -x '/.agent-memory/private' "$repo/.gitignore")"
+assert_eq "gitignore line matches exactly" "/.agent-memory/private" "$gi_line"
+# The leaf has to be the name memory-workplace.sh creates. It was "local" — the
+# pre-0.6.0 name that the same script now migrates away from — until 2026-09-05,
+# so the ignore guarded a path nothing creates and the real symlink came out
+# untracked. A wrong name here is invisible: the file looks configured.
+case "$(cat "$repo/.gitignore")" in
+  *"/.agent-memory/local"*) fail "gitignore does not name the pre-0.6.0 scope" "private" "local" ;;
+  *) ok "gitignore does not name the pre-0.6.0 scope" ;;
+esac
 
 agents_content="$(cat "$repo/AGENTS.md")"
 assert_contains "AGENTS.md names .floppy/"             ".floppy/"      "$agents_content"
@@ -129,7 +137,7 @@ assert_eq "custom dir: router placed"  "0" "$([[ -f "$repo3/brain/MEMORY.md" ]] 
 assert_eq "custom dir: no default dir" "1" "$([[ -e "$repo3/.agent-memory" ]] && echo 0 || echo 1)"
 assert_contains "custom dir: config carries brain"     "memory_dir=brain"    "$(cat "$repo3/.floppy/config")"
 assert_contains "custom dir: config carries language"  "memory_language=ru" "$(cat "$repo3/.floppy/config")"
-assert_contains "custom dir: gitignore uses brain"     "/brain/local"        "$(cat "$repo3/.gitignore")"
+assert_contains "custom dir: gitignore uses brain"     "/brain/private"      "$(cat "$repo3/.gitignore")"
 
 out3="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc3=$?
 assert_rc "custom dir: lint is green" 0 "$rc3"

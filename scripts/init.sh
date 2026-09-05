@@ -7,10 +7,14 @@
 #   .floppy/run              copied from this checkout — the ONLY file copied
 #   .floppy/config            flat key=value, memory_dir/memory_language set
 #   <memory_dir>/MEMORY.md    the empty router, so `lint` is green immediately
-#   .gitignore                gains "/<memory_dir>/local" (no trailing slash:
-#                              that path is a symlink, and a slash-terminated
-#                              rule matches directories only, so the symlink
-#                              would not be ignored and would get committed)
+#   .gitignore                gains "/<memory_dir>/<memory_private_dir>" (no
+#                              trailing slash: that path is a symlink, and a
+#                              slash-terminated rule matches directories only,
+#                              so the symlink would not be ignored and would
+#                              get committed). The leaf must be the name
+#                              memory-workplace.sh actually creates, or the
+#                              ignore guards nothing — it was hardcoded to
+#                              "local", the pre-0.6.0 name, until 2026-09-05
 #   AGENTS.md                 gains a section naming .floppy/ and pointing at
 #                              agent-memory
 #
@@ -234,7 +238,17 @@ gi="$repo/.gitignore"
 # No trailing slash: this path becomes a symlink once memory-link/workplace
 # wire it up, and a slash-terminated gitignore rule matches directories only
 # — it would not match the symlink, which would then get committed.
-ignore_line="/$mem_dir/local"
+#
+# The leaf must be the name memory-workplace.sh actually creates, which is
+# memory_private_dir (default "private"). Until 2026-09-05 it was hardcoded to
+# "local" — the name the scope carried before 0.6.0, which the same script now
+# migrates away — so a freshly initialised repository ignored a path nothing
+# creates, and the real symlink came out untracked on the first `workplace`.
+# Read the key when the config already carries it, so a repository that
+# renamed the scope is covered too.
+priv_dir="$(sed -n 's/^memory_private_dir=//p' "$repo/.floppy/config" 2>/dev/null | head -n1)"
+[[ -n "$priv_dir" ]] || priv_dir="private"
+ignore_line="/$mem_dir/$priv_dir"
 touch "$gi"
 if grep -qxF "$ignore_line" "$gi"; then
   echo "ok .gitignore already has $ignore_line"
@@ -244,7 +258,7 @@ else
   if [[ -s "$gi" ]] && [[ "$(tail -c1 "$gi")" != "" ]]; then
     printf '\n' >> "$gi"
   fi
-  printf '\n# floppy: machine-bound memory scope, never committed (see agent-memory)\n%s\n' \
+  printf '\n# floppy: the private memory scope — a symlink into the private memory\n# repository, never committed here (see agent-memory)\n%s\n' \
     "$ignore_line" >> "$gi"
   echo "ok .gitignore: $ignore_line"
 fi
