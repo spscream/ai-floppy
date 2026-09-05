@@ -398,11 +398,52 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   # session pays. What the count was supposed to protect is covered already:
   # routing by pointers_max, context cost by chars_max, dumps by
   # note_chars_max.
+  #
+  # The same pass tallies each half, because a corpus-wide number says the
+  # memory is too big without saying whose. Measured on one consumer 2026-09-05:
+  # the halves were 3.4x apart in size and grew on different machines, so the
+  # session that trips the ceiling is routinely not the one that filled it.
+  # Root-level notes are their own group, keyed `root`; a half directory
+  # literally named `root` would share that budget, and renaming it is the fix.
   total_chars=0
-  for f in "${notes[@]+"${notes[@]}"}"; do total_chars=$((total_chars + $(chars_of "$f"))); done
+  half_tally=""
+  for f in "${notes[@]+"${notes[@]}"}"; do
+    __c="$(chars_of "$f")"
+    total_chars=$((total_chars + __c))
+    __rel="${f#"$MEM"/}"
+    case "$__rel" in
+      */*) __half="${__rel%%/*}" ;;
+      *)   __half="root" ;;
+    esac
+    half_tally="$half_tally$__half $__c
+"
+  done
+  halves="$(printf '%s' "$half_tally" | awk 'NF { n[$1] += $2 } END { for (h in n) printf "%s %d\n", h, n[h] }' | sort -k2,2nr)"
+
   if [[ "$total_chars" -gt "$chars_max" ]]; then
     err "$total_chars characters, over the $chars_max in quota.lock — raise chars_max in the same commit and say why, or drop what went stale"
+    # Printed only on the failure: this script says nothing when clean, and a
+    # breakdown nobody asked for is the kind of line that trains people to skim.
+    printf '    by half: %s\n' "$(printf '%s\n' "$halves" | awk 'NF { printf "%s%s %s", (c++ ? ", " : ""), $1, $2 } END { print "" }')"
   fi
+
+  # Optional per-half budgets: `half_chars_max.<half>=N`. A half with no key is
+  # not bounded, so this is inert until a consumer measures its own halves —
+  # one number for all of them would be set to the largest half and would bound
+  # none of the others, which is the same as having none.
+  while read -r __h __c; do
+    [[ -z "$__h" ]] && continue
+    __hm="$(lock_val "half_chars_max.$__h")"
+    case "$__hm" in
+      "") continue ;;
+      *[!0-9]*)
+        err "quota.lock: half_chars_max.$__h is '$__hm', expected a number — that half is not bounded"
+        continue ;;
+    esac
+    [[ "$__c" -gt "$__hm" ]] && err "$__h: $__c characters, over the $__hm for that half in quota.lock — prune the half that grew rather than the corpus that did not"
+  done <<EOF
+$halves
+EOF
 
   # One index. Past a point a half index stops being a router and becomes a
   # list nobody reads to the end; the fix is sub-indexes, not a bigger number.

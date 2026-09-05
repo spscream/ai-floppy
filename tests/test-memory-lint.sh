@@ -376,4 +376,64 @@ assert_contains "and says what is allowed"              "plain name" "$OUT9"
 rm -rf "$repo9"
 
 
+# ---------- per-half budgets, and the breakdown when the corpus cap trips ----------
+# A corpus-wide number says the memory is too big without saying whose half it
+# is, and on a repository worked from two machines those are different people.
+# The per-half keys are optional: a corpus that sets none must behave exactly as
+# it did before, which is what the first assertion here pins down.
+repoH="$(sandbox)"; cp shim/run "$repoH/.floppy/run"
+echo "memory_dir=brain" > "$repoH/.floppy/config"
+mkdir -p "$repoH/brain/alpha" "$repoH/brain/beta"
+printf '# Index\n- [Alpha](alpha/INDEX.md) — pointer\n- [Beta](beta/INDEX.md) — pointer\n- [Root note](root-note.md) — pointer\n' > "$repoH/brain/MEMORY.md"
+printf '# Alpha\n- [Big](big.md) — pointer\n' > "$repoH/brain/alpha/INDEX.md"
+printf '# Beta\n- [Small](small.md) — pointer\n' > "$repoH/brain/beta/INDEX.md"
+note_body() { # $1 name, $2 how many padding characters in the body
+  printf -- '---\nname: %s\ndescription: a note\nmetadata:\n  type: project\n  evidence: read\n---\n%s\n' \
+    "$1" "$(printf 'x%.0s' $(seq 1 "$2"))"
+}
+note_body big 2000     > "$repoH/brain/alpha/big.md"
+note_body small 50     > "$repoH/brain/beta/small.md"
+note_body root-note 50 > "$repoH/brain/root-note.md"
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repoH/brain/quota.lock"
+
+lintH() { OUTH="$(cd "$repoH" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RCH=$?; }
+
+lintH
+assert_rc "a corpus with no per-half keys is unaffected" 0 "$RCH"
+case "$OUTH" in
+  *"by half"*) fail "no breakdown on a clean run" "silence" "$OUTH" ;;
+  *)           ok   "no breakdown on a clean run" ;;
+esac
+
+# One half over its own budget, while the corpus cap is nowhere near.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\nhalf_chars_max.alpha=500\ngrandfathered=\n' > "$repoH/brain/quota.lock"
+lintH
+assert_rc       "a half over its own budget fails the run" 1 "$RCH"
+assert_contains "and the half that grew is named"          "alpha:" "$OUTH"
+assert_contains "and the message quotes that half's cap"   "over the 500 for that half" "$OUTH"
+case "$OUTH" in
+  *"beta:"*) fail "a half with no key stays unbounded" "beta unmentioned" "$OUTH" ;;
+  *)         ok   "a half with no key stays unbounded" ;;
+esac
+
+# Root-level notes are their own group, keyed `root` — otherwise the notes that
+# every session reads would be the one part of the corpus nobody can bound.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\nhalf_chars_max.root=10\ngrandfathered=\n' > "$repoH/brain/quota.lock"
+lintH
+assert_rc       "root-level notes can be budgeted too" 1 "$RCH"
+assert_contains "and the root group is named"          "root:" "$OUTH"
+
+# Same treatment as every other lock value: named, not silently applied.
+printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\nhalf_chars_max.alpha=nope\ngrandfathered=\n' > "$repoH/brain/quota.lock"
+lintH
+assert_contains "a non-numeric per-half value is named" "half_chars_max.alpha is 'nope'" "$OUTH"
+
+# The corpus cap still fires on its own, and now says where the weight sits.
+printf 'chars_max=100\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repoH/brain/quota.lock"
+lintH
+assert_rc       "the corpus cap still fails on its own" 1 "$RCH"
+assert_contains "and the breakdown names the largest half first" "by half: alpha" "$OUTH"
+rm -rf "$repoH"
+
+
 summary

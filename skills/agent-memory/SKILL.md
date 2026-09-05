@@ -89,7 +89,17 @@ The memory directory can hold a `quota.lock` — plain `key=value` numbers
 `pointers_max` for one index, `pointer_line_max` for one pointer line) that
 bound how large the memory is allowed to get before something has to give.
 
-All four are facts about **this** corpus, which is why they live with the
+A fifth is optional and per-half: `half_chars_max.<half>=N` bounds one half of
+the tree on its own (`half_chars_max.root` covers the notes sitting directly in
+the memory directory). A half with no key is not bounded, so setting none keeps
+the old behaviour exactly. Reach for these when the corpus cap keeps tripping on
+sessions that did not fill it: on a repository worked from two machines, the
+half that grew and the session that hits the ceiling routinely belong to
+different people, and one number for the whole corpus cannot say which is which.
+When the corpus cap does trip, the linter now prints the per-half breakdown
+beside it, whether or not any per-half key is set.
+
+All of them are facts about **this** corpus, which is why they live with the
 memory. The one size limit that is not — the ceiling on the index the harness
 loads into every session, which it truncates in silence — is a fact about the
 harness and lives in `.floppy/config` as `index_chars_max`, with a default

@@ -18,6 +18,43 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.15.0 — 2026-09-05
+
+**Refresh `.floppy/run`: no.** The change is entirely inside the plugin.
+
+`memory-lint` now tallies the corpus **by half**, and `quota.lock` accepts
+optional `half_chars_max.<half>=N` keys (`half_chars_max.root` for notes sitting
+directly in the memory directory). A half with no key is unbounded, so a corpus
+that sets none behaves exactly as before; when the corpus-wide `chars_max`
+trips, the failure now prints the breakdown beside it whether or not any
+per-half key is set.
+
+What prompted it was a measurement that also says what **not** to build. On a
+consumer repository, across 42 sessions of transcripts, a session reads the root
+index (7 336 characters, loaded every time), one half index (3 311–7 010), and a
+median of **8 notes** — about 40 000 characters of a 485 000-character corpus.
+The rest never enters the window. So the corpus-wide cap is not a proxy for
+context cost: the index tree already keeps cold notes out for free, and a "cold
+storage tier" underneath it would save nothing that is being paid.
+
+What the cap does do is force pruning — and that is where a single number fails.
+That corpus is worked from two machines, its halves were 3.4x apart in size, and
+the half that grows is not the one whose session hits the ceiling: the cap was
+raised three times in eleven days, each time by a session adding a legitimate
+note to a different half. A per-half budget puts the ceiling where the growth is.
+
+One caution from the same measurement, worth repeating because it nearly became
+an argument for the tier that is not being built: 49 of that corpus's 156 notes
+had never been opened in any local transcript, which reads as a third of the
+memory being dead weight. Forty of the forty-nine belonged to the half worked on
+the *other* machine, whose transcripts are not on the machine doing the counting.
+**"Never used" measured on one machine is a question about coverage, not a fact
+about the corpus.**
+
+No new knob for the always-loaded index: `index_chars_max` in `.floppy/config`
+already caps it, and that number is a fact about the harness rather than about
+any corpus.
+
 ## 0.14.0 — 2026-08-26
 
 **Refresh `.floppy/run`: yes, once — and much less often after that.** The shim
