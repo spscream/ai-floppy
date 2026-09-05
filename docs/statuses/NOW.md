@@ -5,25 +5,31 @@ What `start` reads in full, rewritten in place rather than appended to — see
 
 ## Where things stand
 
-Three releases went out on 2026-09-05, all from one thread of work that began
-with issue #1.
+**0.17.0 is out** (2026-09-06), and unlike the five versions before it, it is a
+release rather than a commit: tag, GitHub release, and all three manifests
+moved together. The gap it closes is described in its own changelog entry —
+between 0.14.0 and 0.16.2 only `.claude-plugin/plugin.json` was ever bumped, so
+`plugin update` had nothing to copy and the two `link` fixes reached nobody
+until 0.16.2 was released by hand on 2026-09-05.
 
-- **0.16.0** — every ceiling `memory-lint` enforces now warns at 96% before it
-  refuses at 100%: the corpus, one half, one note, one index's pointers, and
-  the index size that already had a band. `pointer_line_max` deliberately has
-  none. Reported from a consumer corpus whose half sat at 96.9% while the run
-  printed `clean`.
-- **0.16.1** — `link` encoded the checkout path without folding `_`, so a
-  repository with an underscore in its name got a project directory the
-  harness never opens. Measured from the harness's own transcripts, which
-  record the `cwd` a session ran in.
-- **0.16.2** — `link` compared a resolved path against an unresolved one, so
-  the whole external-store layout read as unwired while working. Found by
-  standing that layout up here, not by reading the file.
+Two guards now make that failure loud instead of silent: `tests/test-release.sh`
+pins the three manifest versions to each other, and `test-site.sh` already
+required the changelog to cover the shipped version. Both fired correctly while
+cutting 0.17.0.
 
-This repository now uses floppy itself. `.agent-memory` is a symlink into the
-store `ai_floppy_memory`; the private scope under it points into a second store
-entirely. Both directions were verified by a write probe, not by inspection.
+Also in this release:
+
+- **`main` is protected.** Changes land through pull requests, checked on Linux
+  and macOS before merge, with no bypass for anyone. See
+  [[agents-share-one-git-identity]] before touching the ruleset.
+- **The knowledge base is re-checked weekly** on both platforms, and a failure
+  opens an issue. What it does and does not cover is measured in
+  [[knowledge-schedule-covers-three-of-twelve-notes]] — three of twelve.
+- **`init` writes `project_key`**, the umbrella key, and no longer writes an
+  ignore rule the store layout already covers.
+- **The macOS job stopped being red at random**, which was never flakiness. The
+  test recomputed the path rule from a stale copy; the lesson is in
+  `docs/lessons.md`.
 
 ## What is frozen
 
@@ -31,26 +37,31 @@ entirely. Both directions were verified by a write probe, not by inspection.
   `.floppy/run`, `.floppy/config`. In this repository the session procedure is
   the product: `skills/`, `scripts/`, `shim/` and `tests/` belong in reviewed
   commits, never in a closing rite. Widening this needs a deliberate decision.
-- **No `quota.lock`** — the memory is one note old. A ceiling invented for an
-  empty corpus bounds nothing; `lint` warns about the absence and that warning
-  is correct until there is something to measure.
-- **`project_key`, not `memory_project_key`** — one key names this project in
-  both stores. `init` writes the narrow one when given `--memory-key`.
+- **Branch protection is symmetric, and must stay so** — no bypass actors, not
+  even for the owner. The reason is not strictness; both sessions writing here
+  are the same git principal, so a bypass exempts both.
+- **`strict` is off for required status checks** — a branch need not be up to
+  date with `main` before merging. On a repository this quiet that would cost a
+  rebase per pull request and buy very little.
+- **`store` reports the redundant `.gitignore` line rather than removing it.**
+  That file belongs to the consumer and a line in it may be hand-written; one
+  line removed by hand is cheaper than a rule for when a script may delete from
+  a file it does not own.
+- **No `quota.lock`** — the memory is three notes old. A ceiling invented for a
+  corpus this small bounds nothing; `lint` warns about the absence and that
+  warning stays correct until there is something to measure.
 
 ## Open, waiting on the owner
 
-- Two small unfixed findings, no issues filed: `init` writes
-  `memory_project_key` rather than `project_key`, and in the store layout it
-  appends a second `.gitignore` line for the private scope that does nothing,
-  the parent already being ignored.
-- Whether the session's general lesson — a check that restates the rule it is
-  checking agrees with any rule, including a wrong one — belongs in
-  `knowledge/`. That directory is published to the site, so it is a
-  publication decision.
-- `.cursor-plugin/plugin.json` is at 0.14.0 while the Claude plugin is at
-  0.16.2. Three releases have not moved it; nothing in the tests looks at it.
+- Whether the general fact behind the macOS incident — **GitHub's macOS runners
+  use `/var/folders/<random>/T/` as `TMPDIR`, and that random component carries
+  `_` some of the time** — belongs in `knowledge/`. It is true outside this
+  repository and it is genuinely checkable, which is more than the lesson filed
+  in `docs/lessons.md` could claim. `knowledge/` publishes to the site, so this
+  is a publication decision and not one to take without asking.
 
 ## What is not true here
 
-Nothing is red. The suite is green on both CI jobs, including the macOS
-bash 3.2 one, and the tree is in sync with the remote.
+Nothing is red. The suite is green on both CI jobs including the macOS bash 3.2
+one, `main` is in sync with the remote, and there are no open issues and no open
+pull requests — the first time today that all three have been true at once.
