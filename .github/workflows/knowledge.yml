@@ -1,0 +1,98 @@
+name: knowledge
+
+# Re-checks the knowledge base against the world it makes claims about.
+#
+# Why this is not a step in tests.yml: every trigger there is a repository
+# event, and these notes are claims about Claude Code releases, macOS, Docker
+# and Anthropic feature flags. None of that moves when somebody pushes here. A
+# quiet month is a month with no recheck, and the day a fact actually breaks is
+# a day with no commit. The suite still runs both scripts on every push through
+# tests/test-knowledge.sh — that covers "did this change break a note". This
+# workflow covers "did the world move under a note that nobody touched".
+#
+# Both platforms, because a note names the platforms its claim holds for and
+# the runner skips the ones it is not on. macos-ci-does-not-test-bash32 is
+# asserted for macOS only, so a Linux-only schedule would report it as skipped
+# forever and call the run green.
+on:
+  schedule:
+    # Monday, early UTC. Weekly is enough for a corpus this size; the cost of
+    # being a week late on a broken fact is one week of a note being wrong,
+    # against a daily run's cost of noise nobody reads.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      # Both platforms report. Stopping the matrix on the first failure would
+      # hide a second broken note behind the first for a week.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # `recheck` is a gate: a failing check means the note is now false, or
+      # the check itself is broken, and both need a person. It exits 1 on its
+      # own, so nothing is added here.
+      - name: rechecks
+        run: python3 scripts/knowledge-recheck.py
+
+      # `rot-check` REPORTS and never exits non-zero, on purpose: "old" and
+      # "wrong" are different things and only a person who knows the area can
+      # tell them apart. That is right for the test suite, where a gate would
+      # force the wrong answer. It is wrong here, where nothing else is
+      # watching — so the decision to fail lives in this workflow rather than
+      # in the script, and the script keeps reporting for everyone else.
+      - name: staleness
+        run: |
+          python3 scripts/knowledge-rot-check.py
+          python3 - <<'PY'
+          import json, subprocess, sys
+          out = subprocess.run(
+              [sys.executable, "scripts/knowledge-rot-check.py", "--json"],
+              capture_output=True, text=True, check=True).stdout
+          d = json.loads(out)
+          n = len(d.get("stale", [])) + len(d.get("broken", []))
+          if n:
+              print(f"::error::{n} note(s) stale or off-contract")
+              sys.exit(1)
+          PY
+
+  # Somewhere to land. A scheduled failure is a red run on a day nobody pushed,
+  # in a tab nobody has open; the whole point of the schedule is lost if the
+  # result only exists there.
+  report:
+    needs: check
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          body="The scheduled knowledge check failed: a note's recheck no longer passes, a note has aged past its window, or a note breaks the writing contract.
+
+          Run: $RUN
+
+          Neither script can tell you which of those it is, and neither should: a stale note may still be true and a failing recheck may be a broken check. Open the run, read which note it names, and either re-verify it (bump \`verified_on\` and \`verified_against\`) or retract it.
+
+          Reopened weekly while the condition holds. Closing this without fixing the note means the next run files it again."
+
+          # One issue, commented on, rather than one per week: a schedule that
+          # opens a fresh issue every Monday trains everyone to ignore the label.
+          existing="$(gh issue list --state open --label knowledge-rot --limit 1 --json number -q '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still failing. Run: $RUN"
+          else
+            gh issue create --label knowledge-rot \
+              --title "a knowledge note no longer holds" --body "$body"
+          fi

@@ -75,4 +75,23 @@ done
 # somebody rewords the one that does — the loop would simply stop testing it.
 assert_eq "a note still exercises a description ending in a quoted word" 1 "$quoted_tail"
 
+# ---------- the schedule is wired to the scripts, not just present ----------
+# Same reasoning as the pages workflow in test-site.sh: a workflow that stopped
+# calling the script would keep running, keep going green, and say nothing. The
+# schedule exists because the suite only runs on repository events while these
+# notes make claims about releases and operating systems that move on their
+# own — so a schedule that checks nothing is worse than none, since it reads as
+# coverage.
+kw="$(cat .github/workflows/knowledge.yml 2>/dev/null || true)"
+assert_contains "the knowledge workflow runs the rechecks"  "knowledge-recheck.py"  "$kw"
+assert_contains "and the rot report"                        "knowledge-rot-check.py" "$kw"
+assert_contains "and runs on a schedule, not only on demand" "cron" "$kw"
+# Both platforms: a note names the platforms its claim holds for and the runner
+# skips the rest, so a Linux-only schedule would report the macOS-only note as
+# skipped forever and call that green.
+assert_contains "and on macOS too, where a macOS-only claim can run" "macos" "$kw"
+# The result has to land somewhere a person sees. A red scheduled run on a day
+# nobody pushed is a notification to nobody.
+assert_contains "and files an issue when it fails"          "gh issue create" "$kw"
+
 summary
