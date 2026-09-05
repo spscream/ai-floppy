@@ -118,16 +118,22 @@ if [[ -n "$public_repo" ]]; then
 # This repository does not hold its own memory: memory_dir is a symlink into
 # the store below. Wire it on each machine with \"bash .floppy/run store\".
 public_repo=$public_repo
-memory_project_key=$memory_key"
+# One key, not two: project_key is the default of both memory_project_key and
+# workplace_project_key, so this project is named the same in every store it
+# uses. Writing the narrow memory_project_key here would leave the workplace
+# scope needing a second key of its own, free to drift from this one.
+project_key=$memory_key"
   [[ -n "$memory_repo_dir" ]] && store_cfg="$store_cfg
 memory_repo_dir=$memory_repo_dir"
 else
   store_cfg="
-# public_repo/memory_project_key host the memory in ANOTHER repository, for a
+# public_repo/project_key host the memory in ANOTHER repository, for a
 # code repository that cannot hold agent notes at all. Set both, then run
 # \"bash .floppy/run store\" once per machine and per worktree.
 # public_repo=git@example.com:workplace/agents-memory.git
-# memory_project_key=your-project-key
+# project_key names this project in every store it uses; memory_project_key and
+# workplace_project_key override it per scope, and are rarely needed.
+# project_key=your-project-key
 # memory_repo_dir overrides the derived checkout path (agents_memory_dir/<repo name>)"
 fi
 
@@ -250,7 +256,14 @@ priv_dir="$(sed -n 's/^memory_private_dir=//p' "$repo/.floppy/config" 2>/dev/nul
 [[ -n "$priv_dir" ]] || priv_dir="private"
 ignore_line="/$mem_dir/$priv_dir"
 touch "$gi"
-if grep -qxF "$ignore_line" "$gi"; then
+# In the store layout memory_dir is itself ignored, and a rule for a path
+# underneath it adds nothing — git already refuses the whole subtree. Writing
+# it anyway leaves a fresh repository with two ignore blocks that read as two
+# protections when there is one. Ask git rather than re-derive the answer:
+# `store` may have put that line there, or a person may have.
+if git -C "$repo" check-ignore -q -- "$mem_dir" 2>/dev/null; then
+  echo "ok .gitignore: $mem_dir is already ignored whole, so $ignore_line is not needed"
+elif grep -qxF "$ignore_line" "$gi"; then
   echo "ok .gitignore already has $ignore_line"
 else
   # Ensure a trailing newline before appending, so the new block does not

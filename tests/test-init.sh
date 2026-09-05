@@ -219,4 +219,30 @@ assert_contains "adopt: and the warning is printed beside the verdict" \
   "grandfathered in quota.lock" "$out5"
 rm -rf "$repo5"
 
+# ---------- an ignore rule that is already covered ----------
+# In the store layout memory_dir is ignored whole, so a rule for a path
+# underneath it adds nothing — git refuses the subtree either way. Writing it
+# anyway leaves two blocks that read as two protections when there is one.
+#
+# The sibling defect fixed with this one — init writing the narrow
+# memory_project_key instead of the umbrella project_key — is asserted in
+# test-memory-store.sh, which already has a local store remote to point init
+# at. Repeating it here would mean either a second remote or a real clone
+# attempt against the network, and this suite touches nothing outside $TMPDIR.
+repoI="$(sandbox)"
+rmdir "$repoI/.floppy" 2>/dev/null || true
+printf '# memory lives in the store repository, not here\n/.agent-memory\n' > "$repoI/.gitignore"
+
+outI="$(bash scripts/init.sh --repo "$repoI" 2>&1)"
+case "$(cat "$repoI/.gitignore")" in
+  */.agent-memory/private*)
+    fail "no private rule under an already-ignored memory_dir" "absent" "$(cat "$repoI/.gitignore")" ;;
+  *) ok "no private rule under an already-ignored memory_dir" ;;
+esac
+assert_contains "and init says why it wrote nothing" "already ignored whole" "$outI"
+# The other half of the same branch — the ordinary layout, where memory_dir is
+# tracked and the private scope is the only thing the rule protects — is pinned
+# by the exact-line assertion near the top of this file, against $repo.
+rm -rf "$repoI"
+
 summary
