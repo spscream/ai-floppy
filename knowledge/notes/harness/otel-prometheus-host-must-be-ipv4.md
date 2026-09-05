@@ -73,5 +73,5 @@ thing" — and neither is the network.
 
 ## See also
 
-[[prometheus-exporter-carries-only-sessions]] — what you get once the scrape works, which
-is less than you expect.
+[[prometheus-metrics-need-a-second-request]] — what you get once the scrape works, and
+why the first probe shows almost none of it.

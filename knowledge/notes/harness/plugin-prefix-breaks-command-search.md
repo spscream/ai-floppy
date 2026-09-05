@@ -65,5 +65,5 @@ just performed is missing from a table you just printed.
 
 ## See also
 
-[[prometheus-exporter-carries-only-sessions]] — the other half of "measure the session":
+[[prometheus-metrics-need-a-second-request]] — the other half of "measure the session":
 what telemetry can and cannot replace here.
