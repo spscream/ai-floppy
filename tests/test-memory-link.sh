@@ -25,10 +25,31 @@ out3="$(cd "$repo" && HOME="$home" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 
 assert_rc       "wired machine passes"        0 "$rc3"
 
 # forked memory: a real directory where the symlink belongs
+#
+# The state is BUILT, not addressed: wire the repository, find the link the
+# script made by looking for it, then replace it with a directory. Nothing
+# here restates the encoding rule.
+#
+# Until 2026-09-05 this block computed the harness's project directory itself,
+# with `tr '/.' '--'` — two characters, while the script has folded three since
+# 0.16.1. On any sandbox path containing `_` the directory therefore landed
+# where `--check` never looks: no fork was found, the message never appeared,
+# and this assertion failed. That is the whole of #2, and the reason macOS CI
+# was red at random — its TMPDIR is /var/folders/<random>/T, and the random
+# component carries an underscore some of the time, which is why Linux (/tmp)
+# never showed it.
+#
+# The comment at the bottom of this file called the recomputation deliberate,
+# on the grounds that it "only needs to agree with the script". It stopped
+# agreeing, silently, in the one release that changed the rule.
 repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"; mkdir -p "$repo2/.agent-memory"
 home2="$(mktemp -d)"
-enc="$(printf '%s' "$repo2" | tr '/.' '--')"
-mkdir -p "$home2/.claude/projects/$enc/memory"
+(cd "$repo2" && HOME="$home2" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link >/dev/null 2>&1)
+proj2="$(ls "$home2/.claude/projects" 2>/dev/null)"
+assert_eq "the fork setup wired exactly one project directory" \
+  "1" "$(printf '%s\n' "$proj2" | grep -c .)"
+fork="$home2/.claude/projects/$proj2/memory"
+rm -f "$fork"; mkdir -p "$fork"
 out4="$(cd "$repo2" && HOME="$home2" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rc4=$?
 assert_rc       "forked memory fails"         1 "$rc4"
 assert_contains "forked memory is named"      "real directory" "$out4"
@@ -51,10 +72,11 @@ rm -rf "$repo" "$repo2" "$home" "$home2"
 #
 # This asserts the RESULT, not the rule: recomputing the encoding here with the
 # same `tr` the script uses would agree with any rule the script happened to
-# have, which is how the rule was wrong and green at the same time (line 30
-# above still does exactly that, deliberately — it only needs to agree with the
-# script, not to judge it). Case is not folded: `/tmp/consensus-5Ob9Z2` keeps
-# its capitals in the harness's own directory name.
+# have, which is how the rule was wrong and green at the same time. No block in
+# this file encodes the path itself any more — the two that did were changed in
+# #2, after one of them spent a release disagreeing with the script and turned
+# macOS CI red at random. Case is not folded: `/tmp/consensus-5Ob9Z2` keeps its
+# capitals in the harness's own directory name.
 repoU="$(mktemp -d)/my_project"
 mkdir -p "$repoU/.floppy" "$repoU/brain"
 git -C "$(dirname "$repoU")" init -q -b main "$repoU" 2>/dev/null || git init -q -b main "$repoU"
@@ -117,8 +139,16 @@ assert_contains "and says it was already configured"        "already configured"
 
 # A link into somebody else's memory must still be refused: resolving both
 # sides is not the same as comparing nothing.
+#
+# The link to repoint is found by looking, for the reason given at the top of
+# the underscore block. This one folded all three characters and was correct on
+# the day #2 was filed — it is changed anyway, because "correct today" is what
+# the block above was too, right up to the release that moved the rule.
 elsewhere="$(mktemp -d)"
-ln -sfn "$elsewhere" "$homeS/.claude/projects/$(printf '%s' "$repoS" | tr '/._' '---')/memory"
+projS="$(ls "$homeS/.claude/projects" 2>/dev/null)"
+assert_eq "the store layout wired exactly one project directory" \
+  "1" "$(printf '%s\n' "$projS" | grep -c .)"
+ln -sfn "$elsewhere" "$homeS/.claude/projects/$projS/memory"
 outS4="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcS4=$?
 assert_rc       "a link to another directory is still refused" 1 "$rcS4"
 assert_contains "and says where it actually points"           "points elsewhere" "$outS4"
