@@ -163,12 +163,18 @@ the line above it:
 > with the script, not to judge it
 
 **2026-09-05, second bite.** That reasoning survived nine hours. macOS CI began
-failing and passing on the same commit: its `TMPDIR` is
-`/var/folders/<random>/T/`, the random component carries `_` some of the time,
-and on those runs the test's pre-created directory landed where `--check` no
-longer looked. Linux never showed it — `TMPDIR` there is `/tmp`. A red `main`,
-and a job that reads as flaky when it is perfectly deterministic on an input
-nobody was looking at.
+failing and passing on the same commit — twice, on two different SHAs, one job
+apart: its `TMPDIR` is `/var/folders/<a>/<b>/T/`, and `<b>` is not alphanumeric.
+Both failing runs printed
+`/var/folders/df/djsxfhc17x95674wsm_g8s980000gn/T/tmp.…`, and on those runs the
+test's pre-created directory landed where `--check` no longer looked. Linux
+never showed it — `TMPDIR` there is `/tmp`. A red `main`, and a job that reads
+as flaky when it is perfectly deterministic on an input nobody was looking at.
+
+That the passing runs got a `<b>` *without* `_` is the explanation that fits, not
+something this repository measured: only a failing run prints a path, so the six
+passing runs' paths were never recorded. The measured claim and its limits are
+`knowledge/notes/shell/macos-tmpdir-can-contain-underscore.md`.
 
 Why the excuse was wrong. "It only needs to agree with the script" is true and
 useless: agreement is exactly what a wrong rule also produces. A check derived

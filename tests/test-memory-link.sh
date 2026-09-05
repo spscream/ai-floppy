@@ -35,9 +35,11 @@ assert_rc       "wired machine passes"        0 "$rc3"
 # 0.16.1. On any sandbox path containing `_` the directory therefore landed
 # where `--check` never looks: no fork was found, the message never appeared,
 # and this assertion failed. That is the whole of #2, and the reason macOS CI
-# was red at random — its TMPDIR is /var/folders/<random>/T, and the random
-# component carries an underscore some of the time, which is why Linux (/tmp)
-# never showed it.
+# was red at random — its TMPDIR is /var/folders/<a>/<b>/T, and <b> is not
+# alphanumeric: both failing runs printed one containing `_`, which is why Linux
+# (/tmp) never showed it. See
+# knowledge/notes/shell/macos-tmpdir-can-contain-underscore.md, which also says
+# what was measured and what was inferred.
 #
 # The comment at the bottom of this file called the recomputation deliberate,
 # on the grounds that it "only needs to agree with the script". It stopped
