@@ -83,6 +83,48 @@ assert_rc "the checker sees the link it just made" 0 "$rcU"
 
 rm -rf "$(dirname "$repoU")" "$homeU"
 
+# ---------- the store layout: memory_dir is itself a symlink ----------
+# With `store`, memory_dir is a symlink into another repository. This script
+# compared `readlink -f` of the harness link — fully resolved — against $mem,
+# which is that symlink and not its target, so the two could never be equal:
+# `link` refused a machine it had just wired correctly, `--check` never went
+# green, and `status` reported "not wired" for the whole external layout. Both
+# sides have to be resolved; in the ordinary layout $mem is a real directory
+# and resolving it changes nothing, which is what the assertions above keep
+# pinned.
+repoS="$(sandbox)"; cp shim/run "$repoS/.floppy/run"
+echo "memory_dir=brain" > "$repoS/.floppy/config"
+storeS="$(mktemp -d)/store"; mkdir -p "$storeS"
+ln -s "$storeS" "$repoS/brain"
+homeS="$(mktemp -d)"
+
+outS="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"; rcS=$?
+assert_rc       "a symlinked memory_dir wires"        0 "$rcS"
+assert_contains "and reports the link it created"     "symlink created" "$outS"
+
+outS2="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcS2=$?
+assert_rc       "and the checker calls it wired"      0 "$rcS2"
+case "$outS2" in
+  *"points elsewhere"*) fail "and does not call its own link foreign" "no 'points elsewhere'" "$outS2" ;;
+  *)                    ok   "and does not call its own link foreign" ;;
+esac
+
+# Running it twice is the case a consumer actually hits, since `store` prints
+# `next: bash .floppy/run link` and `status` asks the same question afterwards.
+outS3="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"; rcS3=$?
+assert_rc       "a second run is idempotent, not a refusal" 0 "$rcS3"
+assert_contains "and says it was already configured"        "already configured" "$outS3"
+
+# A link into somebody else's memory must still be refused: resolving both
+# sides is not the same as comparing nothing.
+elsewhere="$(mktemp -d)"
+ln -sfn "$elsewhere" "$homeS/.claude/projects/$(printf '%s' "$repoS" | tr '/._' '---')/memory"
+outS4="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcS4=$?
+assert_rc       "a link to another directory is still refused" 1 "$rcS4"
+assert_contains "and says where it actually points"           "points elsewhere" "$outS4"
+
+rm -rf "$repoS" "$(dirname "$storeS")" "$homeS" "$elsewhere"
+
 # workplace: no project defaults left. An unset workplace_project_key must
 # refuse loudly before anything is cloned, symlinked, or moved — a check that
 # fires after a side effect is worse than none.

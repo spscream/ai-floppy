@@ -18,6 +18,38 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.16.2 — 2026-09-05
+
+**Refresh `.floppy/run`: no.** The fix is in `link`, again — the same file as
+0.16.1, a different defect, found by standing the external layout up rather
+than by reading it.
+
+`link` compared one resolved path against one unresolved one. It took
+`readlink -f` of the harness symlink — fully resolved — and compared it to
+`memory_dir` as written. In the ordinary layout those agree, because
+`memory_dir` is a real directory. **With `store` it is a symlink into another
+repository**, so the two could never be equal, and the entire external layout
+had:
+
+- `link` refusing, with "the symlink points elsewhere", the machine it had
+  just wired itself;
+- `link --check` that could never go green;
+- `status` reporting `memory is not wired on this machine` against wiring that
+  worked — a write through it reached the store, which is the thing that
+  actually matters and the thing nobody was checking.
+
+Both sides are resolved now. `cd && pwd -P` rather than `readlink -f`, matching
+the rest of these scripts and not depending on a `readlink` that only grew `-f`
+on recent macOS; a dangling link falls back to `readlink` and is still
+reported rather than crashing. A link pointing at a genuinely different
+directory is still refused — resolving both sides is not the same as comparing
+nothing, and there is a test for exactly that.
+
+Two of this release's regression tests are for the second run rather than the
+first. `store` ends by printing `next: bash .floppy/run link`, and `status`
+asks the same question afterwards, so the second call is the one a consumer
+actually makes — and it was the one that failed.
+
 ## 0.16.1 — 2026-09-05
 
 **Refresh `.floppy/run`: no.** The fix is in `link`.

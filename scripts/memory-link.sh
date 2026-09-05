@@ -72,13 +72,33 @@ fi
 
 [[ -d "$mem" ]] || { echo "x no $mem — wrong repository"; exit 2; }
 
+# Both sides of every comparison below are resolved, not one of them.
+#
+# With `store`, memory_dir is ITSELF a symlink into another repository, so
+# `readlink -f` of the harness link — fully resolved, ending in the store
+# checkout — could never equal the literal $mem. The whole external layout
+# therefore had a `link` that refused the machine it had just wired, a
+# `--check` that never went green, and a `status` reporting "not wired" against
+# working wiring. Measured 2026-09-05 while standing the layout up.
+#
+# `cd && pwd -P` rather than `readlink -f` for the directory case: it is what
+# the rest of these scripts use, and it does not depend on a `readlink` that
+# only got -f in recent macOS. The fallback covers a dangling link, which has
+# no directory to cd into and still has to be reported rather than crash.
+resolve() {
+  if [[ -d "$1" ]]; then (cd "$1" && pwd -P)
+  else readlink -f "$1" 2>/dev/null || printf '%s\n' "$1"
+  fi
+}
+mem_real="$(resolve "$mem")"
+
 # In --check mode every branch below reports and stops; nothing is created.
 if [[ $check_only -eq 1 ]]; then
-  if [[ -L "$link" ]] && [[ "$(readlink -f "$link")" == "$mem" ]]; then
+  if [[ -L "$link" ]] && [[ "$(resolve "$link")" == "$mem_real" ]]; then
     echo "ok memory link: $link -> $mem_dir"
     exit 0
   elif [[ -L "$link" ]]; then
-    echo "x memory link points elsewhere: $link -> $(readlink -f "$link")"
+    echo "x memory link points elsewhere: $link -> $(resolve "$link")"
     exit 1
   elif [[ -e "$link" ]]; then
     echo "x a real directory sits where the memory symlink belongs ($link) — forked memory, sort it out by hand"
@@ -91,8 +111,8 @@ fi
 
 # ---------- already configured? ----------
 if [[ -L "$link" ]]; then
-  cur="$(readlink -f "$link")"
-  if [[ "$cur" == "$mem" ]]; then
+  cur="$(resolve "$link")"
+  if [[ "$cur" == "$mem_real" ]]; then
     echo "ok already configured: $link -> $mem"
   else
     echo "x the symlink points elsewhere: $link -> $cur"
