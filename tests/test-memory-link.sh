@@ -35,6 +35,54 @@ assert_contains "forked memory is named"      "real directory" "$out4"
 
 rm -rf "$repo" "$repo2" "$home" "$home2"
 
+# ---------- the path encoding, for a checkout whose name has an underscore ----------
+# Claude Code folds `_` into `-` exactly as it folds `/` and `.`, and this script
+# encoded only the latter two. The result is not a failure anywhere: the script
+# creates the directory it computed, reports success, and the session writes its
+# memory into a project directory the harness never opens. Measured 2026-09-05
+# from the harness's own transcripts, which record the real cwd:
+#
+#   -home-amalaev-work-agents-harness   cwd=/home/amalaev/work/agents_harness
+#   -home-amalaev-work-ai-floppy        cwd=/home/amalaev/work/ai_floppy
+#   -home-amalaev--local-bin            cwd=/home/amalaev/.local/bin
+#
+# Two of that machine's three floppy consumers were unwired this way, one of
+# them across fifteen sessions, with `status` reporting the wiring as present.
+#
+# This asserts the RESULT, not the rule: recomputing the encoding here with the
+# same `tr` the script uses would agree with any rule the script happened to
+# have, which is how the rule was wrong and green at the same time (line 30
+# above still does exactly that, deliberately — it only needs to agree with the
+# script, not to judge it). Case is not folded: `/tmp/consensus-5Ob9Z2` keeps
+# its capitals in the harness's own directory name.
+repoU="$(mktemp -d)/my_project"
+mkdir -p "$repoU/.floppy" "$repoU/brain"
+git -C "$(dirname "$repoU")" init -q -b main "$repoU" 2>/dev/null || git init -q -b main "$repoU"
+cp shim/run "$repoU/.floppy/run"
+echo "memory_dir=brain" > "$repoU/.floppy/config"
+homeU="$(mktemp -d)"
+
+outU="$(cd "$repoU" && HOME="$homeU" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"
+assert_contains "an underscore path wires without complaint" "ok" "$outU"
+
+projU="$(ls "$homeU/.claude/projects" 2>/dev/null)"
+assert_eq "exactly one project directory is created" "1" "$(printf '%s\n' "$projU" | grep -c .)"
+case "$projU" in
+  *_*) fail "the encoded directory carries no underscore" "no _ in '$projU'" "$projU" ;;
+  *)   ok   "the encoded directory carries no underscore" ;;
+esac
+case "$projU" in
+  *-my-project) ok "the underscore became a dash, as the harness encodes it" ;;
+  *) fail "the underscore became a dash, as the harness encodes it" "ends with -my-project" "$projU" ;;
+esac
+
+# And the checker agrees with what was just made — the report is the half that
+# was lying, not the link.
+outU2="$(cd "$repoU" && HOME="$homeU" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcU=$?
+assert_rc "the checker sees the link it just made" 0 "$rcU"
+
+rm -rf "$(dirname "$repoU")" "$homeU"
+
 # workplace: no project defaults left. An unset workplace_project_key must
 # refuse loudly before anything is cloned, symlinked, or moved — a check that
 # fires after a side effect is worse than none.

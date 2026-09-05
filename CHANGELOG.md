@@ -18,6 +18,55 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.16.1 — 2026-09-05
+
+**Refresh `.floppy/run`: no.** The fix is in `link`.
+
+`link` encoded the checkout path as `tr '/.' '--'`, and Claude Code folds a
+third character the same way: **`_`**. So a repository whose directory name
+carries an underscore got a project directory of its own that the harness never
+opens.
+
+Nothing failed. `link` created the directory it had computed and reported
+success; `--check` agreed, because it asks this same line; `status` reported
+the wiring as present. This is precisely the second silent failure mode the
+script's own header names — "the project directory is computed correctly, but
+Claude Code encodes the path differently, same result" — and it had been live
+against that description the whole time.
+
+Measured 2026-09-05 from the harness's own transcripts, which record the `cwd`
+a session actually ran in:
+
+```
+-home-amalaev-work-agents-harness   cwd=/home/amalaev/work/agents_harness
+-home-amalaev-work-ai-floppy        cwd=/home/amalaev/work/ai_floppy
+-home-amalaev--local-bin            cwd=/home/amalaev/.local/bin
+```
+
+Two of that machine's three consumers were affected, one across fifteen
+sessions. Case is **not** folded — `/tmp/consensus-5Ob9Z2` keeps its capitals
+in the harness's own directory name — so this stays a `tr` of three characters
+rather than becoming a general slug.
+
+What it costs in practice is the memory not reaching the session, not notes
+being lost: writes go through the repository, and the stray directory only
+holds wiring. On the machine this was found on, one project had an empty
+directory there and the other had a hand-written stub saying "the memory moved
+into the repository, do not write here" — someone had hit this and worked
+around it without the cause being named.
+
+**If your checkout path contains `_`,** re-run `bash .floppy/run link` after
+updating. It will refuse if a real directory stands where the symlink belongs
+— that is the guard working; look at what is in that directory, move anything
+real, then run it again. The stale directory under `~/.claude/projects` with
+the underscore in its name can be removed once the new one is wired.
+
+The regression test asserts the resulting directory name rather than
+recomputing the rule. The existing test at `tests/test-memory-link.sh:30`
+recomputes it on purpose — it only needs to agree with the script — and that is
+exactly why nothing here was red: a check that restates the rule agrees with
+any rule, including a wrong one.
+
 ## 0.16.0 — 2026-09-05
 
 **Refresh `.floppy/run`: no.** The change is entirely inside the plugin.

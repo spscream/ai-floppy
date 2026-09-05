@@ -38,7 +38,26 @@ check_only=0
 repo="$(pwd)"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
 mem="$repo/$mem_dir"
-enc="$(printf '%s' "$repo" | tr '/.' '--')"
+# `_` belongs in this set as much as `/` and `.` do. Claude Code folds all
+# three into `-`, and this encoded only the first two — so a checkout whose
+# name carries an underscore got a project directory of its own that the
+# harness never opens. Nothing failed: the script created what it computed and
+# reported success, `--check` agreed with it because it asks this same line,
+# and the session's memory went to a second copy. That is the exact failure
+# this file's header describes as its second silent mode, and it was live.
+#
+# Measured 2026-09-05 from the harness's own transcripts, which record the cwd
+# a session actually ran in:
+#
+#   -home-amalaev-work-agents-harness   cwd=/home/amalaev/work/agents_harness
+#   -home-amalaev-work-ai-floppy        cwd=/home/amalaev/work/ai_floppy
+#   -home-amalaev--local-bin            cwd=/home/amalaev/.local/bin
+#
+# Two of that machine's three consumers were unwired this way, one across
+# fifteen sessions. Case is NOT folded — `/tmp/consensus-5Ob9Z2` keeps its
+# capitals in the harness's directory name — so this stays a `tr` of three
+# characters and not a general slug.
+enc="$(printf '%s' "$repo" | tr '/._' '---')"
 proj="$HOME/.claude/projects/$enc"
 link="$proj/memory"
 
