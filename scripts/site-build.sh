@@ -121,7 +121,11 @@ printf 'ok skills/*/SKILL.md -> skills.md\n'
 # The notes live outside docs/ deliberately. A page that links to a docs/ file
 # with no page of its own degrades into a GitHub link, and tests/test-site.sh
 # fails exactly that — the reader would leave the site mid-sentence.
-front() { awk -v k="$2: " 'index($0, k) == 1 { sub("^" k, ""); gsub(/^"|"$/, ""); print; exit }' "$1"; }
+# Strip the YAML quotes only when they wrap the WHOLE value. Stripping each end
+# independently mangles a value that legitimately ends in a quoted word: a
+# description closing on `reports "clean"` lost its final quote, and the only
+# symptom was the page test failing to find the text it had just been handed.
+front() { awk -v k="$2: " 'index($0, k) == 1 { sub("^" k, ""); if ($0 ~ /^".*"$/) { sub(/^"/, ""); sub(/"$/, "") } print; exit }' "$1"; }
 {
   cat knowledge/README.md
   printf '\n## The notes\n\n'

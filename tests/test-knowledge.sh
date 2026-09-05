@@ -60,9 +60,19 @@ out_dir="$(mktemp -d)"; trap 'rm -rf "$out_dir"; cleanup' EXIT
 bash scripts/site-build.sh "$out_dir" >/dev/null 2>&1
 page="$(cat "$out_dir/knowledge.md" 2>/dev/null || true)"
 assert_contains "knowledge page exists and carries the README's heading" "# The knowledge base" "$page"
+quoted_tail=0
 for f in $(find -L knowledge/notes -name '*.md' -not -name '_*'); do
   desc="$(awk 'index($0, "description: ") == 1 { sub(/^description: /, ""); print; exit }' "$f")"
   assert_contains "page carries $(basename "$f")" "$desc" "$page"
+  # A value that ENDS in a quote without starting with one — `reports "clean"` —
+  # is the shape that broke the front-matter reader: it stripped each end
+  # independently and ate the final character.
+  case "$desc" in '"'*) ;; *'"') quoted_tail=1 ;; esac
 done
+
+# Coverage guard, not a style rule. The repair above is exercised only while
+# some note actually has that shape, and nothing would say so on the day
+# somebody rewords the one that does — the loop would simply stop testing it.
+assert_eq "a note still exercises a description ending in a quoted word" 1 "$quoted_tail"
 
 summary
