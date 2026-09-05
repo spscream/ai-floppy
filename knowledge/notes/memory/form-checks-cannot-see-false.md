@@ -26,8 +26,12 @@ Five classes, in descending cost:
 
 1. **A reference to a mechanism that does not exist.** The memory said divergence between
    the repository's commands and the plugin's skills was caught by a `parity` verb, "and it
-   is the gate inside `check`". No such verb. The check had been withdrawn three weeks
-   earlier; the memory of it outlived it and read as a live guarantee.
+   is the gate inside `check`". No such verb — it had been removed ten days earlier, in the
+   release that withdrew the whole idea it guarded. The memory of it outlived it and read
+   as a live guarantee. The same line carried a second error, found only later: it named
+   the day *the consumer noticed* as the day the check was withdrawn. **A date of
+   observation recorded as a date of event** is its own trap — it looks precise to the day
+   and is wrong by exactly the length of the gap.
 2. **The description contradicts its own body.** One note's `description` said the
    repository had no git remote; the first line of its body said a remote had existed
    since a date two weeks earlier. The description is the half that gets read.
@@ -101,8 +105,15 @@ offers today. Expect true hits and legitimate historical mentions in the same li
 A memory that asserts a guard exists when it does not. The concrete failure: a session
 reads "divergence between the commands and the skills is caught by `run parity`, and it is
 the gate inside `check`", concludes the comparison is automated, and skips it. The
-comparison had not been automated for three weeks. Nothing goes red, because there is
+comparison had not been automated for ten days. Nothing goes red, because there is
 nothing to go red — the guarantee exists only in the memory.
+
+There is a sharper version of this, found the same day. The memory's *justification* can
+expire while every fact in it stays true: the reason the consumer kept those command files
+at all had been measured false upstream, in a CHANGELOG entry nobody downstream read. No
+broken link, no wrong number, nothing a sweep of any kind would surface — the premise had
+gone, not the reference. The cheap prophylactic is to read a dependency's changelog for
+the ideas it **withdrew**, not only the features it added.
 
 The general shape: form checks make a corpus *navigable*, and navigability is easy to
 mistake for correctness. Budget a revision that reads for truth, on a schedule, and do not
