@@ -18,6 +18,104 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.17.0 — 2026-09-06
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this release
+reaches `shim/run`.
+
+Minor rather than patch because `init` changes what it writes into a consumer's
+config. Nothing breaks: `project_key` was already read, so a config written by
+this release works with older plugins, and a config carrying the old
+`memory_project_key` keeps working with this one. `init` never rewrites an
+existing config, so **this affects newly initialised repositories only.**
+
+### `init` wrote the narrow key
+
+`init` wrote `memory_project_key`. That is the per-scope override;
+`project_key` is the default of **both** `memory_project_key` and
+`workplace_project_key`, so writing the narrow one left the workplace scope
+needing a second key of its own, free to drift from the first. This
+repository's own config had `project_key` set by hand, with the reason written
+beside it — `init` now writes what that comment says.
+
+### `init` wrote an ignore rule the store layout already covers
+
+In the store layout `memory_dir` is a symlink and `store` ignores it whole.
+`init` added `/<memory_dir>/<private>` on top of that, which git already refuses
+as part of the subtree. Harmless, and invisible for the same reason most of
+these are: the file looks configured. `init` now asks `git check-ignore` first.
+
+**A repository initialised before this release still has both lines.** `store`
+now says so rather than removing it —
+
+```
+note /.agent-memory/private in .gitignore is covered by /.agent-memory and can be removed
+```
+
+— because this is your `.gitignore`, a line in it may have been written by hand,
+and one line removed by hand is cheaper than a rule about when a script may
+delete from a file it does not own.
+
+### The release that did not happen
+
+Between 0.14.0 and 0.16.2, five versions bumped `.claude-plugin/plugin.json`
+and nothing else: no tag, no release, and both marketplace manifests plus the
+Cursor plugin manifest sat at 0.14.0 the whole time. Since the marketplace
+manifest is what an update compares, `plugin update` had nothing to copy — the
+two `link` fixes of 0.16.1 and 0.16.2 never reached anyone until 0.16.2 was
+released by hand on 2026-09-05.
+
+Nothing was red and nothing could have been: each commit looked complete on its
+own, and the omission is only visible against files the diff does not touch.
+`tests/test-release.sh` now asserts the three versions agree, and asserts the
+fourth manifest's version conditionally — demanding its absence would fail the
+commit that legitimately adds one.
+
+### The knowledge base is re-checked on a schedule
+
+`knowledge-recheck.py` and `knowledge-rot-check.py` already ran on every push
+through the test suite. Every trigger there is a repository event, while these
+notes are claims about Claude Code releases, macOS, Docker and vendor feature
+flags — none of which move when somebody pushes. A weekly workflow now runs
+both on Linux **and** macOS, because a note names the platforms its claim holds
+for and the runner skips the rest; a Linux-only schedule reported the
+macOS-only note as skipped forever and called that green. A failure opens one
+issue and comments on it thereafter.
+
+Worth knowing what it covers: **3 of 12 notes.** Eight carry nothing executable
+— by design, a claim taken from vendor documentation has nothing to run — and
+one more needs a `claude` install the runners do not have. Measured on the
+first scheduled run: macOS checks three notes, Linux two.
+
+### The macOS job was red at random, and was not flaky
+
+`tests/test-memory-link.sh` computed the harness's project directory itself
+with `tr '/.' '--'` — two characters, while `link` has folded three since
+0.16.1. On any temporary path containing `_` the test addressed a directory
+`--check` no longer looks at. macOS `TMPDIR` is `/var/folders/<random>/T/` and
+that component carries an underscore some of the time; Linux `TMPDIR` is
+`/tmp`, which is why only one platform ever showed it.
+
+The test now builds the state instead of addressing it — wire the repository,
+find the link the script made, replace it with a directory — so it no longer
+contains the encoding rule in any form. The lesson is written up in
+[docs/lessons.md](docs/lessons.md), including the part worth reading: the
+comment that excused the recomputation was written deliberately, in the release
+that fixed the same class of bug, and survived nine hours.
+
+### Contributing
+
+`main` now refuses a direct push. Changes land through pull requests, checked
+on both platforms before merge, with no bypass for anyone including the owner.
+No approval is required, so a pull request can be self-merged; what the rule
+buys is that the checks run before the change is on `main`, and that work
+arriving from a session other than the one working here is visible as a change
+rather than as history. See `AGENTS.md`.
+
+Also in this release: a knowledge note was retracted rather than aged out —
+`prometheus-exporter-carries-only-sessions` measured a one-request session and
+blamed the exporter, and is replaced by `prometheus-metrics-need-a-second-request`.
+
 ## 0.16.2 — 2026-09-05
 
 **Refresh `.floppy/run`: no.** The fix is in `link`, again — the same file as
