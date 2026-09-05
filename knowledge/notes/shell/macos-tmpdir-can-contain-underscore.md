@@ -2,7 +2,7 @@
 name: macos-tmpdir-can-contain-underscore
 description: A macOS runner's temp directory is /var/folders/<a>/<b>/T/, and <b> is not alphanumeric — it can contain `_`, so code that assumes a clean temp path fails on some runners and passes on others, which reads as flakiness
 area: shell
-verified_on: 2026-09-06
+verified_on: 2026-09-05
 verified_against: "GitHub-hosted macos-latest (arm64), 2026-09-05; runs 33988970539 and 33989864363 of spscream/ai_floppy"
 recheck: "On a mac or a macOS runner: `d=$(mktemp -d); echo $d` — expect /var/folders/<a>/<b>/T/tmp.XXXXXXXX. For the underscore itself you need that machine's own path: echo $TMPDIR in the job and read the second component."
 invalidated_by: "GitHub sets TMPDIR to a fixed path on macOS runners, or Darwin stops deriving it from confstr(_CS_DARWIN_USER_TEMP_DIR)"
