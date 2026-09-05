@@ -157,6 +157,33 @@ size, and the window only grows. The cost is quadratic in session length —
 which is why the answer to a long session is to end it, not to economise
 inside it.
 
+**The fold worked and the rite still doubled** (measured 2026-09-05 over 35
+`/wrap` runs in one project, and confirmed on 13 in another). Counting a turn
+as one API request — several transcript entries share one `requestId` and one
+usage record, and counting entries instead inflates every number here by about
+1.6× — the rite went from 12 turns per run before the fold to 25 after. The
+`tools/*.sh` calls it replaced are gone entirely, but the shim verbs that
+replaced them cost **5.1 turns per run, 23% of the total**, because runs call
+`lint`, `guard` and `status` *on top of* `check`, which already runs all three.
+Three habits are what the numbers point at:
+
+- **call `check`, not the verbs it contains.** A separate `lint` or `guard` in
+  the same run is a turn spent re-reading what `check` just printed. Calling
+  `check` again after fixing what it found is not the same thing — that one is
+  the loop working.
+- **issue independent calls in one block.** Taking the lock and reading
+  `status` are independent; so are several notes that are all ready to write.
+  Parallel calls in one block cost one turn, sequential ones cost one each.
+- **rewrite the current-state file once, don't patch it.** Measured 2.6 edit
+  turns per run on that one file. Decide every change it needs, then write it.
+
+And what the numbers refuse to support: **there is nothing to cut in the
+narration.** Turns that call no tool at all are 5.6% of the total, and every
+single one of them was the last turn of the run — the report to the human. A
+count over transcript entries puts them at 17–38% and points at a saving that
+does not exist: the text and thinking blocks of a turn that did call a tool are
+separate entries, and they are already paid for.
+
 (An earlier version of this passage explained the fold by "reasoning happens
 before every tool call", citing 7.5k tokens across six calls. That framing was
 superseded by the 48-run measurement above: it counted calls where it should
