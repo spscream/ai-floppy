@@ -146,6 +146,21 @@ else
   echo "ok added /$mem_dir to .gitignore (commit it)"
 fi
 
+# A repository initialised before it had a store carries init's rule for the
+# private scope as well, and that rule is now covered by the line above: the
+# whole of memory_dir is ignored, subtree included. Harmless, but it reads as
+# two protections where there is one.
+#
+# Reported, not deleted. This script edits .gitignore only to add a line it
+# knows is missing; silently removing one a person may have put there by hand,
+# in a file that is theirs and not ours, is a different kind of act. The one
+# line it takes to remove is cheaper than the rule for when we may.
+priv_dir="$(sed -n 's/^memory_private_dir=//p' "$repo/.floppy/config" 2>/dev/null | head -n1)"
+[[ -n "$priv_dir" ]] || priv_dir="private"
+if grep -qxF "/$mem_dir/$priv_dir" "$repo/.gitignore" 2>/dev/null; then
+  echo "note /$mem_dir/$priv_dir in .gitignore is covered by /$mem_dir and can be removed"
+fi
+
 # ---------- does a write reach the store? ----------
 # The step that actually proves the wiring. Everything above can look right
 # while a write lands somewhere else.

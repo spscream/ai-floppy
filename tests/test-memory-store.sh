@@ -144,7 +144,19 @@ assert_contains "it wires the store"                "linked" "$init_out"
 assert_eq "the index landed in the store" "0" \
   "$([[ -f "$checkout2/public/projects/beta/MEMORY.md" ]] && echo 0 || echo 1)"
 assert_contains "the config records where the store is" "public_repo=$remote" "$(cat "$repo4/.floppy/config")"
-assert_contains "and the scope"                         "memory_project_key=beta" "$(cat "$repo4/.floppy/config")"
+# Exact line, not a substring: "project_key=beta" is a substring of
+# "memory_project_key=beta", so a contains-check passes on the very defect this
+# asserts against. init wrote the narrow key until 2026-09-05, and project_key
+# is the default of BOTH memory_project_key and workplace_project_key — the
+# narrow one leaves the workplace scope needing a second key free to drift.
+assert_eq "and the scope, as the umbrella key" "project_key=beta" \
+  "$(grep -x 'project_key=beta' "$repo4/.floppy/config" || true)"
+live_keys4="$(grep -v '^[[:space:]]*#' "$repo4/.floppy/config" | grep 'project_key=' || true)"
+case "$live_keys4" in
+  *memory_project_key=*|*workplace_project_key=*)
+    fail "and no narrow key beside it" "project_key alone" "$live_keys4" ;;
+  *) ok "and no narrow key beside it" ;;
+esac
 
 # Half a pair is refused rather than half-applied.
 repo5="$(cd "$(mktemp -d)" && pwd -P)"; git init -q -b main "$repo5"
