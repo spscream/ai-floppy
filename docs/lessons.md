@@ -49,36 +49,64 @@ the links, because there is no content behind them.
 ## Folding calls removed the turns it aimed at, and wrap still doubled
 
 Measured 2026-09-05 over **48 `/wrap` runs** in two consumer repositories,
-classifying every assistant turn by the tools it used. The fold of ten commands
-into `check` and `commit` did what it set out to do: calls to the pre-plugin
-`tools/*.sh` were **29% of turns before 2026-08-25 and zero after**. And the
-verbs that replaced them are **3.6% of all 1281 turns** — the mechanical half of
-wrap is now nearly free, and delegating it to a subagent would cost more than it
-saves, since dispatching one and reading its report is two turns for two turns.
+classifying every assistant turn by the tools it used — then recounted the same
+day, because the first pass counted the wrong unit. A turn is one request to the
+model; in the JSONL it is several entries sharing a `requestId` and one `usage`
+block, so text, reasoning and a tool call from one reply are three entries and
+one paid turn. Counting entries inflates by 1.6x. Everything below is by
+`requestId`, with the entry counts beside it because the first version of this
+lesson shipped with those.
 
-The total went the other way. Median turns per wrap: **16 before, 35 after**.
-Both repositories, independently — 32 and 37.
+| median turns per wrap run | by `requestId` | by transcript entry |
+|---|---|---|
+| before 2026-08-25 | **12** | 20 |
+| after | **25** | 41 |
+| the other consumer, after | 29 | 49 |
 
-This is not the fold's doing, and the honest reading is that a lot landed on the
-same day: memory moved into a second repository, the state file split from the
-journal, indexes became a tree. Wrap acquired work rather than shedding it. What
-grew: ad-hoc `python3` heredocs **6 turns → 65**, writes to files that are
-neither memory nor the state slice **12 → 84**, reads **13 → 70**.
+**What survived the recount** is the lesson itself, and it never depended on the
+unit. The fold of ten commands into `check` and `commit` did what it set out to
+do — calls to the pre-plugin `tools/*.sh` were **29% of turns before 2026-08-25
+and zero after** — and the total doubled anyway on the unit that is billed. Not
+the fold's doing: a lot landed on the same day, as memory moved into a second
+repository, the state file split from the journal, and indexes became a tree.
+Wrap acquired work rather than shedding it.
 
-The part that was stable across both eras is the one worth naming: **17% of all
-turns call no tool at all** — 223 turns of narration, median 97 characters. At
-turns × window, a 97-character sentence in a 238k-token window costs what a file
-edit costs.
+**What the recount overturned**, both times in the direction of "the cheap thing
+is not the cheap thing":
 
-Two things follow, and only the second is about code:
+- *"The verbs that replaced the scripts are 3.6% of all turns, so the mechanical
+  half of wrap is nearly free."* On the billed unit, `.floppy/run` verbs are
+  **5.1 turns per run — 23% of all turns**, the largest single category, ahead of
+  note edits (3.9), other `Bash` (4.0) and state-file edits (2.6). About half of
+  it is redundant: runs call `lint`, `guard` and `status` **on top of** `check`,
+  which has already run all three. One run recorded `check`×4 and `lint`×3.
+- *"17% of turns call no tool at all — narration, the cheapest turn to remove."*
+  On the billed unit that is **5.6%** (34 of 608), and all 34 are the **last**
+  turn of a run: the report to the human. Mid-run there are none. Of the 389
+  entries carrying no tool call, 267 carry no text either — they are reasoning
+  blocks of turns already counted. There is nothing there to cut.
 
-- **the unit to count is the turn, and the thing to count it against is a
-  measured baseline.** "We folded ten calls into two" was true and did not make
-  wrap cheaper, because nobody re-measured the total afterwards. A fold that hits
-  its target while the total doubles is indistinguishable, from the bill, from no
-  fold at all;
-- **narration between tool calls is not free.** It is the cheapest turn to
-  remove and the easiest to add without noticing.
+**Unaffected by the recount:** delegating the mechanical half of wrap to a
+subagent still does not pay. Dispatching one and reading its report is two turns
+in the large window in exchange for two turns that print almost nothing — an
+argument about turn arithmetic, not about the size of the mechanical half, so
+the 3.6% → 23% correction does not revive it.
+
+Three things follow:
+
+- **the unit to count is the turn, and a turn is a `requestId`, not a transcript
+  line.** "We folded ten calls into two" was true and did not make wrap cheaper,
+  because nobody re-measured the total afterwards. A fold that hits its target
+  while the total doubles is indistinguishable, from the bill, from no fold at
+  all — but only when the total is measured in the unit that is billed;
+- **the reduction to make is verbs beyond `check`**, not narration. `check`
+  already runs `lint`, `guard` and `status`; a skill that calls them again pays
+  for each one. Independent calls belong in a single block, and the state file
+  should be written once rather than repaired line by line;
+- **a written-down trap does not protect whoever counts around the fixed tool.**
+  The 1.6x entry-doubling was already known and already fixed — in a consumer's
+  own cost script, weeks earlier. The first pass here re-derived the bug with an
+  ad-hoc script that did not carry the fix.
 
 ## Derived state beats a config flag
 
