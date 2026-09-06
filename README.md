@@ -1,5 +1,7 @@
 # floppy
 
+*[Русская версия](README.ru.md)*
+
 floppy is a plugin for Claude Code and Cursor. It gives a coding agent two
 things: a memory that stays in your repository, and two procedures that use
 that memory.
