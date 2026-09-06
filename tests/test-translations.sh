@@ -48,6 +48,9 @@ assert_eq "--stamp records the blob sha git computes" \
   "$(git hash-object "$sb/docs/lessons.md")" "$stamped"
 
 out2="$("$py" scripts/translation-check.py --root "$sb" 2>&1)"
+# The case below passes on empty output too — which is what a script that does
+# not run produces. So assert first that the script actually said something.
+assert_contains "the check still reports on the rest of the corpus" "untranslated" "$out2"
 case "$out2" in
   *"behind the source"*) fail "a stamped translation is not reported as behind" "no drift" "$out2" ;;
   *) ok "a stamped translation is not reported as behind" ;;
@@ -83,5 +86,32 @@ assert_contains "an \`of\` that disagrees with the file name is caught" \
 # ---------- 4. the script runs on this repository ----------
 real="$("$py" scripts/translation-check.py 2>&1)"; real_rc=$?
 assert_rc "the check exits 0 on this repository" 0 "$real_rc"
+
+# ---------- 5. no input makes the checker exit non-zero ----------
+# The one rule it may never break, and every line here crashed an earlier version.
+mkdir -p "$sb/docs/broken.ru.md"
+out8="$("$py" scripts/translation-check.py --root "$sb" 2>&1)"; rc8=$?
+rmdir "$sb/docs/broken.ru.md"
+assert_rc "a directory named like a translation does not crash it" 0 "$rc8"
+
+"$py" scripts/translation-check.py --root "$sb" --stamp README.md >/dev/null 2>&1
+assert_rc "--stamp on a path that is not a translation exits 0" 0 "$?"
+
+"$py" scripts/translation-check.py --root "$sb" --stamp docs/nope.ru.md >/dev/null 2>&1
+assert_rc "--stamp on a file that does not exist exits 0" 0 "$?"
+
+"$py" scripts/translation-check.py --root "$sb/no-such-directory" >/dev/null 2>&1
+assert_rc "--root pointing nowhere exits 0" 0 "$?"
+
+# ---------- 6. a misnamed source does not hide an untranslated document ----------
+printf '# Other\n' > "$sb/docs/other.md"
+printf '<!-- floppy:translation of=docs/other.md blob=%s on=2026-09-06 -->\n\n# т\n' \
+  "$(git hash-object "$sb/docs/other.md")" > "$sb/docs/lessons.ru.md"
+out9="$("$py" scripts/translation-check.py --root "$sb" 2>&1)"
+assert_contains "a marker naming the wrong source is still a contract problem" \
+  "does not name its sibling" "$out9"
+assert_contains "and the document it wrongly claims is still listed as untranslated" \
+  "docs/other.md" "$out9"
+rm -f "$sb/docs/other.md" "$sb/docs/lessons.ru.md"
 
 summary

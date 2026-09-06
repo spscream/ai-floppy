@@ -77,6 +77,8 @@ def sources(root):
             # state and docs/specs/ and docs/plans/ are design records.
             if not fn.endswith(".md") or TRANSLATION_NAME.match(fn):
                 continue
+            if not os.path.isfile(os.path.join(docs, fn)):
+                continue
             out.append(os.path.join("docs", fn))
     return out
 
@@ -85,12 +87,14 @@ def translations(root):
     """Every file whose name is shaped like a translation, in the same two places."""
     out = []
     for fn in sorted(os.listdir(root)):
-        if TRANSLATION_NAME.match(fn) and fn.endswith(".md"):
+        if TRANSLATION_NAME.match(fn) and os.path.isfile(os.path.join(root, fn)):
             out.append(fn)
     docs = os.path.join(root, "docs")
     if os.path.isdir(docs):
         for fn in sorted(os.listdir(docs)):
-            if TRANSLATION_NAME.match(fn):
+            # isfile, not just the name: a directory wearing a translation's name
+            # crashed the read below, and the crash came out as a non-zero exit.
+            if TRANSLATION_NAME.match(fn) and os.path.isfile(os.path.join(docs, fn)):
                 out.append(os.path.join("docs", fn))
     return out
 
@@ -130,7 +134,11 @@ def audit(root):
             problems.append(
                 "`of` is `%s` — it does not name its sibling `%s`" % (source, expected_source)
             )
-        translated_sources.add(source)
+        else:
+            # Only a marker that names its real sibling counts as translating it.
+            # Crediting whatever `of` says let one broken marker delete a genuinely
+            # untranslated document from the report.
+            translated_sources.add(source)
 
         recorded = front.get("blob", "")
         if not BLOB.match(recorded):
@@ -166,16 +174,37 @@ def audit(root):
 def stamp(root, rel):
     """Rewrite a translation's marker to the source's current blob and today's date."""
     path = os.path.join(root, rel)
-    text = read_bytes(path).decode("utf-8")
-    previous = parse_marker(text)
+    if not TRANSLATION_NAME.match(os.path.basename(rel)):
+        print("%s is not shaped like a translation (<stem>.<two letters>.md)" % rel)
+        return
+    if not os.path.isfile(path):
+        print("%s does not exist" % rel)
+        return
     source = sibling_source(rel)
-    current = blob_sha(read_bytes(os.path.join(root, source)))
+    source_path = os.path.join(root, source)
+    if not os.path.isfile(source_path):
+        print("%s names the source %s, which does not exist" % (rel, source))
+        return
+
+    raw = read_bytes(path)
+    previous = parse_marker(raw.decode("utf-8", "replace"))
+    current = blob_sha(read_bytes(source_path))
     line = "<!-- floppy:translation of=%s blob=%s on=%s -->" % (
         source, current, dt.date.today().isoformat()
     )
-    rest = text.split("\n", 1)[1] if previous else text
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(line + "\n" + rest)
+    # Bytes all the way through, deliberately. Decoding the body with
+    # errors="replace" and writing the result back would silently rewrite every
+    # byte the decoder could not represent — a checker that corrupts the document
+    # it was pointed at is worse than no checker.
+    if previous and b"\n" in raw:
+        rest = raw.split(b"\n", 1)[1]
+    elif previous:
+        rest = b""
+    else:
+        rest = raw
+    with open(path, "wb") as fh:
+        fh.write(line.encode("utf-8") + b"\n" + rest)
+
     print("stamped %s against %s (%s)" % (rel, source, current))
     if previous and BLOB.match(previous.get("blob", "")):
         # Printed on success, not only on failure: stamping without reading what
@@ -192,46 +221,58 @@ def main():
     ap.add_argument("--stamp", metavar="PATH", help="re-record a translation against its source")
     args = ap.parse_args()
 
-    if args.stamp:
-        stamp(args.root, args.stamp)
+    if not os.path.isdir(args.root):
+        print("-- the checker itself failed")
+        print("   --root %s is not a directory" % args.root)
         return
 
-    broken, behind, untranslated = audit(args.root)
+    try:
+        if args.stamp:
+            stamp(args.root, args.stamp)
+            return
 
-    if args.json:
-        json.dump(
-            {"broken": broken, "behind": behind, "untranslated": untranslated},
-            sys.stdout, ensure_ascii=False, indent=2,
-        )
-        print()
-        return
+        broken, behind, untranslated = audit(args.root)
 
-    if broken:
-        print("-- contract problems (%d)" % len(broken))
-        for item in broken:
-            print("  %s" % item["path"])
-            for problem in item["problems"]:
-                print("      %s" % problem)
-        print()
+        if args.json:
+            json.dump(
+                {"broken": broken, "behind": behind, "untranslated": untranslated},
+                sys.stdout, ensure_ascii=False, indent=2,
+            )
+            print()
+            return
 
-    if behind:
-        print("-- behind the source (%d)" % len(behind))
-        print("   The source changed after the translation was made. Read what changed,")
-        print("   bring the translation up to it, then re-stamp.\n")
-        for item in behind:
-            print("  %s  (stamped %s against %s)" % (item["path"], item["on"], item["recorded"][:12]))
-            print("      git cat-file blob %s | diff - %s" % (item["recorded"], item["source"]))
-            print("      then: python3 scripts/translation-check.py --stamp %s" % item["path"])
-        print()
+        if broken:
+            print("-- contract problems (%d)" % len(broken))
+            for item in broken:
+                print("  %s" % item["path"])
+                for problem in item["problems"]:
+                    print("      %s" % problem)
+            print()
 
-    if untranslated:
-        print("-- untranslated (%d)" % len(untranslated))
-        for path in untranslated:
-            print("  %s" % path)
-        print()
+        if behind:
+            print("-- behind the source (%d)" % len(behind))
+            print("   The source changed after the translation was made. Read what changed,")
+            print("   bring the translation up to it, then re-stamp.\n")
+            for item in behind:
+                print("  %s  (stamped %s against %s)" % (item["path"], item["on"], item["recorded"][:12]))
+                print("      git cat-file blob %s | diff - %s" % (item["recorded"], item["source"]))
+                print("      then: python3 scripts/translation-check.py --stamp %s" % item["path"])
+            print()
 
-    if not broken and not behind and not untranslated:
-        print("clean: every translation names its source and matches it.")
+        if untranslated:
+            print("-- untranslated (%d)" % len(untranslated))
+            for path in untranslated:
+                print("  %s" % path)
+            print()
+
+        if not broken and not behind and not untranslated:
+            print("clean: every translation names its source and matches it.")
+    except Exception as exc:
+        # The one rule this script may never break is its exit code. A crash is
+        # still a report: name it loudly and leave the run green, rather than
+        # letting a checker that reports turn into a gate that fails.
+        print("-- the checker itself failed")
+        print("   %s: %s" % (type(exc).__name__, exc))
 
 
 if __name__ == "__main__":
