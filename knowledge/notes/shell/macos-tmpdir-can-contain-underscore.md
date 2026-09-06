@@ -1,10 +1,10 @@
 ---
 name: macos-tmpdir-can-contain-underscore
-description: A macOS runner's temp directory is /var/folders/<a>/<b>/T/, and <b> is not alphanumeric — it can contain `_`, so code that assumes a clean temp path fails on some runners and passes on others, which reads as flakiness
+description: A macOS runner's temp directory is /var/folders/<a>/<b>/T/, and <b> is not alphanumeric — it can contain `_`. Measured, it is fixed by the runner IMAGE, not drawn per machine, so while the pool serves two images the same commit passes on one and fails on the other and the split reads as flakiness
 area: shell
-verified_on: 2026-09-05
-verified_against: "GitHub-hosted macos-latest (arm64), 2026-09-05; runs 33988970539 and 33989864363 of spscream/ai_floppy"
-recheck: "On a mac or a macOS runner: `d=$(mktemp -d); echo $d` — expect /var/folders/<a>/<b>/T/tmp.XXXXXXXX. For the underscore itself you need that machine's own path: echo $TMPDIR in the job and read the second component."
+verified_on: 2026-09-06
+verified_against: "GitHub-hosted macos-latest (arm64); the split measured 2026-09-06 over 20 runners in one dispatch, run 34028462447 of spscream/ai-floppy; first observed 2026-09-05 in runs 33988970539 and 33989864363"
+recheck: "On a mac or a macOS runner: `d=$(mktemp -d); echo $d` — expect /var/folders/<a>/<b>/T/tmp.XXXXXXXX. For the underscore and its frequency, dispatch .github/workflows/tmpdir-probe.yml, which runs knowledge/probes/tmpdir-probe.sh on 20 runners at once and tallies the components."
 invalidated_by: "GitHub sets TMPDIR to a fixed path on macOS runners, or Darwin stops deriving it from confstr(_CS_DARWIN_USER_TEMP_DIR)"
 platforms: macos
 recheck_cmd: d="$(mktemp -d)"; case "$d" in /var/folders/*/T/*) echo match ;; *) echo "$d" ;; esac; rmdir "$d"
@@ -70,18 +70,39 @@ output showing it resolved — `repo: /private/var/folders/df/.../T/tmp.e4GeiSla
 `_` is in the `<b>` component. `mktemp`'s suffixes in the two samples (`e4GeiSlama`,
 `u5m1u5oq8Z`) contain none, so the underscore does not come from there.
 
-**READ, not measured — the frequency.** Only a failing run printed a path: the assertion
-that echoed it is the one that fired. All fifteen macOS job logs sampled for
-`/var/folders/` yielded exactly one distinct prefix, from the two failures, so *the six
-passing runs' temp paths were never recorded.* That the passing runs got a `<b>` without
-`_` is the explanation that fits — the transformation is deterministic given the path —
-but it is inference, and an image or account difference producing the same split is not
-excluded by anything measured here. **What is measured is that the path varies enough to
-change the outcome, and that one real value contains `_`.** Do not quote a rate.
+**MEASURED**, 2026-09-06, run 34028462447 — the split, and the mechanism behind it. Twenty
+`macos-latest` runners in one dispatch printed their own temp path
+(`knowledge/probes/tmpdir-probe.sh`). Two distinct components came back, and each one goes
+exactly with a kernel version, 20 samples out of 20:
 
-**READ**: the `_CS_DARWIN_USER_TEMP_DIR` mechanism, from Darwin's `confstr(3)`; the
-alphabet of the `<b>` component was not established from any source and is not claimed
-here beyond the one observed value.
+| `uname -r` | `<a>/<b>` | runners | carries `_` |
+|---|---|---|---|
+| 25.5.0 | `df/djsxfhc17x95674wsm_g8s980000gn` | 6 | yes |
+| 25.6.0 | `d8/hvxvltxn0fl4rmnd52sncbth0000gn` | 14 | no |
+
+So the component is **not drawn per machine — it is baked into the runner image**, and the
+pool was serving two images at once. `df/djsxfhc17x95674wsm_g8s980000gn` is the same value
+the two failures of 2026-09-05 printed, which settles what was inference then: the passing
+runs were landing on the other image.
+
+**The 30% is a property of a rollout, not of macOS.** It was the mix on one day, and it
+goes to zero the moment GitHub retires 25.5.0 — at which point the same code is green
+forever and the defect is still there, waiting for the next image whose `<b>` has an `_`.
+Quote this number only with its date and both kernel versions, or not at all. What does
+not expire is the shape: `<b>` is not alphanumeric, and which one you get is decided
+before your job starts.
+
+**MEASURED**, same run — the suffix. 2100 `mktemp -d` samples across the 21 machines
+(20 macOS, 1 Linux control) produced **zero** characters outside `[A-Za-z0-9]` in
+mktemp's own suffix. The note previously called the suffix alphanumeric on the strength of
+two samples; it now rests on 2100. The Linux control reported no `<a>/<b>` component at
+all, so "this is a Darwin property" is measured here rather than assumed.
+
+**READ**: the `_CS_DARWIN_USER_TEMP_DIR` mechanism, from Darwin's `confstr(3)`. Note that
+the measurement above does not confirm the *mechanism* — it shows the value tracks the
+image, which is equally consistent with the directory being created once when the image
+was built and simply shipped inside it. Nothing here establishes the alphabet `<b>` is
+drawn from; two values are two values.
 
 ## How to re-check
 
@@ -103,10 +124,14 @@ repository runs it in two places: one sample per push, in the macOS leg of `test
 and twenty samples at once from `.github/workflows/tmpdir-probe.yml`, which is dispatched
 by hand and tallies the result with `knowledge/probes/tmpdir-tally.sh`. Note what the
 probe cannot do, because it is the reason the second one fans out over machines: `<b>` is
-derived per user and per boot session, so N iterations *inside one job* return N suffixes
-under one parent and say nothing about the distribution. The sampling unit is the machine.
-The frequency claimed in **Evidence** above is still unmeasured until such a dispatch has
-run and this note has been updated with its numbers and its date.
+fixed for the whole job, so N iterations *inside one job* return N suffixes under one
+parent and say nothing about the distribution. The sampling unit is the machine — the
+probe's own `distinct_parent_dirs` field reports 1 on every run, which is that fact stated
+by the measurement rather than by this paragraph.
+
+Re-run the dispatch when the numbers matter again. The split above is dated, and the thing
+it measures is a rollout: a tally taken after 25.5.0 leaves the pool will read 0%, and that
+is a true measurement of a different day, not a refutation of this one.
 
 ## What it costs you not to know
 

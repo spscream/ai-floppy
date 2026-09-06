@@ -30,8 +30,21 @@ from an edge case into the ordinary path.
   thread of work into the private scope under `machines/<name>/`, where no
   other machine writes. The path is derived, never written live by `init`.
 
-The suite is 629 assertions and green on both CI jobs. This repository has no
+The suite is 671 assertions and green on both CI jobs. This repository has no
 personal status file yet: nothing was left mid-way to hand over.
+
+**The macOS temp path is measured** (#29, 2026-09-06). `tests.yml` prints one
+sample per run, and `.github/workflows/tmpdir-probe.yml` takes twenty at once on
+demand. The first dispatch settled the question the note left open, and settled
+it differently than expected: `<b>` is **fixed by the runner image**, not drawn
+per machine. Twenty runners returned two components, each tied to a kernel
+version 20 out of 20 — 25.5.0 with `_` (6 runners), 25.6.0 without (14). The
+same commit therefore passes or fails by which image it lands on. 2100 `mktemp`
+suffixes carried no non-alphanumeric character.
+
+The 30% is a rollout mix on one day, not a property of macOS, and it goes to zero
+when 25.5.0 is retired — leaving the defect intact and the tests green. The note
+says so in those words; do not quote the rate without both kernel versions.
 
 ## What is frozen
 
@@ -65,12 +78,9 @@ personal status file yet: nothing was left mid-way to hand over.
 
 ## Open, waiting on the owner
 
-- **Whether the macOS job should print `$TMPDIR` on every run.** One line in
-  `tests.yml`. Today the path reaches the log only when an assertion fails, so
-  "the component carries `_` only sometimes" cannot be measured — it is the
-  explanation that fits two failures, not an observation. A month of runs with
-  that line would settle it. Nothing depends on the answer; the actionable half
-  of the note (never assume a character class for a temp path) holds either way.
+Nothing. The one item that stood here — whether the macOS job should print
+`$TMPDIR` on every run — is closed by measurement rather than by a decision,
+see below.
 
 ## What is not true here
 
