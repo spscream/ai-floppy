@@ -1,0 +1,46 @@
+<!--
+  Search over the Russian pages — and over any non-Latin text.
+
+  lunr's indexing pipeline ends with `lunr.trimmer`, which strips `/^\W+/` and
+  `/\W+$/` from every token. In JavaScript `\w` is ASCII-only, so a word
+  written entirely in Cyrillic is entirely `\W`, and the trimmer returns the
+  empty string: `память` is indexed as ``, not as itself.
+
+  Measured 2026-09-06 against the deployed index (`assets/js/search-data.json`,
+  137 entries, of which 38 are Russian and all 38 carry their text): 1855
+  terms, two of them containing Cyrillic — both `relUrl` values, which survive
+  only because they also carry ASCII — and one empty-string term holding 124
+  postings, where every Russian word had collapsed. Queries for `память`,
+  `сессия` and `заметка` each returned nothing, while the same pages answered
+  to `floppy`.
+
+  The tokenizer is not the cause, and `search.tokenizer_separator` in
+  `_config.yml` does not fix it: `память сессии` already tokenizes into two
+  words. Replacing the trimmer takes that same index to 3675 terms, 1827 of
+  them Cyrillic, and those three queries to 13, 5 and 9 hits with every English
+  count unchanged.
+
+  This runs before the index exists. just-the-docs 0.12.0 loads
+  `lunr.min.js` and `just-the-docs.js` as synchronous scripts in `<head>`
+  (`_includes/head.html`, lines 40 and 43) and includes this file at line 51,
+  while the index is assembled later still, in the callback of an asynchronous
+  request for `search-data.json`.
+
+  Not fixed here, and a smaller problem: lunr has no Russian stemmer, so
+  `сессия` and `сессии` remain different terms. The theme's own query adds a
+  trailing wildcard, which covers a prefix someone is still typing, not two
+  endings of one word.
+-->
+<script>
+  // The same contract as lunr.trimmer — trim non-word characters off both ends
+  // — with \p{L}\p{N} standing in for the ASCII-only \w. Re-registered under
+  // the `trimmer` label because lunr serialises a pipeline by its names; the
+  // console warning about overwriting a registered function is that
+  // re-registration, and is expected.
+  lunr.trimmer = function (token) {
+    return token.update(function (s) {
+      return s.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '')
+    })
+  }
+  lunr.Pipeline.registerFunction(lunr.trimmer, 'trimmer')
+</script>

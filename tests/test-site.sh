@@ -31,6 +31,21 @@ assert_rc "site-build.sh succeeds" "0" "$?"
 assert_eq "build copies _config.yml" "0" "$([[ -f "$out/_config.yml" ]] && echo 0 || echo 1)"
 assert_eq "build copies Gemfile"     "0" "$([[ -f "$out/Gemfile"     ]] && echo 0 || echo 1)"
 
+# The search fix for non-Latin text is a Jekyll include, and Jekyll only sees
+# an include that is in the root it was handed. Left in site/ and not copied,
+# it would be a file that exists in the repository, passes review, and is
+# absent from every deployed page. What these three asserts cannot check is the
+# half that lives in the theme's gem and in a browser: that lunr still trims
+# tokens the way it was measured to, and that the theme still includes this
+# file at all. Both are pinned — just-the-docs 0.12.0 in the Gemfile — and
+# neither is reachable from a suite that runs without Ruby or a network.
+head_custom="$out/_includes/head_custom.html"
+assert_eq "build copies _includes/head_custom.html" "0" "$([[ -f "$head_custom" ]] && echo 0 || echo 1)"
+assert_contains "the include replaces lunr's trimmer" \
+  "lunr.trimmer =" "$(cat "$head_custom" 2>/dev/null)"
+assert_contains "and re-registers it under the pipeline label" \
+  "registerFunction(lunr.trimmer, 'trimmer')" "$(cat "$head_custom" 2>/dev/null)"
+
 # ---------- 1. every document reaches the site ----------
 # Matched on the document's own first heading rather than on the build
 # script's table: a table that lists a file it no longer copies would pass a
