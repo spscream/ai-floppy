@@ -149,17 +149,18 @@ stays correct "until there is something to measure". The memory is **14 notes**
 today, so that condition has been met and the freeze has expired on its own
 terms. Either measure the corpus and write the file, or restate why not.
 
-**Two `knowledge/` notes are owed and `wrap` cannot write them** — `watched_dirs`
-is `docs` only, deliberately, so each needs its own pull request:
+**Nothing else is.** The three facts this thread owed the cross-project base
+have all landed there: `shell-bracket-range-follows-collation` (#39), and
+`one-line-page-eats-a-line-comment` plus `lunr-trimmer-drops-non-latin-tokens`
+in this same change, at the owner's instruction — a deliberate pull request,
+which is the only way `knowledge/` can be written, since `watched_dirs` keeps
+`wrap` inside `docs`.
 
-1. **A page served as one line kills an inline `//` comment**, and takes ASI
-   with it. True of any compressing template, not of this theme alone.
-2. **lunr's trimmer drops non-Latin tokens entirely**, and the tokenizer is not
-   the suspect it looks like. True of any lunr site with non-Latin content.
-
-The third fact from this thread already landed there as
-`shell-bracket-range-follows-collation` (#39), with a machine-checkable half
-that runs on the macOS leg of every push.
+Both new notes carry a machine-checkable half that needs nothing but node, so
+the base now proves 5 of its 16 notes rather than 3. Each was checked for
+discrimination rather than assumed: the same commands run against the *fixed*
+forms print `ran asi-ok` and `память memory`, the opposite of what they
+assert.
 
 ## What is not true here
 
