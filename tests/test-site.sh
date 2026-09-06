@@ -35,6 +35,13 @@ for src in docs/*.md; do
   # The first heading, not the first line: a translation's first line is the
   # marker, and the marker is stripped from the page.
   h1="$(grep -m1 '^# ' "$src")"
+  # An empty needle would make `grep -qF` below match any non-empty line, and
+  # the document would "reach the site" with nothing actually checked. A
+  # docs/*.md with no `# ` heading is therefore a failure here, not a pass:
+  # this loop is the guard against a document nobody publishes, and a guard
+  # that cannot fail is indistinguishable from one that was never wired up.
+  assert_eq "$src has a top-level heading to match on" "0" \
+    "$([[ -n "$h1" ]] && echo 0 || echo 1)"
   found=1
   for page in "$out"/*.md; do
     if grep -qF "$h1" "$page"; then found=0; break; fi
@@ -124,5 +131,14 @@ assert_contains "and declares itself a parent" "has_children: true" "$hub"
 # The marker is an implementation detail of the repository, not of the site.
 assert_eq "no page carries a translation marker" "" \
   "$(grep -l 'floppy:translation' "$out"/*.md 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
+
+# ---------- the heading guard can actually go red ----------
+# A positive control on the loop above. Without it, the fix is a line of code
+# nobody has ever seen fail — the same class of thing it was added to prevent.
+probe=docs/zz-probe-no-heading.md
+printf '## Only a subheading\n\nbody\n' > "$probe"
+probe_h1="$(grep -m1 '^# ' "$probe")"
+rm -f "$probe"
+assert_eq "a document with no top-level heading yields an empty needle" "" "$probe_h1"
 
 summary
