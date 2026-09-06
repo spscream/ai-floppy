@@ -276,6 +276,25 @@ if [[ $FLOW -eq 1 ]]; then
   # memory, not a consequence of the lint failing.
   echo "$lint_out" | grep -E '^  !' | sed 's/^ */  warning: /'
 
+  # Only where translations exist. In a repository with none this section would
+  # be an empty heading about a feature nobody here uses — the same reasoning as
+  # the worktree line below, which prints only when there is more than one.
+  # --root is not optional: in a consumer's repository this script runs from the
+  # plugin cache and the documents are somewhere else entirely.
+  if [[ -n "$(ls "$repo"/docs/*.*.md "$repo"/README.*.md 2>/dev/null)" ]]; then
+    hr "process: translations"
+    if command -v python3 >/dev/null 2>&1; then
+      tr_out="$(python3 "$here/translation-check.py" --root "$repo" 2>&1)"
+      if [[ -n "$tr_out" ]]; then
+        echo "$tr_out" | sed 's/^/  /'
+      else
+        echo "  clean"
+      fi
+    else
+      echo "  python3 not available — skipped"
+    fi
+  fi
+
   hr "process: lock and worktrees"
   echo "  wrap lock: $(bash "$here/wrap-lock.sh" status 2>&1 | head -1)"
   # An extra worktree is a separate memory directory, and without its own

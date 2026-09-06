@@ -218,4 +218,35 @@ case "$outB" in
 esac
 rm -rf "$tmpB"
 
+# ---------- translations ----------
+# The negative control costs nothing: out6 is a --flow run captured earlier from
+# a sandbox with no translations in it. A consumer who never translated anything
+# should not get an empty heading about a feature they do not use — the same
+# rule the worktree line follows.
+case "$out6" in
+  *"process: translations"*) fail "no translations, no section" "no section" "$out6" ;;
+  *) ok "no translations, no section" ;;
+esac
+
+# The positive control gets a sandbox of its own. The one out6 came from is
+# deleted at line 89, and reviving it would stretch a single fixture across
+# every unrelated section in between. Built here rather than read out of this
+# repository, so the test says the wiring works rather than that this repository
+# happens to contain a translation.
+repoT="$(sandbox)"; cp shim/run "$repoT/.floppy/run"
+: > "$repoT/.floppy/config"
+mkdir -p "$repoT/docs"
+printf '# Doc\n\nbody\n' > "$repoT/docs/x.md"
+# A blob sha no content produces, so the translation is behind by construction.
+printf '<!-- floppy:translation of=docs/x.md blob=%s on=2026-01-01 -->\n\n# Док\n' \
+  0000000000000000000000000000000000000000 > "$repoT/docs/x.ru.md"
+outT="$(cd "$repoT" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+rm -rf "$repoT"
+if command -v python3 >/dev/null 2>&1; then
+  assert_contains "--flow prints the translations sub-section" "-- process: translations" "$outT"
+  assert_contains "and names the translation that is behind"   "docs/x.ru.md"              "$outT"
+else
+  printf '  skip python3 not available\n'
+fi
+
 summary
