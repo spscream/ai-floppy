@@ -31,6 +31,40 @@ assert_contains "default applied when key absent"  "FLOPPY_WORKPLACE_PROJECT_KEY
 assert_contains "repo root resolved"               "FLOPPY_REPO=$repo"              "$out"
 assert_contains "numeric key passes through"       "FLOPPY_STATUSES_NOW_CHARS_MAX=9000" "$out"
 
+# The personal status path is DERIVED, not defaulted to a constant (#19): it
+# has to land inside the private scope of the configured memory dir, under the
+# machine's own name, or two machines write the same path and the whole point
+# of the split is lost. Asserted against this config's memory_dir, so a
+# hardcoded ".agent-memory/..." would fail here.
+sp="$(printf '%s\n' "$out" | sed -n 's/^FLOPPY_STATUSES_PERSONAL=//p')"
+assert_contains "personal status is inside the configured memory dir" \
+  "brain/private/machines/" "$sp"
+# The machine part is asserted as shape, not as this runner's hostname:
+# re-deriving the name here would be a test that agrees with whatever the
+# script does. The exact naming is pinned by the machine_key case below,
+# where the expected value is a constant.
+assert_eq "and ends at a per-machine NOW.md" "NOW.md" "${sp##*/}"
+case "${sp%/NOW.md}" in
+  */machines/?*) ok   "with a non-empty machine name in the path" ;;
+  *)             fail "with a non-empty machine name in the path" "machines/<name>" "$sp" ;;
+esac
+
+# machine_key overrides the hostname, the same way it does for a note's
+# validity path — a hostname is not always a name a human chose.
+repoM="$(sandbox)"; cp shim/run "$repoM/.floppy/run"
+printf 'machine_key=laptop\n' > "$repoM/.floppy/config"
+outM="$(cd "$repoM" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1 | sed -n 's/^FLOPPY_STATUSES_PERSONAL=//p')"
+assert_eq "machine_key names the personal status directory" \
+  ".agent-memory/private/machines/laptop/NOW.md" "$outM"
+
+# And an explicit key wins over the derivation entirely: a consumer whose
+# layout does not have a private scope at all still needs somewhere to put it.
+repoP="$(sandbox)"; cp shim/run "$repoP/.floppy/run"
+printf 'statuses_personal=state/mine.md\n' > "$repoP/.floppy/config"
+outP="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1 | sed -n 's/^FLOPPY_STATUSES_PERSONAL=//p')"
+assert_eq "an explicit statuses_personal is honoured" "state/mine.md" "$outP"
+rm -rf "$repoM" "$repoP"
+
 # default when there is no config at all
 repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"
 out2="$(cd "$repo2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1)"

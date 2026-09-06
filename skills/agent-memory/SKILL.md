@@ -167,25 +167,46 @@ What you must not do is conclude from a clean `git status` here that the
 session left nothing behind: in this layout that is exactly what a clean status
 looks like while every note is still uncommitted.
 
-## Two status genres — and why they stay two files
+## Three status genres — and why they stay three files
 
-A repository following this convention keeps two documents about its current
+A repository following this convention keeps three documents about its current
 state, deliberately not merged into one:
 
-- a **current-state file** that a session start reads whole — rewritten in
-  place, so it always answers "what's true right now" without a reader
-  needing to reconstruct it from history;
+- a **project current-state file** (`statuses_now`) that a session start reads
+  whole — rewritten in place, so it always answers "what's true right now"
+  without a reader needing to reconstruct it from history. What is true about
+  the project: frozen decisions, what is red, what waits on the human, metrics
+  with their regression marks;
+- a **personal current-state file** (`statuses_personal`) — the same shape, one
+  scope narrower: the working state of one person on one machine, what they
+  were mid-way through and where to resume. It defaults into the private scope
+  under `machines/<name>/`, so no other machine writes that path;
 - an **append-only dated journal** — grows one section at a time, holds the
   why and the numbers behind a change, and is opened only for the section a
   session was pointed at.
 
-They stay separate because they want opposite things from a writer: the
-current-state file wants to be overwritten so a stale claim cannot survive
-in it, while the journal wants every entry preserved so a past number or a
-rejected hypothesis is never lost to a later edit. A single file trying to
+The first two split for a reason the memory learned earlier. A current-state
+file is the one artefact rewritten *whole* on every wrap, so two sessions
+overlapping in it conflict, while a note collides with nothing by construction
+and an index merges. Most of what forced those rewrites was personal — a
+thread of work that changes every session and is shared with nobody. Separated,
+it never needs merging; what stays in the shared file changes rarely enough
+that two sessions rarely meet in it. The split is structural, not a matter of
+tidiness: a private working note written back into the shared file re-creates
+the collision, on the document a stranger reads first.
+
+The journal stays separate from both because it wants the opposite thing from
+a writer: a current-state file wants to be overwritten so a stale claim cannot
+survive in it, while the journal wants every entry preserved so a past number
+or a rejected hypothesis is never lost to a later edit. A single file trying to
 satisfy both ends up serving neither — the cost of starting a session would
 then depend on how much got written into yesterday's entry, and a big day
 would tax every session after it.
+
+None of the three covers two people wrapping at the same moment on two
+machines. The wrap lock serialises one machine, and across machines git hands
+back a merge conflict rather than arbitrating silently. Splitting the personal
+half out shrinks how often that happens — it does not close it.
 
 ## Language
 

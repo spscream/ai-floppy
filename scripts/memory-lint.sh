@@ -125,11 +125,24 @@ while IFS= read -r __line; do notes+=("$__line"); done < <(
 #
 # README.md is excluded the way MEMORY.md and INDEX.md are above: in this
 # scope it is the file that introduces the directory, not a note in it.
+#
+# So is the personal status file (statuses_personal, #19), which lives at
+# machines/<name>/ inside this scope and is a status document, not a note: it
+# has no frontmatter and is not supposed to. Excluded by PATH — the basename
+# in any machines/<...>/ directory — rather than by the one resolved path,
+# because a memory synced from a second machine carries that machine's copy
+# too, and this machine cannot resolve a path it does not name. A note that
+# genuinely belongs to a machine still lints: only this one filename is
+# skipped, not the directory, which is the blind spot this scope was given a
+# lint pass to remove in the first place.
+sp_leaf="${FLOPPY_STATUSES_PERSONAL:-}"; sp_leaf="${sp_leaf##*/}"
+[[ -n "$sp_leaf" ]] || sp_leaf="NOW.md"
 private_notes=()
 if [[ -d "$MEM/$LOCAL_DIR" ]]; then
   while IFS= read -r __line; do private_notes+=("$__line"); done < <(
     find -L "$MEM/$LOCAL_DIR" -name '*.md' \
-      -not -name 'MEMORY.md' -not -name 'INDEX.md' -not -name 'README.md' | sort
+      -not -name 'MEMORY.md' -not -name 'INDEX.md' -not -name 'README.md' \
+      -not -path "*/machines/*/$sp_leaf" | sort
   )
 fi
 

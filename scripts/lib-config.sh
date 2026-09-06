@@ -208,6 +208,41 @@ export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get 
 export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
+# The second status, and the reason there are two (#19). statuses_now is the
+# only artefact in the system that every wrap rewrites WHOLE, so two sessions
+# overlapping in it conflict — while a note collides with nothing by
+# construction and an index merges. The fix is the split the memory already
+# made: give the two kinds of fact different homes.
+#
+#   statuses_now      - true about the PROJECT: frozen decisions, what is red,
+#                       what waits on the owner, metrics with their regression
+#                       marks. Committed here, read by anyone, changes rarely,
+#                       and therefore rarely contended.
+#   statuses_personal - true about ONE PERSON'S thread of work on ONE machine:
+#                       what they are mid-way through, what is unfinished,
+#                       where to pick it up. Changes every session and is
+#                       shared with nobody, so it never needs merging at all.
+#
+# The default puts it inside the private scope under machines/<name>/, which
+# makes the no-collision property structural rather than a convention anyone
+# has to keep: no other machine writes that path. It follows the person to
+# their second machine only if they configure the same machine_key there,
+# which is the honest default — working state usually does not transfer.
+#
+# `hostname` is the fallback and machine_key overrides it, for the reason
+# given where machine_key is read: on one of these machines the hostname is
+# WIN-GVR0V5UPOD7. Here it only names a directory nobody publishes, so it is
+# good enough to derive from, unlike in a note's validity path.
+_sp_machine="$FLOPPY_MACHINE_KEY"
+[[ -n "$_sp_machine" ]] || _sp_machine="$(hostname 2>/dev/null || echo unknown)"
+_sp_machine="${_sp_machine%%.*}"          # the short name; a FQDN is noise here
+_sp_machine="${_sp_machine//\//-}"        # never a path separator
+export FLOPPY_STATUSES_PERSONAL="$(cfg_get statuses_personal \
+  "$FLOPPY_MEMORY_DIR/$FLOPPY_MEMORY_PRIVATE_DIR/machines/$_sp_machine/NOW.md")"
+# No character cap for it, unlike statuses_now. That cap exists because every
+# session pays to read the project status; this one is read by the session
+# that wrote it, on the machine that wrote it. A ceiling with nothing measured
+# behind it is the borrowed number this project refuses elsewhere.
 # Words that mark a regression in a trend table's direction cell, comma
 # separated and in the project's own language. Unset means every trend row is
 # protected from deletion, which is what the guard did before this key existed.

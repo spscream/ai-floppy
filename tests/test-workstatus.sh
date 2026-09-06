@@ -147,4 +147,24 @@ case "$outP3" in
 esac
 rm -rf "$repoP" "$homeP"
 
+# ---------- no personal status is the ordinary state, not a fault ----------
+# #19. The project status file gets "! ... is missing — nothing for /start to
+# read" when absent, because /start genuinely needs it. The personal one is
+# optional: a repository nobody has left a working note in has nothing to
+# report, and a warning there would read as a step somebody skipped.
+repoN="$(sandbox)"; cp shim/run "$repoN/.floppy/run"
+printf 'memory_dir=brain\nstatuses_now=state/NOW.md\n' > "$repoN/.floppy/config"
+mkdir -p "$repoN/state" "$repoN/brain"
+printf '| Notes | 1 | 2 | up |\n' > "$repoN/state/NOW.md"
+git -C "$repoN" add -A
+git -C "$repoN" -c user.email=t@t -c user.name=t commit -qm base
+outN="$(cd "$repoN" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"; rcN=$?
+assert_rc "an absent personal status does not fail the report" 0 "$rcN"
+case "$outN" in
+  *personal*) fail "an absent personal status is not mentioned at all" "no 'personal' line" "$outN" ;;
+  *)          ok   "an absent personal status is not mentioned at all" ;;
+esac
+assert_contains "and the project status is still reported" "state/NOW.md" "$outN"
+rm -rf "$repoN"
+
 summary

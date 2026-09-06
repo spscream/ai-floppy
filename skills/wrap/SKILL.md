@@ -96,11 +96,33 @@ the note.
 
 ## 3. Update the current-state file, and journal only if there's something to journal
 
-Update the current-state file (`statuses_now` in `.floppy/config`) if this
-session changed anything that belongs in it — a metric, a freeze, a decision,
-a red or deferred item. A metric that got worse stays in, marked worse: a
-disappearing line is how a regression hides in a file that's rewritten rather
-than appended.
+There are two current-state files, and which one a fact goes in is decided by
+**who it is true for**, not by how important it is:
+
+| fact | file |
+|---|---|
+| a metric, a freeze, a decision, a red or deferred item, something waiting on the human | `statuses_now` — the project's, committed and shared |
+| what you were mid-way through, what is half-done, where to pick it up, which branch this thread lives on | `statuses_personal` — yours, on this machine |
+
+Update the project file (`statuses_now` in `.floppy/config`) if this session
+changed anything that belongs in it. A metric that got worse stays in, marked
+worse: a disappearing line is how a regression hides in a file that's
+rewritten rather than appended.
+
+Update the personal file (`statuses_personal`, defaulting into the private
+scope at `machines/<name>/NOW.md`) with the thread of work itself. Create it
+if it isn't there; leave it alone if this session had nothing to hand over.
+It is committed by the same `commit` call, into the private store rather than
+this repository, because it is inside the memory.
+
+**Why this is two files and not one.** The project file is the only artefact
+every wrap rewrites whole, so two sessions overlapping in it conflict — while
+a note collides with nothing and an index merges. Most of what forced a
+rewrite was personal: one person's thread of work, changing every session and
+shared with nobody. Moved out, it never needs merging at all, and what stays
+behind changes rarely enough that two sessions rarely touch it. Putting a
+private working note back into the shared file is not a small untidiness — it
+re-creates the collision on the file a stranger has to read.
 
 Only add a dated journal entry when the session produced numbers or an
 analysis worth reconstructing a month from now. A small doc fix needs no

@@ -166,6 +166,15 @@ $store_cfg
 
 # statuses_now=docs/statuses/NOW.md
 # statuses_now_chars_max=12000
+
+# The personal current-state file: one person's thread of work on one machine,
+# kept out of statuses_now so that the shared file is not rewritten whole every
+# session. The default derives from the machine name — leave it unset unless
+# the default path is wrong for you. Setting it here writes ONE machine's path
+# into a config every machine reads, which is the mistake this default exists
+# to avoid.
+# statuses_personal=.agent-memory/private/machines/<name>/NOW.md
+
 # watched_dirs=docs
 # watched_files=AGENTS.md
 EOF
