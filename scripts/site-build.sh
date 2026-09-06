@@ -84,6 +84,8 @@ cp site/_config.yml site/Gemfile "$out/"
 # handed, and this root is assembled from scratch on every build, so an
 # include left behind in site/ is one the deployed site does not have.
 cp -R site/_includes "$out/"
+# Same for the vendored search plugins under assets/ — see NOTICE.md there.
+cp -R site/assets "$out/"
 
 emit() { # target title nav_order [parent] [has_children]  — body on stdin
   {
