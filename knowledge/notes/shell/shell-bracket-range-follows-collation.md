@@ -23,8 +23,9 @@ locale reaches it, so the same rule expressed in Python rejects `RU` on every pl
 
 The two idioms therefore agree on Linux and disagree on macOS. The fix is an
 enumeration, not a range: `[abcdefghijklmnopqrstuvwxyz]` has no endpoints for collation
-to reorder. `[[:lower:]]` is not a substitute — in a UTF-8 locale it also matches `я`,
-which the Python side does not.
+to reorder. `[[:lower:]]` is not a substitute either — measured on glibc, in a UTF-8
+locale it also matches `я`, which the Python side does not; whether BSD agrees is
+untested, and the enumeration needs no answer to that question.
 
 ## Why it is not obvious
 
@@ -54,7 +55,9 @@ already parsed the line, not by the command being run.
 `AA`, `ZZ` and `Ab` skip as well, so this is not an artifact of where `R` and `U` sit in
 the alphabet. That the generated locale was genuinely in effect was checked separately:
 `case "яя" in [[:lower:]][[:lower:]])` matches under it and does not under `C.UTF-8`,
-which is also the measurement behind the `[[:lower:]]` sentence above.
+which is also the measurement behind the `[[:lower:]]` sentence above — a glibc
+measurement, and the reason that sentence names glibc rather than claiming the same of
+the platform this note is asserted for.
 
 **MEASURED** on macOS, in CI rather than by hand: the same rule written as a glob and as
 a Python regex was asserted against a fixture named `guide.RU.md` in PR #36 of
