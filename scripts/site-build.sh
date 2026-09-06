@@ -80,6 +80,10 @@ rewrite+=(-e '/^<!-- floppy:translation /d')
 rm -rf "$out"
 mkdir -p "$out"
 cp site/_config.yml site/Gemfile "$out/"
+# The includes travel too. Jekyll reads _includes/ from the root it is
+# handed, and this root is assembled from scratch on every build, so an
+# include left behind in site/ is one the deployed site does not have.
+cp -R site/_includes "$out/"
 
 emit() { # target title nav_order [parent] [has_children]  — body on stdin
   {

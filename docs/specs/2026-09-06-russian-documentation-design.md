@@ -234,3 +234,30 @@ How just-the-docs indexes Cyrillic headings for search. `site/_config.yml` sets
 search over the Russian pages turns out broken, it is a one-line change in that
 file. Measured on the first pull request, where a Russian page exists for the
 first time — not guessed here.
+
+## The measurement, and what it found (2026-09-06)
+
+Broken, and **not for the reason this section predicted**. The one-line change
+to `tokenizer_separator` would have fixed nothing: the tokenizer already splits
+`память сессии` into two words. What empties them is `lunr.trimmer`, the last
+step of lunr's indexing pipeline, which strips `\W` from both ends of a token —
+and in JavaScript `\w` is ASCII-only, so a Cyrillic word is `\W` end to end and
+trims to the empty string.
+
+Measured against the deployed index rather than a local build, by reproducing
+the site's own index construction and query code from the served
+`just-the-docs.js`: 1855 terms, two of them containing Cyrillic — both `relUrl`
+values, which survive only because they also carry ASCII — and one empty-string
+term holding 124 postings. `память`, `сессия`, `заметка`: no results each,
+while the same Russian pages answered to `floppy`. With the trimmer replaced by
+a Unicode-aware one: 3675 terms, 1827 Cyrillic, and 13, 5 and 9 results, every
+English count unchanged.
+
+The fix is `site/_includes/head_custom.html`, which the theme includes after
+loading lunr and before the index is built. It is not a one-line change: the
+build script assembles the site root from scratch and had to learn to copy
+`_includes/` as well.
+
+**Left open, and smaller:** lunr has no Russian stemmer, so `сессия` and
+`сессии` stay different terms. The theme's trailing wildcard covers a prefix
+being typed, not two endings of one word.
