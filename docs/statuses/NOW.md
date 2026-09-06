@@ -7,64 +7,40 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
-**0.18.0 is released** — tagged `v0.18.0`, GitHub release published, all three
-manifests agree, and the site rebuilt from the push. It closes the three issues
-opened on 2026-09-05, all of which were found while closing a single session on
-the day the pull-request model went in. That model is what turned each of them
-from an edge case into the ordinary path.
+**0.19.0 is released** (2026-09-06) — tagged `v0.19.0`, GitHub release
+published, all three manifests agree, site rebuilt from the push. Two changes
+reach consumers, neither needing a migration and neither touching the shim:
 
-- **`commit` survives a fresh branch** (#17 → #23). The tail ended with
-  `pull --rebase` then `push`; on a branch with no upstream the pull has
-  nothing to rebase against and took the whole tail with it — which, with
-  `main` protected, was every close. With no upstream the pull is skipped and
-  the push is `-u origin HEAD`. A push refused by a branch rule is now told
-  apart from a network failure and prints the branch-and-pull-request recipe
-  instead of "retry", which could not work.
-- **The wrap lock follows the memory, not the clone** (#18 → #24). Measured:
-  a linked worktree's `--git-dir` really is its own, but in the store layout
-  "each worktree carries its own memory copy" is false — two worktrees took two
-  locks over the same notes. The lock now lives in the store's git directory,
-  named for the project key, and `acquire`/`status` print what it covers.
-- **The status is two files** (#19 → #26), option C of the three in the issue.
-  `statuses_now` keeps project state; `statuses_personal` takes one person's
-  thread of work into the private scope under `machines/<name>/`, where no
-  other machine writes. The path is derived, never written live by `init`.
+- **`status` stopped naming branches that were already deleted.** The
+  `-- origin` section reads remote-tracking refs and the fetch had no
+  `--prune`, so it learned what appeared and never what went away. Measured
+  minutes after two pull requests merged with `--delete-branch`: both branches
+  still listed as live. Where a protected default branch makes
+  pull-request-and-delete the ordinary path, that is wrong after every merge,
+  in the direction that invents work.
+- **A note can say *when* it was true.** `metadata.as_of` is the date a note's
+  evidence is from, with `note_stale_days` (180) as the threshold and a
+  `-- note dates` section in `lint`. The practice comes from `knowledge/LINKS.md`
+  §5; the memory note on that survey says why it cannot be read as a to-do list.
+  This repository's own nine notes are dated from the evidence in their bodies.
 
-**The macOS temp path is measured** (#29, 2026-09-06). `tests.yml` prints one
-sample per run, and `.github/workflows/tmpdir-probe.yml` takes twenty at once on
-demand. The first dispatch settled the question the note left open, and settled
-it differently than expected: `<b>` is **fixed by the runner image**, not drawn
-per machine. Twenty runners returned two components, each tied to a kernel
+**0.18.0** (same day) closed the three issues the pull-request model turned from
+edge cases into the ordinary path: `commit` on a branch with no upstream, the
+wrap lock following the memory rather than the clone, and the status splitting
+into two files. Details in `CHANGELOG.md`; the decisions they froze are below.
+
+**The macOS temp path is measured** (#29/#30, 2026-09-06) and this one is still
+live. `<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**, not
+drawn per machine: twenty runners returned two components, each tied to a kernel
 version 20 out of 20 — 25.5.0 with `_` (6 runners), 25.6.0 without (14). The
-same commit therefore passes or fails by which image it lands on. 2100 `mktemp`
-suffixes carried no non-alphanumeric character.
+same commit passes or fails by which image it lands on. 2100 `mktemp` suffixes
+carried no non-alphanumeric character.
 
 The 30% is a rollout mix on one day, not a property of macOS, and it goes to zero
-when 25.5.0 is retired — leaving the defect intact and the tests green. The note
-says so in those words; do not quote the rate without both kernel versions.
+when 25.5.0 is retired — **leaving the defect intact and the tests green**. Do
+not quote the rate without both kernel versions.
 
-**`status` no longer invents open work** (#31, 2026-09-06). The "other branch"
-line read remote-tracking refs, and `git fetch` without `--prune` only learns
-what appeared, never what went away. Measured: minutes after #29 and #30 merged
-with `--delete-branch`, the report still listed both branches as live. Where
-every change lands as a pull request that deletes its branch, that is wrong
-after every merge, and wrong in the direction that reads as something still
-open. The fix caught its own branch on the first run after #31 merged.
-
-**A memory note can say when, not just what** (#32, 2026-09-06). `metadata.evidence`
-recorded what kind of claim a note holds and nothing recorded *when* it was last
-true — while `read` was already documented as "true until something runs and says
-otherwise" and `decided` as the case where a date and an author apply instead of
-evidence. `metadata.as_of` is that date, with `note_stale_days` (180) as the
-threshold and a new `-- note dates` section in `lint`. This repository's own
-eight notes are dated from the evidence in their bodies, not from the day of the
-pass. The practice comes from `knowledge/LINKS.md` §5; see the memory note on
-why that survey cannot be read as a to-do list.
-
-The suite is 689 assertions and green on both CI jobs. Neither #31 nor #32
-bumped the version — feature commits here are collected by a release commit, so
-**0.19.0 owes a CHANGELOG entry for both**, including the new config key. This
-repository still has no personal status file: nothing was left mid-way.
+The suite is 689 assertions and green on both CI jobs.
 
 ## What is frozen
 
@@ -94,7 +70,11 @@ repository still has no personal status file: nothing was left mid-way.
   measured in the note, not politeness.
 - **`statuses_personal` is derived, not written live by `init`** — a literal
   value in `.floppy/config` would put one machine's path into a file every
-  machine reads. `init` writes it commented, with that reason beside it.
+  machine reads. `init` writes it commented, with that reason beside it. The
+  same argument rules out setting `machine_key` here: this machine's directory
+  is `machines/WIN-GVR0V5UPOD7/`, an ugly name from `hostname`, and correct,
+  because a hand-picked one in the shared config would rename the *other*
+  machine too.
 - **The wrap lock does not cover the private scope** — one lock per rite,
   following the memory every wrap writes, not one per repository the rite can
   touch. And it does not cover two machines at all; nothing does.
@@ -108,13 +88,34 @@ repository still has no personal status file: nothing was left mid-way.
 
 ## Open, waiting on the owner
 
-Nothing.
+**Russian documentation: wanted, and the approach is undecided.** The owner
+asked for it on 2026-09-06 and explicitly wants the design thought through
+before anything is written. Nothing has been chosen; what follows is scope, not
+a plan.
+
+Four surfaces, and they are not the same problem:
+
+- `README.md` and `docs/` — read by humans, published to the site;
+- `skills/*/SKILL.md` — read by a **model**, and their language changes agent
+  behaviour rather than only readability;
+- `knowledge/` — a cross-project base whose contract (`verified_on`, `recheck`)
+  is enforced by two scripts that assume one file per note;
+- `CHANGELOG.md` — read by a consumer deciding whether to take an update.
+
+Three things already settled that constrain any answer, so re-deriving them is
+waste: `memory_language` already governs the language of memory notes and is
+`en` here; `agent-memory` states plainly that the language of the skills, of the
+memory, and of the reply to a human are **three separate choices** and warns a
+future session against wiring them together; and the site is generated from
+these files by `scripts/site-build.sh`, with `test-site.sh` and `test-docs.sh`
+asserting structure — so a second language is a build question, not only a
+translation one.
 
 ## What is not true here
 
 No open issues and no open pull requests — checked against `gh`, not recalled,
-after #32 merged. `main` is in sync with the remote, the tree is clean, and both
-memory stores are pushed.
+after 0.19.0 was published. `main` is in sync with the remote, the tree is
+clean, and both memory stores are pushed.
 
 **A caution the previous version of this file earned.** It once closed with the
 same "nothing is open" claim while three issues had been filed minutes earlier.
