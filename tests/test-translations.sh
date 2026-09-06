@@ -114,4 +114,25 @@ assert_contains "and the document it wrongly claims is still listed as untransla
   "docs/other.md" "$out9"
 rm -f "$sb/docs/other.md" "$sb/docs/lessons.ru.md"
 
+# ---------- 7. the real corpus keeps the contract ----------
+# The loop below is worthless if it iterates over nothing — the empty-loop trap
+# this repository has already paid for twice. So the count is asserted first.
+real_n="$(ls docs/*.*.md README.*.md 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "there is at least one translation to check" "0" \
+  "$([[ "$real_n" -ge 1 ]] && echo 0 || echo 1)"
+
+for f in docs/*.*.md README.*.md; do
+  [[ -f "$f" ]] || continue
+  line1="$(head -1 "$f")"
+  assert_contains "$f carries a marker on line 1" "floppy:translation" "$line1"
+  src="$(printf '%s' "$line1" | sed -n 's/.*of=\([^ ]*\).*/\1/p')"
+  assert_eq "$f names a source that exists" "0" \
+    "$([[ -f "$src" ]] && echo 0 || echo 1)"
+  sha="$(printf '%s' "$line1" | sed -n 's/.*blob=\([0-9a-f]*\).*/\1/p')"
+  assert_eq "$f records a 40-character blob sha" "40" "${#sha}"
+done
+
+# Deliberately absent: any assertion that these files are up to date. See the
+# header of this file.
+
 summary

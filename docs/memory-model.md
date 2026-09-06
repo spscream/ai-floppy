@@ -1,5 +1,7 @@
 # The memory model: two namespaces, two axes
 
+*[Русская версия](memory-model.ru.md)*
+
 **Status: implemented in 0.7.0** for the namespace and subject levels; the
 validity level (`workplaces/`, `machines/`) is directories only — no verb
 creates or reads them yet. Written 2026-08-25 against 0.6.1, revised on

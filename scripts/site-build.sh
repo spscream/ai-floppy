@@ -37,7 +37,8 @@ docs/lessons.md|lessons.md|Lessons|3
 |knowledge.md|The knowledge base|4
 |skills.md|The five skills|5
 CHANGELOG.md|changelog.md|Changelog|6
-|ru.md|Русский|7'
+|ru.md|Русский|7
+docs/memory-model.ru.md|ru-memory-model.md|Модель памяти|2|Русский'
 
 # ---------- link rewriting ----------
 # Built from the table, so a page added above is linkable from every other page
