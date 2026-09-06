@@ -324,7 +324,17 @@ if [[ $sync -eq 0 ]]; then
   echo "  commit_push=never in .floppy/config: no remote configured, staying local."
   exit 0
 fi
-if ! git pull --rebase --quiet; then
+# On a branch the remote has never seen there is nothing to rebase against:
+# the pull fails with "no tracking information" and takes the tail with it.
+# This was an edge case while wrap ran on the default branch, which has an
+# upstream; on a repository whose default branch is protected every wrap runs
+# on a branch created for it, and such a branch has no upstream on its first
+# push. Setting one is exactly what that push is for. Where an upstream does
+# exist nothing changes — the pull there guards the two-machine case, which is
+# the reason it exists.
+if [[ -z "$push_target" ]]; then
+  echo "  no upstream yet: nothing to rebase against, this push sets one"
+elif ! git pull --rebase --quiet; then
   echo "  pull --rebase failed or conflicted. The commit is made and safe locally."
   echo "  Resolve it by hand, then push. Not pushing now."
   exit 1
@@ -333,9 +343,31 @@ if [[ $push -eq 0 ]]; then
   echo "  --no-push: commit stays local. Two machines read master, so push soon."
   exit 0
 fi
-if ! git push --quiet; then
-  echo "  push failed (network/VPN?). The commit is local; the second machine cannot see it."
-  echo "  Retry: git push"
+# `origin` rather than a remote resolved from the branch: there is none to
+# resolve from yet, and the rest of this toolkit already treats origin as the
+# remote that proves a checkout's identity (scripts/lib-checkout.sh).
+#
+# Captured rather than run through --quiet alone, because the failure has two
+# kinds and they need different advice: a branch rule refusing the push is not
+# a network problem, and "retry" is advice that cannot work against it.
+if [[ -z "$push_target" ]]; then
+  push_out="$(git push --quiet -u origin HEAD 2>&1)"; push_rc=$?
+else
+  push_out="$(git push --quiet 2>&1)"; push_rc=$?
+fi
+if [[ $push_rc -ne 0 ]]; then
+  [[ -n "$push_out" ]] && printf '%s\n' "$push_out" | sed 's/^/  /'
+  case "$push_out" in
+    *GH013*|*"rule violations"*|*"protected branch"*)
+      echo "  push refused by a branch rule (GH013), not by the network."
+      echo "  $branch is protected; the commit is made and safe locally. Move it to a branch:"
+      echo "    git switch -c wrap-$(date +%Y-%m-%d)"
+      echo "    git push -u origin HEAD"
+      echo "    gh pr create --fill" ;;
+    *)
+      echo "  push failed (network/VPN?). The commit is local; the second machine cannot see it."
+      echo "  Retry: git push" ;;
+  esac
   exit 1
 fi
 echo "  pushed to $(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"

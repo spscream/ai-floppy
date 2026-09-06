@@ -130,6 +130,15 @@ remote configured at all sets `commit_push=never` there instead, so this
 call stays entirely local rather than failing on the pull every time. For a
 single call that should sync but not yet push, pass `--no-push`.
 
+On a branch the remote has never seen there is no pull: nothing exists to
+rebase against, so the first push is `-u origin HEAD` and sets the upstream
+itself. This is the ordinary case wherever the default branch is protected,
+because then every wrap runs on a branch made for it. If the push comes back
+refused by a branch rule (`GH013`), nothing is broken and a retry will not
+help: the commit is safe locally, and `commit` prints the branch-and-pull-request
+recipe that moves it. Do that rather than reaching for a force push or a
+config change.
+
 The whole read-only half of closing a session is that first call; the whole
 writing half is the second. Each one used to be several separate commands —
 the memory linter, a guard comparing the file list to what actually changed,

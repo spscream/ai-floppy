@@ -423,6 +423,126 @@ outD2="$(cd "$repoD" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "typo 
 assert_rc       "git rm: a typo in the file list still fails (rc)" 1 "$rcD2"
 rm -rf "$repoD"
 
+# ---------- a branch the remote has never seen ----------
+# Measured while closing the session that protected `main` (#17). `commit`
+# ended with `pull --rebase` then `push`; on a branch with no upstream the
+# pull has nothing to rebase against, fails with "no tracking information",
+# and takes the whole tail down. It used to be an edge case because wrap ran
+# on `main`, which has an upstream. With `main` protected, every wrap runs on
+# a branch created for it, and such a branch never has an upstream on its
+# first commit — so this is now every close, not an occasional one.
+remoteB="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remoteB"
+repoB="$(sandbox)"; cp shim/run "$repoB/.floppy/run"
+cat > "$repoB/.floppy/config" <<'EOFB'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFB
+mkdir -p "$repoB/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoB/state/NOW.md"
+write_clean_memory "$repoB"
+git -C "$repoB" add -A
+git -C "$repoB" -c user.email=t@t -c user.name=t commit -qm base
+git -C "$repoB" remote add origin "$remoteB"
+git -C "$repoB" push -q -u origin main
+
+# the wrap branch: created here, unknown to the remote, no upstream
+git -C "$repoB" switch -q -c wrap-branch
+printf 'edit\n' >> "$repoB/state/NOW.md"
+outB="$(cd "$repoB" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "close on a fresh branch" state/NOW.md 2>&1)"; rcB=$?
+assert_rc       "fresh branch: the whole tail succeeds (rc)" 0 "$rcB"
+assert_eq       "fresh branch: the remote received it" \
+  "$(git -C "$repoB" rev-parse HEAD)" "$(git -C "$remoteB" rev-parse refs/heads/wrap-branch 2>/dev/null)"
+assert_eq       "fresh branch: and the upstream is now set" "origin/wrap-branch" \
+  "$(git -C "$repoB" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"
+# The pull is skipped, not merely survived: there is nothing to rebase
+# against, and attempting it is what produced the failure in the first place.
+case "$outB" in
+  *"pull --rebase failed"*) fail "fresh branch: the pull is not attempted" "no pull failure" "$outB" ;;
+  *)                        ok   "fresh branch: the pull is not attempted" ;;
+esac
+
+# Where an upstream does exist the behaviour must not change: the
+# pull-before-push there is what guards the two-machine case, and this fix
+# must not be a way of skipping it. Second commit on the same branch — the
+# upstream is set now, so the pull runs again.
+printf 'more\n' >> "$repoB/state/NOW.md"
+outB2="$(cd "$repoB" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "second close" state/NOW.md 2>&1)"; rcB2=$?
+assert_rc       "upstream exists: still succeeds (rc)" 0 "$rcB2"
+assert_eq       "upstream exists: the remote received it too" \
+  "$(git -C "$repoB" rev-parse HEAD)" "$(git -C "$remoteB" rev-parse refs/heads/wrap-branch 2>/dev/null)"
+case "$outB2" in
+  *"no upstream yet"*) fail "upstream exists: does not take the first-push path" "no such message" "$outB2" ;;
+  *)                   ok   "upstream exists: does not take the first-push path" ;;
+esac
+
+rm -rf "$repoB" "$remoteB"
+
+# ---------- a push refused by a branch rule ----------
+# The other half of #17. On a repository whose default branch is protected the
+# push comes back with GH013, which is not a network problem and not something
+# a retry fixes — the commit has to move to a branch and arrive as a pull
+# request. `commit` used to print "push failed (network/VPN?)  Retry: git
+# push", which is advice that cannot work. A pre-receive hook stands in for
+# the branch rule: this test must never reach a real remote.
+remoteP="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remoteP"
+repoP="$(sandbox)"; cp shim/run "$repoP/.floppy/run"
+cat > "$repoP/.floppy/config" <<'EOFP'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFP
+mkdir -p "$repoP/state"
+printf '| Notes | 1 | 2 | up |\n' > "$repoP/state/NOW.md"
+write_clean_memory "$repoP"
+git -C "$repoP" add -A
+git -C "$repoP" -c user.email=t@t -c user.name=t commit -qm base
+git -C "$repoP" remote add origin "$remoteP"
+git -C "$repoP" push -q -u origin main
+cat > "$remoteP/hooks/pre-receive" <<'EOFPH'
+#!/bin/sh
+echo "GH013: Repository rule violations found for refs/heads/main." >&2
+exit 1
+EOFPH
+chmod +x "$remoteP/hooks/pre-receive"
+
+printf 'edit\n' >> "$repoP/state/NOW.md"
+outP="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "refused by the rule" state/NOW.md 2>&1)"; rcP=$?
+assert_rc       "branch rule: the call still fails (rc)" 1 "$rcP"
+assert_contains "branch rule: names the rule, not the network" "branch rule" "$outP"
+assert_contains "branch rule: names the branch that is protected" "main is protected" "$outP"
+assert_contains "branch rule: says the commit is safe" "safe locally" "$outP"
+assert_contains "branch rule: gives the branch recipe" "git switch -c" "$outP"
+assert_contains "branch rule: and the pull request that follows it" "gh pr create" "$outP"
+# The commit itself must still be there: the push is what failed.
+assert_contains "branch rule: the commit was made" "refused by the rule" \
+  "$(git -C "$repoP" log -1 --format=%s)"
+case "$outP" in
+  *"network/VPN"*) fail "branch rule: does not blame the network" "no network message" "$outP" ;;
+  *)               ok   "branch rule: does not blame the network" ;;
+esac
+
+# An ordinary push failure must still read as one: with the hook rejecting
+# without a rule-violation message, the generic advice is the correct advice.
+cat > "$remoteP/hooks/pre-receive" <<'EOFPH2'
+#!/bin/sh
+echo "fatal: the remote end hung up unexpectedly" >&2
+exit 1
+EOFPH2
+chmod +x "$remoteP/hooks/pre-receive"
+printf 'again\n' >> "$repoP/state/NOW.md"
+outP2="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "refused for another reason" state/NOW.md 2>&1)"; rcP2=$?
+assert_rc       "ordinary push failure: still fails (rc)" 1 "$rcP2"
+assert_contains "ordinary push failure: keeps the generic advice" "Retry: git push" "$outP2"
+case "$outP2" in
+  *"gh pr create"*) fail "ordinary push failure: no branch-rule recipe" "no PR recipe" "$outP2" ;;
+  *)                ok   "ordinary push failure: no branch-rule recipe" ;;
+esac
+
+rm -rf "$repoP" "$remoteP"
+
 # ---------- the linter refusing to run is not "0 problems" ----------
 # memory-lint.sh exits 2 when it cannot check anything at all: the memory
 # layout is absent, or the configured scope name is unusable. wrap-check.sh
