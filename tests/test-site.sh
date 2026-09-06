@@ -40,6 +40,17 @@ assert_eq "build copies Gemfile"     "0" "$([[ -f "$out/Gemfile"     ]] && echo 
 # file at all. Both are pinned — just-the-docs 0.12.0 in the Gemfile — and
 # neither is reachable from a suite that runs without Ruby or a network.
 head_custom="$out/_includes/head_custom.html"
+# The stemmer plugins are vendored (MPL-1.1 — see the NOTICE beside them) and
+# loaded by that include. Copied but unreferenced is dead weight; referenced but
+# uncopied is a 404 and a search that silently loses its Russian stemming, so
+# both directions are asserted.
+for v in lunr.stemmer.support.js lunr.ru.js lunr.multi.js NOTICE.md LICENSE.lunr-languages.txt; do
+  assert_eq "build copies assets/js/vendor/$v" "0" \
+    "$([[ -f "$out/assets/js/vendor/$v" ]] && echo 0 || echo 1)"
+done
+for v in lunr.stemmer.support.js lunr.ru.js lunr.multi.js; do
+  assert_contains "the include loads $v" "$v" "$(cat "$out/_includes/head_custom.html" 2>/dev/null)"
+done
 assert_eq "build copies _includes/head_custom.html" "0" "$([[ -f "$head_custom" ]] && echo 0 || echo 1)"
 assert_contains "the include replaces lunr's trimmer" \
   "lunr.trimmer =" "$(cat "$head_custom" 2>/dev/null)"
@@ -64,7 +75,39 @@ if command -v node >/dev/null 2>&1; then
   printf '%s' "$one_line" > "$log.js"
   node --check "$log.js" >/dev/null 2>&1
   assert_rc "and still parses once the page collapses it to one line" "0" "$?"
-  rm -f "$log.js"
+
+  # The wrapper's own behaviour, against a stub lunr. The theme's real lunr
+  # ships inside the gem and is not here, so what is proved is the half this
+  # repository owns: that the wrapper installs itself, carries the statics the
+  # theme reads, injects exactly one `use`, and still runs the config the theme
+  # passed. A wrapper that swallowed that config would leave the site with no
+  # index at all, and nothing else in CI would notice.
+  cat > "$log.stub.js" <<'NODE'
+global.window = global;
+var fs = require('fs');
+var base = function (config) {
+  var builder = { used: [], theirs: false, use: function (x) { this.used.push(x); } };
+  config.call(builder);
+  return builder;
+};
+base.multiLanguage = function () { return function () {}; };
+base.tokenizer = { separator: null };
+base.Pipeline = { registerFunction: function () {} };
+base.Query = { wildcard: { TRAILING: 2 } };
+base.trimmer = function (t) { return t; };
+global.lunr = base;
+(0, eval)(fs.readFileSync(process.argv[2], 'utf8'));
+var L = global.lunr;
+function die(why) { console.log(why); process.exit(1); }
+if (L === base) { die('the wrapper did not install itself'); }
+if (!L.tokenizer || !L.Query || !L.Pipeline) { die('a static the theme reads was lost'); }
+var built = L(function () { this.theirs = true; });
+if (built.used.length !== 1) { die('expected exactly one use(), got ' + built.used.length); }
+if (!built.theirs) { die("the theme's own config never ran"); }
+NODE
+  node "$log.stub.js" "$log.js" >/dev/null 2>&1
+  assert_rc "the wrapper installs, keeps the statics and keeps the theme's config" "0" "$?"
+  rm -f "$log.js" "$log.stub.js"
 else
   printf '  skip node not available: the one-line parse check\n'
 fi

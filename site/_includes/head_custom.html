@@ -31,6 +31,9 @@
   trailing wildcard, which covers a prefix someone is still typing, not two
   endings of one word.
 -->
+<script src="{{ '/assets/js/vendor/lunr.stemmer.support.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/vendor/lunr.ru.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/vendor/lunr.multi.js' | relative_url }}"></script>
 <script>
   /*
     Block comments, never `//`, and the same for anything added here later.
@@ -57,4 +60,33 @@
     });
   };
   lunr.Pipeline.registerFunction(lunr.trimmer, 'trimmer');
+
+  /*
+    Russian stemming, which the trimmer above cannot give: `сессия` and
+    `сессии` are two terms until something folds them. lunr-languages does it,
+    and its guide requires `this.use(...)` INSIDE the index-construction
+    callback — a callback that belongs to the theme, not to this file. So the
+    global the theme looks up is wrapped: it still builds the index the theme
+    asked for, with one `use` added first. The theme resolves `lunr` by name in
+    the callback of an asynchronous request, which is after this runs.
+
+    The trimmer above stays as the floor. If these plugins ever fail to load,
+    `multiLanguage` is absent, the wrapper declines to install itself, and
+    search over Cyrillic degrades to unstemmed rather than to nothing.
+  */
+  (function () {
+    var base = window.lunr;
+    if (!base || typeof base.multiLanguage !== 'function') { return; }
+    var wrapped = function (config) {
+      return base(function () {
+        this.use(base.multiLanguage('en', 'ru'));
+        config.call(this);
+      });
+    };
+    /* Every static the theme reaches for — tokenizer, Query, Pipeline — by
+       reference, so the theme's `lunr.tokenizer.separator = ...` still lands on
+       the object the builder reads. */
+    Object.assign(wrapped, base);
+    window.lunr = wrapped;
+  })();
 </script>
