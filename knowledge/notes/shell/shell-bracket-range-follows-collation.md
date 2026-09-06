@@ -3,7 +3,7 @@ name: shell-bracket-range-follows-collation
 description: A [a-z] range in a shell pattern is matched through LC_COLLATE and on macOS it catches uppercase, while [a-z] in a Python regex is a codepoint range no locale touches — so the same rule written in both languages agrees on Linux under every locale and disagrees on macOS
 area: shell
 verified_on: 2026-09-06
-verified_against: "bash 5.1.16 and glibc 2.35 on Linux 6.18 (WSL2), under C.UTF-8 and a localedef-generated en_US.UTF-8; Python 3.12.3; the macOS half on GitHub macos-latest with /bin/bash 3.2.57, job macos-bash-3-2 of spscream/ai-floppy PR #36"
+verified_against: "bash 5.1.16 and glibc 2.35 on Linux 6.18 (WSL2), under C.UTF-8 and a localedef-generated en_US.UTF-8; Python 3.12.3; the macOS half on GitHub macos-latest, job macos-bash-3-2 of spscream/ai-floppy — as a test failure under /bin/bash 3.2.57 in PR #36, and under the pinned locale in run 34060322874"
 recheck: "LC_ALL=en_US.UTF-8 bash -c 'case RU in [a-z][a-z]) echo matches;; *) echo skips;; esac' — prints matches on macOS, skips on glibc. Compare with python3 -c 'import re; print(bool(re.match(r\"^[a-z]{2}$\", \"RU\")))', which prints False everywhere."
 invalidated_by: "macOS adopts a collation implementation that resolves ranges by codepoint, as glibc did in 2.28"
 platforms: macos
@@ -60,8 +60,11 @@ which is also the measurement behind the `[[:lower:]]` sentence above.
 a Python regex was asserted against a fixture named `guide.RU.md` in PR #36 of
 `spscream/ai-floppy`. Every Linux job passed; job `macos-bash-3-2` failed with `FAIL an
 uppercase language tag is not a translation`. That is the effect under the runner's
-ambient locale — the `LC_ALL=en_US.UTF-8` form in `recheck_cmd` above is what proves the
-mechanism, and it runs on every push through `tests/test-knowledge.sh`.
+ambient locale. The `LC_ALL=en_US.UTF-8` form in `recheck_cmd` above isolates the
+mechanism from the image's `LANG`, and it has run there: green on `macos-bash-3-2` in
+run 34060322874, which is the assertion `shell-matches python-skips` passing on macOS.
+It cannot pass by being skipped — the platform matches and there is no `requires` — and
+`tests/test-knowledge.sh` gates on `0 failed`, so every push re-measures it.
 
 **READ, not measured:** that glibc's behaviour here dates from its 2.28 collation
 rewrite. The behaviour itself is measured; the version that introduced it is not.
