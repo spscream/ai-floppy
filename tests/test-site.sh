@@ -12,6 +12,10 @@
 #      deploying whatever it built last — green, and months out of date.
 # One assert each, below.
 set -uo pipefail
+# Absolute and captured BEFORE the cd: the positive control at the end re-runs
+# this file, and $0 is only whatever path the caller happened to use — which
+# stops resolving the moment the cd below moves us to the repository root.
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$0")/.."
 . tests/lib.sh
 
@@ -31,8 +35,29 @@ assert_eq "build copies Gemfile"     "0" "$([[ -f "$out/Gemfile"     ]] && echo 
 # Matched on the document's own first heading rather than on the build
 # script's table: a table that lists a file it no longer copies would pass a
 # table-reading test. A new docs/*.md with no page fails this loop.
-for src in docs/*.md; do
-  h1="$(head -1 "$src")"
+# The document list is overridable only through this file's own self-invocation,
+# which marks itself with an argument — see the positive control at the end. An
+# environment variable was tried first and was wrong: one left over in a shell
+# silently narrowed a normal run to a single document and still reported green,
+# and a test that passes while checking less than it claims is worse than one
+# that fails. An argument cannot arrive from the environment.
+if [[ "${1:-}" == "--selftest" ]]; then
+  docs_list="$2"
+else
+  docs_list="docs/*.md"
+fi
+# Unquoted on purpose: the default has to stay a glob.
+for src in $docs_list; do
+  # The first heading, not the first line: a translation's first line is the
+  # marker, and the marker is stripped from the page.
+  h1="$(grep -m1 '^# ' "$src")"
+  # An empty needle would make `grep -qF` below match any non-empty line, and
+  # the document would "reach the site" with nothing actually checked. A
+  # docs/*.md with no `# ` heading is therefore a failure here, not a pass:
+  # this loop is the guard against a document nobody publishes, and a guard
+  # that cannot fail is indistinguishable from one that was never wired up.
+  assert_eq "$src has a top-level heading to match on" "0" \
+    "$([[ -n "$h1" ]] && echo 0 || echo 1)"
   found=1
   for page in "$out"/*.md; do
     if grep -qF "$h1" "$page"; then found=0; break; fi
@@ -76,8 +101,15 @@ assert_eq "no page sends the reader to GitHub for a document the site carries" "
 pages_n="$(ls "$out"/*.md | wc -l | tr -d ' ')"
 assert_eq "every page has a title"     "$pages_n" "$(grep -hc '^title: '     "$out"/*.md | awk '{s+=$1} END {print s+0}')"
 assert_eq "every page has a nav_order" "$pages_n" "$(grep -hc '^nav_order: ' "$out"/*.md | awk '{s+=$1} END {print s+0}')"
-assert_eq "nav_order values are unique" "" \
-  "$(grep -h '^nav_order: ' "$out"/*.md | awk '{print $2}' | sort | uniq -d | tr '\n' ' ' | sed 's/ *$//')"
+# Uniqueness is per parent, not global. That changed when pages got children:
+# just-the-docs orders children within their parent, so the Russian pages'
+# 1-2-3 legitimately repeats the top level's. Same guard, correct group.
+dupes="$(for page in "$out"/*.md; do
+  p="$(awk -F': ' '/^parent: /{print $2; exit}' "$page")"
+  n="$(awk -F': ' '/^nav_order: /{print $2; exit}' "$page")"
+  printf '%s\t%s\n' "${p:-<top level>}" "$n"
+done | sort | uniq -d | tr '\n' ' ' | sed 's/ *$//')"
+assert_eq "nav_order values are unique within each parent" "" "$dupes"
 
 # ---------- the skills page is generated, not typed ----------
 # Asserted on each skill's own description text, not on its name: a hand-typed
@@ -103,5 +135,48 @@ assert_contains "pages workflow builds the assembled root" ".site" "$wf"
 # stale copy of every document into the repository — the one thing this whole
 # arrangement exists to avoid.
 assert_contains "the build directory is ignored" ".site/" "$(cat .gitignore)"
+
+# ---------- the Russian pages sit under one navigation group ----------
+# The hub is built before there is anything under it. That is deliberate: the
+# machinery lands here, the first document lands in the next commit, and neither
+# commit leaves the suite red.
+hub="$(cat "$out/ru.md" 2>/dev/null || true)"
+assert_contains "the Russian hub exists"       "title: Русский"     "$hub"
+assert_contains "and declares itself a parent" "has_children: true" "$hub"
+assert_contains "and links to the Russian page"     "ru-memory-model.html" "$hub"
+assert_contains "the Russian page names its parent" "parent: Русский" \
+  "$(cat "$out/ru-memory-model.md" 2>/dev/null || true)"
+
+# The marker is an implementation detail of the repository, not of the site.
+assert_eq "no page carries a translation marker" "" \
+  "$(grep -l 'floppy:translation' "$out"/*.md 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
+
+# ---------- positive control: the heading guard can go red ----------
+# The guard lives inside this file, so unlike tests/test-knowledge.sh — which
+# exercises its checkers by running them as separate programs — this file has to
+# run ITSELF to prove the guard fires. The first version of this control only
+# asserted that `grep -m1 '^# '` prints nothing for a headingless file, which is
+# a fact about grep: it passed with the guard deleted, and it was found that way.
+#
+# The planted document goes in a temp directory, never in the live docs/. Two
+# reasons: tests/run.sh runs test files in parallel, so a stray docs/*.md is
+# visible to whatever else is running; and a signal landing between creating and
+# deleting it would leave debris inside a tracked directory.
+if [[ "${1:-}" != "--selftest" ]]; then
+  probe_dir="$(mktemp -d)"
+  probe_doc="$probe_dir/zz-no-heading.md"
+  printf '## Only a subheading\n\nbody\n' > "$probe_doc"
+  # $BASH, not a bare `bash`: same reason tests/run.sh gives — on macOS the
+  # point is to exercise 3.2, and a bare `bash` resolves through PATH.
+  probe_out="$("${BASH:-bash}" "$self" --selftest "$probe_doc" 2>&1)"
+  probe_rc=$?
+  rm -rf "$probe_dir"
+  assert_eq "the heading guard fails a document with no heading" "1" "$probe_rc"
+  # The needle spans FAIL and the document's own path. The assertion's name
+  # alone would not do: it prints on the `ok` line too, so a guard that had been
+  # made unfailable rather than deleted could still match it.
+  assert_contains "and the failure names the guard" \
+    "FAIL $probe_doc has a top-level heading to match on" "$probe_out"
+fi
 
 summary

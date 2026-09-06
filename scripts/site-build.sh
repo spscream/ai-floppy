@@ -27,7 +27,7 @@ repo="https://github.com/spscream/ai-floppy"
 blob="$repo/blob/main"
 
 # ---------- the page table ----------
-# source|target|title|nav_order — an empty source means the page is generated
+# source|target|title|nav_order[|parent] — an empty source means the page is generated
 # further down rather than copied. The order is the order of the sidebar, and
 # it is the reading order: what the thing is, then the model behind it, then
 # what the model cost to get right, then the reference, then the releases.
@@ -36,7 +36,9 @@ docs/memory-model.md|memory-model.md|The memory model|2
 docs/lessons.md|lessons.md|Lessons|3
 |knowledge.md|The knowledge base|4
 |skills.md|The five skills|5
-CHANGELOG.md|changelog.md|Changelog|6'
+CHANGELOG.md|changelog.md|Changelog|6
+|ru.md|Русский|7
+docs/memory-model.ru.md|ru-memory-model.md|Модель памяти|2|Русский'
 
 # ---------- link rewriting ----------
 # Built from the table, so a page added above is linkable from every other page
@@ -44,7 +46,7 @@ CHANGELOG.md|changelog.md|Changelog|6'
 # README links to `docs/lessons.md`, and docs/lessons.md links to its sibling
 # as `memory-model.md`.
 rewrite=()
-while IFS='|' read -r src tgt _title _order; do
+while IFS='|' read -r src tgt _title _order _parent; do
   [[ -z "$src" ]] && continue
   html="${tgt%.md}.html"
   esc="${src//./\\.}"
@@ -68,21 +70,28 @@ rewrite+=(-e "s,\]\(knowledge/README\.md\),](knowledge.html),g")
 rewrite+=(-e "s,\]\(LICENSE\),](${blob}/LICENSE),g")
 rewrite+=(-e "s,\]\(([^):]*\.md)\),](${blob}/\1),g")
 
+# The marker records which version of the English file a translation was made
+# from. That is a fact about the repository, and it has no business on a page.
+rewrite+=(-e '/^<!-- floppy:translation /d')
+
 # ---------- assemble ----------
 rm -rf "$out"
 mkdir -p "$out"
 cp site/_config.yml site/Gemfile "$out/"
 
-emit() { # target title nav_order  — body on stdin
+emit() { # target title nav_order [parent] [has_children]  — body on stdin
   {
-    printf -- '---\nlayout: default\ntitle: %s\nnav_order: %s\n---\n\n' "$2" "$3"
+    printf -- '---\nlayout: default\ntitle: %s\nnav_order: %s\n' "$2" "$3"
+    [[ -n "${4:-}" ]] && printf 'parent: %s\n' "$4"
+    [[ -n "${5:-}" ]] && printf 'has_children: true\n'
+    printf -- '---\n\n'
     sed -E "${rewrite[@]}"
   } > "$out/$1"
 }
 
-while IFS='|' read -r src tgt title order; do
+while IFS='|' read -r src tgt title order parent; do
   [[ -z "$src" ]] && continue
-  emit "$tgt" "$title" "$order" < "$src"
+  emit "$tgt" "$title" "$order" "$parent" < "$src"
   printf 'ok %s -> %s\n' "$src" "$tgt"
 done <<EOF
 $pages
@@ -152,5 +161,23 @@ front() { awk -v k="$2: " 'index($0, k) == 1 { sub("^" k, ""); if ($0 ~ /^".*"$/
   done
 } | emit knowledge.md "The knowledge base" 4
 printf 'ok knowledge/notes/**/*.md -> knowledge.md\n'
+
+# ---------- the Russian hub ----------
+# Generated from the table for the same reason every other page is: a
+# hand-written list of the Russian pages would be a second copy of the table,
+# and the two would differ the first time a page was added.
+{
+  printf '# Русский\n\n'
+  printf 'Документация floppy на русском языке. Английские файлы в репозитории —\n'
+  printf 'источник: перевод сделан от конкретной их версии и помнит, от какой.\n'
+  printf 'Если источник ушёл вперёд, это видно `scripts/translation-check.py`.\n\n'
+  while IFS='|' read -r _src tgt title _order parent; do
+    [[ "$parent" == "Русский" ]] || continue
+    printf -- '- [%s](%s)\n' "$title" "${tgt%.md}.html"
+  done <<EOF
+$pages
+EOF
+} | emit ru.md "Русский" 7 "" 1
+printf 'ok the page table -> ru.md\n'
 
 printf '\nsite assembled in %s\n' "$out"

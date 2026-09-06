@@ -18,7 +18,11 @@ on:
     # Documents, the builder, and this file. A push that only touches scripts
     # or tests rebuilds nothing — the site would come out byte-identical.
     paths:
-      - 'README.md'
+      # README*.md, not README.md: the Russian translation is a root-level
+      # sibling (README.ru.md), and a path filter is a glob over the exact path
+      # where `.` is not a metacharacter. A commit touching only the translation
+      # would otherwise never rebuild the site.
+      - 'README*.md'
       - 'CHANGELOG.md'
       - 'docs/**'
       - 'skills/**'

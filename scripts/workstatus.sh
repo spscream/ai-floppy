@@ -276,6 +276,39 @@ if [[ $FLOW -eq 1 ]]; then
   # memory, not a consequence of the lint failing.
   echo "$lint_out" | grep -E '^  !' | sed 's/^ */  warning: /'
 
+  # Only where translations exist. In a repository with none this section would
+  # be an empty heading about a feature nobody here uses — the same reasoning as
+  # the worktree line below, which prints only when there is more than one.
+  # --root is not optional: in a consumer's repository this script runs from the
+  # plugin cache and the documents are somewhere else entirely.
+  # A regular file, not just a matching name: `ls` on a directory lists its
+  # contents, so a directory called docs/x.ru.md/ used to open this section in a
+  # repository that had never translated anything. translation-check.py filters
+  # with os.path.isfile for the same reason.
+  # An explicit list, not the range [a-z]: a bracket RANGE is matched through
+  # LC_COLLATE, and on the macOS runner — collation aAbBcC… — it also matched an
+  # uppercase tag, so guide.RU.md counted as a translation. The checker's python
+  # [a-z] is a literal codepoint range no locale affects, and the shell has to
+  # say the same thing the long way. Measured: CI job macos-bash-3-2, red.
+  low='[abcdefghijklmnopqrstuvwxyz]'
+  has_translation=0
+  for candidate in "$repo"/*.$low$low.md "$repo"/docs/*.$low$low.md; do
+    if [[ -f "$candidate" ]]; then has_translation=1; break; fi
+  done
+  if [[ $has_translation -eq 1 ]]; then
+    hr "process: translations"
+    if command -v python3 >/dev/null 2>&1; then
+      tr_out="$(python3 "$here/translation-check.py" --root "$repo" 2>&1)"
+      if [[ -n "$tr_out" ]]; then
+        echo "$tr_out" | sed 's/^/  /'
+      else
+        echo "  clean"
+      fi
+    else
+      echo "  python3 not available — skipped"
+    fi
+  fi
+
   hr "process: lock and worktrees"
   echo "  wrap lock: $(bash "$here/wrap-lock.sh" status 2>&1 | head -1)"
   # An extra worktree is a separate memory directory, and without its own
