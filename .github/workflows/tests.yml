@@ -48,4 +48,16 @@ jobs:
       # shows up in the log instead of silently changing what this job covers.
       - name: which bash is under test
         run: /bin/bash --version | head -1
+      # One sample of this runner's temp path per run, printed and not asserted.
+      # Until now the path reached the log only when an assertion happened to
+      # echo it — that is, only from failing runs — so the passing runs' paths
+      # were never recorded and "the component carries `_` only sometimes" could
+      # not be checked against anything. This step makes every macOS run
+      # contribute one observation. For the distribution in one sitting rather
+      # than over months, dispatch tmpdir-probe.yml, which runs the same script
+      # on twenty runners at once.
+      - name: temp directory of this runner
+        env:
+          TMPDIR_PROBE_ITERATIONS: '20'
+        run: /bin/bash knowledge/probes/tmpdir-probe.sh
       - run: /bin/bash tests/run.sh

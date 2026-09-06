@@ -1,0 +1,128 @@
+name: tmpdir-probe
+
+# Answers, in one dispatch, what a month of ordinary runs would answer slowly:
+# does the `<b>` component of a macOS runner's /var/folders/<a>/<b>/T/ differ
+# between runners at all, and how often does it carry `_`.
+#
+# Why a fan-out and not a loop. On Darwin that component is derived per user and
+# per boot session, not per `mktemp` call, so a hundred iterations inside one job
+# return one component and prove nothing about its distribution. The unit of
+# sampling is the MACHINE. Twenty parallel jobs are twenty machines.
+#
+# Why this is not part of tests.yml. It is a measurement, not a check: it has no
+# pass condition, and a green run here means "the sample was collected", never
+# "the claim still holds". tests.yml prints one sample per push for free (see the
+# temp-directory step there) and that keeps the series going over time; this
+# workflow is what you dispatch when you want the distribution today.
+#
+# Dispatch only — no push, no schedule. Nothing here changes when somebody
+# commits, and a schedule would spend macOS runners weekly to re-measure a fact
+# that moves only when GitHub rotates the image.
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: 'How many macOS runners to sample (1-60)'
+        required: false
+        default: '20'
+
+permissions:
+  contents: read
+
+jobs:
+  # GitHub has no "give me N copies of this job" — a matrix is a list, so the
+  # list has to be built first. It is built from a validated integer rather than
+  # interpolated straight into a shell line: `${{ inputs.runners }}` inside a
+  # `run:` is a script-injection surface, and the value arrives through env here
+  # for that reason.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+      count: ${{ steps.gen.outputs.count }}
+    steps:
+      - id: gen
+        env:
+          RUNNERS: ${{ inputs.runners }}
+        run: |
+          set -euo pipefail
+          n="${RUNNERS:-20}"
+          case "$n" in ''|*[!0-9]*) n=20 ;; esac
+          # A bound, not a preference. A typo of one extra digit would queue
+          # hundreds of macOS runners, and nothing downstream would notice.
+          [ "$n" -lt 1 ]  && n=1
+          [ "$n" -gt 60 ] && n=60
+          json='['; i=1
+          while [ "$i" -le "$n" ]; do
+            [ "$i" -gt 1 ] && json="$json,"
+            json="$json$i"
+            i=$((i + 1))
+          done
+          json="$json]"
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+          echo "count=$n"     >> "$GITHUB_OUTPUT"
+          echo "sampling $n macOS runners"
+
+  sample:
+    needs: plan
+    strategy:
+      # Every runner reports. Stopping on the first failure would throw away the
+      # rest of the sample, and an incomplete sample is what this whole workflow
+      # exists to avoid.
+      fail-fast: false
+      matrix:
+        i: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      # /bin/bash explicitly, for the same reason tests.yml uses it: the runner
+      # image has a newer bash earlier in PATH, and this probe is one of the
+      # scripts required to run on 3.2.
+      - name: probe
+        run: /bin/bash knowledge/probes/tmpdir-probe.sh | tee "probe-${{ matrix.i }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-macos-${{ matrix.i }}
+          path: probe-${{ matrix.i }}.txt
+          retention-days: 30
+
+  # One Linux job as a control. It costs a minute and it is what makes the macOS
+  # numbers mean something: the note's claim is that Linux has no such varying
+  # component, and a run that does not check it is taking that on faith.
+  control-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: probe
+        run: bash knowledge/probes/tmpdir-probe.sh | tee probe-linux.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-linux
+          path: probe-linux.txt
+          retention-days: 30
+
+  tally:
+    needs: [plan, sample, control-linux]
+    # `always()`: a partial sample is still a sample, and a queue that dropped
+    # three of twenty jobs should produce a tally over seventeen with the count
+    # visible, not nothing at all.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: probes
+          pattern: probe-*
+          merge-multiple: true
+      - name: tally
+        run: |
+          set -euo pipefail
+          bash knowledge/probes/tmpdir-tally.sh probes | tee -a "$GITHUB_STEP_SUMMARY"
+      # The raw samples outlive the log. Whoever updates the note wants to quote
+      # a path, and a summary that has been reduced to counts cannot supply one.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probes-all
+          path: probes
+          retention-days: 90

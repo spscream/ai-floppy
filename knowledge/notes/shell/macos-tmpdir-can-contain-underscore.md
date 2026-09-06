@@ -98,6 +98,16 @@ The underscore half cannot be re-checked from a note, because it is a property o
 machine you land on and not of macOS. To sample it, print `$TMPDIR` in the job itself and
 read the second component; across several runners you will see whether yours vary.
 
+`knowledge/probes/tmpdir-probe.sh` does that reading, in `key=value` lines, and this
+repository runs it in two places: one sample per push, in the macOS leg of `tests.yml`,
+and twenty samples at once from `.github/workflows/tmpdir-probe.yml`, which is dispatched
+by hand and tallies the result with `knowledge/probes/tmpdir-tally.sh`. Note what the
+probe cannot do, because it is the reason the second one fans out over machines: `<b>` is
+derived per user and per boot session, so N iterations *inside one job* return N suffixes
+under one parent and say nothing about the distribution. The sampling unit is the machine.
+The frequency claimed in **Evidence** above is still unmeasured until such a dispatch has
+run and this note has been updated with its numbers and its date.
+
 ## What it costs you not to know
 
 You get a red job that is not flaky and will not be reproduced by re-running it, and the
