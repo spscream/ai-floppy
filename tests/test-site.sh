@@ -12,6 +12,10 @@
 #      deploying whatever it built last — green, and months out of date.
 # One assert each, below.
 set -uo pipefail
+# Absolute and captured BEFORE the cd: the positive control at the end re-runs
+# this file, and $0 is only whatever path the caller happened to use — which
+# stops resolving the moment the cd below moves us to the repository root.
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$0")/.."
 . tests/lib.sh
 
@@ -31,10 +35,19 @@ assert_eq "build copies Gemfile"     "0" "$([[ -f "$out/Gemfile"     ]] && echo 
 # Matched on the document's own first heading rather than on the build
 # script's table: a table that lists a file it no longer copies would pass a
 # table-reading test. A new docs/*.md with no page fails this loop.
-# The list is overridable so this file can run itself against a planted
-# document — see the positive control at the end. Unquoted on purpose: the
-# default has to stay a glob.
-for src in ${FLOPPY_SITE_DOCS:-docs/*.md}; do
+# The document list is overridable only through this file's own self-invocation,
+# which marks itself with an argument — see the positive control at the end. An
+# environment variable was tried first and was wrong: one left over in a shell
+# silently narrowed a normal run to a single document and still reported green,
+# and a test that passes while checking less than it claims is worse than one
+# that fails. An argument cannot arrive from the environment.
+if [[ "${1:-}" == "--selftest" ]]; then
+  docs_list="$2"
+else
+  docs_list="docs/*.md"
+fi
+# Unquoted on purpose: the default has to stay a glob.
+for src in $docs_list; do
   # The first heading, not the first line: a translation's first line is the
   # marker, and the marker is stripped from the page.
   h1="$(grep -m1 '^# ' "$src")"
@@ -146,17 +159,21 @@ assert_eq "no page carries a translation marker" "" \
 # reasons: tests/run.sh runs test files in parallel, so a stray docs/*.md is
 # visible to whatever else is running; and a signal landing between creating and
 # deleting it would leave debris inside a tracked directory.
-if [[ -z "${FLOPPY_SITE_DOCS:-}" ]]; then
+if [[ "${1:-}" != "--selftest" ]]; then
   probe_dir="$(mktemp -d)"
-  printf '## Only a subheading\n\nbody\n' > "$probe_dir/zz-no-heading.md"
+  probe_doc="$probe_dir/zz-no-heading.md"
+  printf '## Only a subheading\n\nbody\n' > "$probe_doc"
   # $BASH, not a bare `bash`: same reason tests/run.sh gives — on macOS the
   # point is to exercise 3.2, and a bare `bash` resolves through PATH.
-  probe_out="$(FLOPPY_SITE_DOCS="$probe_dir/zz-no-heading.md" "${BASH:-bash}" "$0" 2>&1)"
+  probe_out="$("${BASH:-bash}" "$self" --selftest "$probe_doc" 2>&1)"
   probe_rc=$?
   rm -rf "$probe_dir"
   assert_eq "the heading guard fails a document with no heading" "1" "$probe_rc"
+  # The needle spans FAIL and the document's own path. The assertion's name
+  # alone would not do: it prints on the `ok` line too, so a guard that had been
+  # made unfailable rather than deleted could still match it.
   assert_contains "and the failure names the guard" \
-    "has a top-level heading to match on" "$probe_out"
+    "FAIL $probe_doc has a top-level heading to match on" "$probe_out"
 fi
 
 summary
