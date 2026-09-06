@@ -117,11 +117,15 @@ rm -f "$sb/docs/other.md" "$sb/docs/lessons.ru.md"
 # ---------- 7. the real corpus keeps the contract ----------
 # The loop below is worthless if it iterates over nothing — the empty-loop trap
 # this repository has already paid for twice. So the count is asserted first.
-real_n="$(ls docs/*.*.md README.*.md 2>/dev/null | wc -l | tr -d ' ')"
+# The same rule as TRANSLATION_NAME in scripts/translation-check.py and as the
+# gate in scripts/workstatus.sh: `<stem>.<two lowercase letters>.md`, in the
+# repository root and in docs/, because the checker scans both. A plain `*.*.md`
+# also swept up docs/CHANGELOG.old.md and demanded a translation marker in it.
+real_n="$(ls *.[a-z][a-z].md docs/*.[a-z][a-z].md 2>/dev/null | wc -l | tr -d ' ')"
 assert_eq "there is at least one translation to check" "0" \
   "$([[ "$real_n" -ge 1 ]] && echo 0 || echo 1)"
 
-for f in docs/*.*.md README.*.md; do
+for f in *.[a-z][a-z].md docs/*.[a-z][a-z].md; do
   [[ -f "$f" ]] || continue
   line1="$(head -1 "$f")"
   assert_contains "$f carries a marker on line 1" "floppy:translation" "$line1"

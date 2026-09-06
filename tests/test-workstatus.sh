@@ -242,6 +242,36 @@ case "$outF" in
   *) ok "a two-dot name that is not a translation raises no section" ;;
 esac
 
+# An uppercase language tag is not a translation, and this fixture is also how
+# the macOS CI job answers a question we cannot answer here: `[a-z]` in a shell
+# bracket expression depends on LC_COLLATE, while `[a-z]` in the checker's
+# python regex is a literal codepoint range that no locale affects. If a
+# collation ever makes the two disagree, this goes red on the runner that
+# disagrees.
+repoU="$(sandbox)"; cp shim/run "$repoU/.floppy/run"
+: > "$repoU/.floppy/config"
+printf '# Guide\n\nbody\n' > "$repoU/guide.md"
+printf '# Guide\n\nbody\n' > "$repoU/guide.RU.md"
+outU="$(cd "$repoU" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+rm -rf "$repoU"
+case "$outU" in
+  *"process: translations"*) fail "an uppercase language tag is not a translation" "no section" "$outU" ;;
+  *) ok "an uppercase language tag is not a translation" ;;
+esac
+
+# A directory wearing a translation's name is not a translation either. `ls`
+# lists a directory's contents, so this used to open the section.
+repoD="$(sandbox)"; cp shim/run "$repoD/.floppy/run"
+: > "$repoD/.floppy/config"
+mkdir -p "$repoD/docs/x.ru.md"
+printf 'hi\n' > "$repoD/docs/x.ru.md/a.md"
+outD="$(cd "$repoD" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+rm -rf "$repoD"
+case "$outD" in
+  *"process: translations"*) fail "a directory named like a translation is not a translation" "no section" "$outD" ;;
+  *) ok "a directory named like a translation is not a translation" ;;
+esac
+
 # And a translation at the repository root is found, not only one under docs/.
 # translation-check.py scans both places, so a gate that scans one of them
 # reports nothing for a document that really has fallen behind.
