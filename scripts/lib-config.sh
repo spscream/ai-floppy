@@ -206,6 +206,17 @@ export FLOPPY_MEMORY_REPO="$FLOPPY_PUBLIC_REPO"
 export FLOPPY_MEMORY_PROJECT_KEY="$(cfg_get memory_project_key "$FLOPPY_PROJECT_KEY")"
 export FLOPPY_MEMORY_REPO_DIR="$(_checkout_dir "$FLOPPY_MEMORY_REPO" "$(cfg_get memory_repo_dir '')")"
 export FLOPPY_INDEX_CHARS_MAX="$(cfg_get index_chars_max 24500)"
+# How long a note's metadata.as_of may stand before `lint` says so. It warns; it
+# never fails, so this number costs nothing to get slightly wrong and is not a
+# ratchet — see the memory-lint section for why "old" is not "wrong".
+#
+# 180 rather than the 90 the knowledge base uses, because the two corpora rot at
+# different speeds. knowledge/ holds facts about a harness that ships monthly, so
+# a claim there is suspect within a quarter. Agent memory holds facts about one
+# repository — its decisions, its layout, why a thing is the way it is — and
+# those outlive several harness releases. A consumer whose memory is mostly about
+# a fast-moving dependency should lower it; that is the point of it being a key.
+export FLOPPY_NOTE_STALE_DAYS="$(cfg_get note_stale_days 180)"
 export FLOPPY_STATUSES_NOW="$(cfg_get statuses_now docs/statuses/NOW.md)"
 export FLOPPY_STATUSES_NOW_CHARS_MAX="$(cfg_get statuses_now_chars_max 12000)"
 # The second status, and the reason there are two (#19). statuses_now is the

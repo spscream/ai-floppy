@@ -149,6 +149,26 @@ fi
 # Every note whose own invariants are checked, wherever it lives.
 all_notes=("${notes[@]+"${notes[@]}"}" "${private_notes[@]+"${private_notes[@]}"}")
 
+# Days since 1970-01-01 in the proleptic Gregorian calendar, computed rather
+# than asked of `date`. `date -d` is GNU and `date -v` is BSD, so anything built
+# on either runs on one of this project's two CI legs and dies on the other —
+# and the arithmetic is twenty lines that behave identically everywhere.
+civil_days() { # $1 year $2 month $3 day
+  LC_ALL=C awk -v y="$1" -v m="$2" -v d="$3" 'BEGIN {
+    y += 0; m += 0; d += 0
+    if (m <= 2) y -= 1
+    era = int((y >= 0 ? y : y - 399) / 400)
+    yoe = y - era * 400
+    doy = int((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1
+    doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+    print era * 146097 + doe - 719468
+  }'
+}
+TODAY_DAYS="$(civil_days "$(date -u +%Y)" "$(date -u +%m)" "$(date -u +%d)")"
+STALE_DAYS="${FLOPPY_NOTE_STALE_DAYS:-180}"
+undated=0
+stale_lines=""
+
 # ---------- frontmatter ----------
 hr "frontmatter"
 # Slug -> file, as newline-delimited "slug<TAB>file" records instead of an
@@ -202,6 +222,55 @@ for f in "${all_notes[@]+"${all_notes[@]}"}"; do
     *) err "$rel: metadata.evidence='$evidence', expected measured|read|decided|sourced" ;;
   esac
 
+  # When the claim was last true. `evidence` says what KIND of claim the note
+  # holds and never said when: `read` is defined above as "true until something
+  # runs and says otherwise", and `decided` as the case where a date and an
+  # author are what apply instead of evidence. Both were asking for a date with
+  # nowhere to put it.
+  #
+  # Not git log. That records when the file was last touched — a reformat, a
+  # renamed link, a typo — not when the claim was checked, and the two diverge
+  # in the direction that makes an old note look fresh.
+  #
+  # Optional, and it stays optional. The field arrives into corpora that already
+  # exist, on somebody else's machine, the day they update the plugin; a check
+  # that reddens their memory for a field they have never heard of is a check
+  # they turn off, and then the four real ones above go with it. Undated notes
+  # are counted, once, below.
+  as_of="$(printf '%s' "$fm" | sed -n 's/^[[:space:]][[:space:]]*as_of:[[:space:]]*//p' | head -n1)"
+  as_of="${as_of%\"}"; as_of="${as_of#\"}"
+  if [[ -z "$as_of" ]]; then
+    undated=$((undated+1))
+  else
+    case "$as_of" in
+      [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+      *) err "$rel: metadata.as_of='$as_of' is not an ISO date (YYYY-MM-DD)"; as_of="" ;;
+    esac
+  fi
+  if [[ -n "$as_of" ]]; then
+    y="${as_of%%-*}"; md="${as_of#*-}"; mo="${md%%-*}"; dy="${md#*-}"
+    # 10# so 08 and 09 are decimal, not invalid octal — the bug that would make
+    # this check die for two months of every year and pass for the other ten.
+    if (( 10#$mo < 1 || 10#$mo > 12 || 10#$dy < 1 || 10#$dy > 31 )); then
+      err "$rel: metadata.as_of='$as_of' is not a real date"
+    else
+      age=$(( $(civil_days "$y" "$mo" "$dy") - TODAY_DAYS ))
+      # Ahead of the checking machine. One day of slack, because a note written
+      # in the evening at UTC+3 is legitimately "tomorrow" to a UTC runner, and
+      # no zone is further than a day from UTC. Measured 2026-09-05: exactly
+      # that off-by-one turned both CI legs red on the knowledge base, the
+      # message named the base rather than the note, and it healed itself after
+      # UTC midnight — which everyone reads as flakiness. Slack removes the
+      # false red; a date a month out is still a typo worth catching.
+      if (( age > 1 )); then
+        err "$rel: metadata.as_of='$as_of' is in the future — date a note by its evidence, not by the writing clock"
+      elif (( -age >= STALE_DAYS )); then
+        stale_lines="$stale_lines$rel	$(( -age ))
+"
+      fi
+    fi
+  fi
+
   base="$(basename "$f" .md)"
   if [[ -n "$name" && "$name" != "$base" ]]; then
     err "$rel: name='$name' does not match the file name '$base' — a [[$name]] link resolves elsewhere"
@@ -216,6 +285,29 @@ for f in "${all_notes[@]+"${all_notes[@]}"}"; do
     fi
   fi
 done
+
+# ---------- note dates ----------
+# Everything here warns and nothing fails. Old is not wrong: a note about a
+# frozen decision is fine at three years, a note about a dependency's behaviour
+# is suspect at three months, and no threshold tells the two apart. Only a
+# person who knows the area can, so this section hands them the list and stops.
+# A gate here would force the wrong answer for one of the two kinds, and the
+# cheap way to satisfy a gate is to bump the date without re-checking anything —
+# which converts a stale note into a fresh-looking one and destroys the only
+# signal this field carries.
+hr "note dates"
+if [[ "$undated" -gt 0 ]]; then
+  # Counted, not listed. Naming each one turns the report into a backlog that
+  # nobody works through, and undated is the ordinary state of every note
+  # written before this field existed.
+  warn "$undated note(s) carry no metadata.as_of — add it when you next touch one, dated by its evidence"
+fi
+while IFS=$'\t' read -r __rel __age; do
+  [[ -z "$__rel" ]] && continue
+  warn "$__rel: as_of is $__age days old (over $STALE_DAYS) — re-verify, update the note, or rewrite it in place"
+done <<EOF
+$stale_lines
+EOF
 
 # ---------- index ----------
 # The index is a tree since 2026-08-25: MEMORY.md is loaded into every session

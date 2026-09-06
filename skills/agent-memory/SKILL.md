@@ -32,6 +32,7 @@ description: <one line, what the note is about>
 metadata:
   type: user | feedback | project | reference
   evidence: measured | read | decided | sourced
+  as_of: <YYYY-MM-DD, the date the evidence is from>   # optional
 ---
 ```
 
@@ -55,6 +56,56 @@ would need to confirm it.** The expensive mistake runs the other way: marking
 `measured` something that was in fact only read turns a guess into a fact for
 whichever session reads it next, and nothing downstream can tell the
 difference once it's written down.
+
+## `metadata.as_of`: when the claim was last true
+
+`evidence` says what kind of claim a note holds. `as_of` says **when** — the
+date of the run, the incident, the decision or the source check the note rests
+on. The two answer different questions and a note wants both: `read` is
+defined above as "true until something runs and says otherwise", and `decided`
+as the case where a date and an author are what apply *instead* of evidence.
+
+**Date the note by its evidence, not by the clock in front of you.** If the
+measurement is a CI run, use that run's UTC date. A session ending at 22:00 in
+UTC+3 that stamps its local date writes tomorrow, and the check that reads it
+runs on UTC — the failure heals itself overnight, which is the signature
+everyone misreads as flakiness. `lint` allows one day of slack for exactly
+this and refuses anything further ahead.
+
+Not `git log`. That records when the file was last *touched* — a reformat, a
+renamed link, a fixed typo — and it moves in the direction that makes an old
+claim look freshly checked.
+
+**The field is optional and stays optional.** `lint` counts undated notes in
+one line rather than naming them: the field arrives into corpora that already
+exist, and a check that reddens a memory the day its owner updates the plugin
+is a check they switch off — taking the four checks that were already earning
+their place with it.
+
+So no migration is owed. Adding the field as you next touch each note is the
+expected path. A one-time pass over an existing corpus is fine too, on one
+condition: every date has to come out of the note's own evidence — the run,
+the incident, the decision it records. A corpus stamped with the date of the
+pass itself is worse than an undated one, because it now claims eight notes
+were checked on a day when nothing was checked at all.
+
+Past `note_stale_days` (180 by default, a key in `.floppy/config`) `lint`
+names the note and stops. It does not fail the run, because **old and wrong
+are different things**. A note recording a frozen decision is fine at three
+years; a note about a dependency's behaviour is suspect at three months, and
+no threshold distinguishes them. Three legitimate answers to an aged note:
+
+- re-checked, still true → move `as_of` to today's date, change nothing else;
+- still true but the surroundings moved → update the note *and* the date;
+- no longer true → **rewrite it in place**. Do not leave the old claim
+  standing next to its replacement; a superseded note that survives is worse
+  than no note.
+
+Deleting is the fourth answer and it is under-used. A note whose subject no
+longer exists should go, and the commit that removes it should say what
+replaced it. This is the pruning half of the `quota.lock` ratchet below: a
+ceiling with no habit of deletion only decides which session gets stopped by
+it, and that is routinely not the one that filled it.
 
 ## The index is a tree, three levels deep
 
