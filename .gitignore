@@ -16,3 +16,8 @@ _site/
 # floppy: the private memory scope — a symlink into the private memory
 # repository, never committed here (see agent-memory)
 /.agent-memory/private
+
+# Python bytecode: generated on every run of the knowledge scripts, and one
+# stray `git add -A` is all it takes to commit a binary nobody reads
+__pycache__/
+*.pyc
