@@ -88,34 +88,68 @@ The suite is 689 assertions and green on both CI jobs.
 
 ## Open, waiting on the owner
 
-**Russian documentation: wanted, and the approach is undecided.** The owner
-asked for it on 2026-09-06 and explicitly wants the design thought through
-before anything is written. Nothing has been chosen; what follows is scope, not
-a plan.
+**Russian documentation: decided, and the first pull request is ready but not
+opened.** The design is `docs/specs/2026-09-06-russian-documentation-design.md`;
+the plan it produced is `docs/plans/2026-09-06-russian-documentation-pr1.md`.
+The owner decided four things on 2026-09-06, and everything below follows from
+them:
 
-Four surfaces, and they are not the same problem:
+1. `README.md` and `docs/` get Russian. Not `CHANGELOG.md`, not `knowledge/`,
+   and — the one that matters most — not `skills/*/SKILL.md`, which are read by
+   a model, where wording is behaviour rather than readability.
+2. Both languages side by side, English the source. This is a public plugin;
+   replacing English narrows its audience.
+3. An outdated translation must be detectable, in the shape `knowledge/` already
+   uses — a record of what a document was made against, and a script reporting
+   drift.
+4. That check **reports and never fails a run**, for the same reason
+   `metadata.as_of` is not a gate: freshness gating turns every typo fix into
+   bilingual work and teaches whoever is in a hurry to bump the record without
+   re-reading the source.
 
-- `README.md` and `docs/` — read by humans, published to the site;
-- `skills/*/SKILL.md` — read by a **model**, and their language changes agent
-  behaviour rather than only readability;
-- `knowledge/` — a cross-project base whose contract (`verified_on`, `recheck`)
-  is enforced by two scripts that assume one file per note;
-- `CHANGELOG.md` — read by a consumer deciding whether to take an update.
+**What is on the branch `russian-docs-design`, local and unpushed** — 14 commits
+carrying the machinery plus the first translated document:
 
-Three things already settled that constrain any answer, so re-deriving them is
-waste: `memory_language` already governs the language of memory notes and is
-`en` here; `agent-memory` states plainly that the language of the skills, of the
-memory, and of the reply to a human are **three separate choices** and warns a
-future session against wiring them together; and the site is generated from
-these files by `scripts/site-build.sh`, with `test-site.sh` and `test-docs.sh`
-asserting structure — so a second language is a build question, not only a
-translation one.
+- `scripts/translation-check.py` — discovers translations by name
+  (`<stem>.<two lowercase letters>.md`, root and `docs/`), compares the git blob
+  sha recorded in each against its source, and reports three things: contract
+  problems, translations behind their source, and untranslated documents. It
+  never exits non-zero, guaranteed structurally by a top-level guard as well as
+  per input.
+- The marker itself: an HTML comment on line 1, invisible on GitHub and stripped
+  from the site. It records a **git blob sha** rather than a plain hash, so the
+  recorded value is a pointer into history and `git cat-file blob` answers "what
+  changed since this was translated".
+- `scripts/site-build.sh` learned parent pages; the Russian pages sit under one
+  generated `Русский` hub, itself derived from the page table rather than typed.
+- `docs/memory-model.ru.md`, the first translation, stamped against the exact
+  version of `docs/memory-model.md` it was made from.
+- A `-- process: translations` section in `status --flow`, printed **only** in a
+  repository that actually has a translation.
+
+The suite is 735 assertions, up from 689, and green.
+
+**Waiting on the owner:** the branch is deliberately local. The owner decided the
+pull request opens together with the finished implementation rather than for the
+design alone. PRs 2 and 3 — `docs/lessons.ru.md` and `README.ru.md` — are one
+table row and one document each; nothing in the machinery changes for them.
+
+**Not a plugin feature, on purpose.** The script ships the way everything under
+`scripts/` ships, and it names no language anywhere. But it is not documented in
+`README.md` as a capability, `init` writes nothing for it, and no config key
+governs it. Presenting it as a feature is a separate decision with its own
+scope.
 
 ## What is not true here
 
 No open issues and no open pull requests — checked against `gh`, not recalled,
-after 0.19.0 was published. `main` is in sync with the remote, the tree is
-clean, and both memory stores are pushed.
+after 0.19.0 was published. Both memory stores are pushed.
+
+`main` is in sync with the remote, but the working tree is **not** on it: the
+branch `russian-docs-design` is checked out with 14 commits that exist nowhere
+else. Nothing is lost if this machine survives; everything is if it does not.
+That is the owner's standing decision, not an oversight — see the section
+above — but a reader of this file should not learn it from the git log.
 
 **A caution the previous version of this file earned.** It once closed with the
 same "nothing is open" claim while three issues had been filed minutes earlier.
