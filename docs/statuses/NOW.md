@@ -24,8 +24,8 @@ reach consumers, neither needing a migration and neither touching the shim:
   §5; the memory note on that survey says why it cannot be read as a to-do list.
   This repository's own nine notes are dated from the evidence in their bodies.
 
-**0.18.0** (same day) closed the three issues the pull-request model turned from
-edge cases into the ordinary path: `commit` on a branch with no upstream, the
+**0.18.0** (2026-09-06) closed the three issues the pull-request model turned
+from edge cases into the ordinary path: `commit` on a branch with no upstream, the
 wrap lock following the memory rather than the clone, and the status splitting
 into two files. Details in `CHANGELOG.md`; the decisions they froze are below.
 
@@ -39,8 +39,6 @@ carried no non-alphanumeric character.
 The 30% is a rollout mix on one day, not a property of macOS, and it goes to zero
 when 25.5.0 is retired — **leaving the defect intact and the tests green**. Do
 not quote the rate without both kernel versions.
-
-The suite is 689 assertions and green on both CI jobs.
 
 ## What is frozen
 
@@ -82,96 +80,95 @@ The suite is 689 assertions and green on both CI jobs.
   That file belongs to the consumer and a line in it may be hand-written; one
   line removed by hand is cheaper than a rule for when a script may delete from
   a file it does not own.
-- **No `quota.lock`** — the memory is nine notes old. A ceiling invented for a
-  corpus this small bounds nothing; `lint` warns about the absence and that
-  warning stays correct until there is something to measure.
+- **No `quota.lock`** — decided when the memory was nine notes old: a ceiling
+  invented for a corpus that small bounds nothing, and `lint`'s warning stays
+  correct until there is something to measure. **That condition is now met** —
+  14 notes — so this freeze has expired on its own terms and is listed below as
+  waiting on the owner, not as settled.
 
-## Russian documentation: done and merged
+## Russian documentation: done, and its search now works
 
-**Both pull requests are on `main`** (2026-09-06): #36 `3da8fdc` carried the
-machinery and the first document, #37 `4427b70` the remaining two. All three
-documents the design scopes are translated, and
-`python3 scripts/translation-check.py` reports `clean` — until #37 it always
-listed something under `-- untranslated`, so its silence now means something.
-The suite is 741 assertions, green on both platforms.
+**Five pull requests on 2026-09-06 closed this thread** (#40–#44). The three
+documents were already translated and merged (#36, #37); what landed since is
+the search over them, the debt they left, and the defects they deferred.
 
-The design is `docs/specs/2026-09-06-russian-documentation-design.md`. Four
-decisions the owner took, which any later change has to argue against rather
-than around:
+**The one measurement the design asked for was made, and the design's own
+prediction was wrong.** Search over the Russian pages returned nothing, and
+`search.tokenizer_separator` — named in the spec as the suspect and as a
+one-line fix — was never involved. `lunr.trimmer` strips `\W` from both ends of
+every token, JavaScript's `\w` is ASCII-only, so a Cyrillic word trimmed to the
+empty string: 1855 terms with two containing Cyrillic, and one empty-string term
+holding 124 postings. Measured against the deployed index, not a local build.
+The spec records the answer under its own "Known unknown"; the memory note is
+`site-search-broke-on-the-trimmer-not-the-tokenizer`.
 
-1. `README.md` and `docs/` get Russian; `skills/*/SKILL.md` deliberately do
-   not, because those are read by a model and their wording is behaviour.
-2. Both languages side by side, English the source.
-3. An outdated translation must be detectable.
-4. The check **reports and never fails a run** — the same reasoning frozen for
-   `metadata.as_of`.
+**The first fix shipped inert and the suite stayed green.** The theme serves a
+page as one line, so the `//` comments in the injected script swallowed it.
+Under that, a second defect: automatic semicolon insertion needs a line
+terminator. Both are guarded now, by two checks that collapse the script the way
+the page does and that deliberately do not overlap — a fully commented-out
+script parses. Note: `served-page-collapses-inline-scripts`.
 
-**How it works, in one paragraph.** A translation is a sibling with a language
-suffix, carrying an HTML comment on line 1 that records the git blob sha of the
-English source it was made from. The blob sha rather than a plain hash, so the
-record is a pointer into history and `git cat-file blob` answers "what changed
-since this was translated". `scripts/translation-check.py` never exits
-non-zero; `status --flow` shows drift only in a repository that has
-translations.
+**Where the search stands, measured on the live site after the last deploy:**
+`сессия` and `сессии` both 9 hits, `заметка` and `заметки` both 14, `память` 12,
+`памяти` 17. Every English count unchanged (`memory` 71, `wrap` 30, `floppy`
+81). What remains unverified is a browser: everything from the served script
+text through the built index and the query is measured, the DOM is not.
 
-**Deviation from the design, taken deliberately in #37:** Russian pages link to
-Russian pages. The design says links keep their targets and only link text is
-translated — a rule written when no Russian document existed, which now would
-send a Russian reader to the English page. Links out to `knowledge/`,
-`CHANGELOG.md` and `LICENSE` stay English, since nothing translates those.
+The suite is 778 assertions across 27 files, green on both CI jobs.
+
+## What this thread froze
+
+- **The injected script in `site/_includes/head_custom.html` uses block
+  comments and explicit semicolons.** Not style: the page it becomes has no
+  newlines, and either omission makes the whole script dead or invalid. Two
+  asserts enforce it and the file says why at the top.
+- **The vendored search plugins are MPL-1.1, and their notice lives with the
+  code** (decided 2026-09-06 by the owner). `lunr-languages@1.14.0` is MPL-1.1,
+  not MIT — checked in `package.json`, in its `LICENSE` and in the file
+  headers. The three files are vendored verbatim with a `NOTICE.md` and a copy
+  of the licence beside them; the site footer carries nothing, because MPL asks
+  for headers and available source, not a page-visible notice, and a footer
+  line would be a second place to keep in step. `site/` only — the plugin is
+  MIT and untouched.
+- **`translation-check.py --list` is the only expression of what a translation
+  is.** The gate in `workstatus.sh` keeps a deliberately *loose* pre-gate whose
+  only job is deciding whether to start python — `?`, never a bracket range, so
+  the collation trap cannot return through it — and the section prints only
+  when the checker actually lists something.
+- **The sibling rule stays hand-written in `tests/test-translations.sh`.** It is
+  a different rule, and that loop is the only thing in CI that can redden a
+  hand-written marker, since the checker reports and never fails. Deriving its
+  expectation from the checker would let a checker bug agree with itself.
 
 ## Open, waiting on the owner
 
-**Cyrillic search on the site is still unmeasured.** The design assigned this
-measurement to the first pull request and it was not made: ruby and jekyll are
-not available in the session that produced the work. `site/_config.yml` sets
-`tokenizer_separator: /[\s/]+/`, chosen for Latin text and paths. The deploy
-from these merges is the first thing that can answer it. If search over the
-three Russian pages is broken, it is a one-line change in that file.
+**`quota.lock` is now owed a decision.** The freeze below says a ceiling was not
+worth inventing while the memory was nine notes old, and that `lint`'s warning
+stays correct "until there is something to measure". The memory is **14 notes**
+today, so that condition has been met and the freeze has expired on its own
+terms. Either measure the corpus and write the file, or restate why not.
 
-**"What is a translation" is written out five times.** In
-`scripts/translation-check.py` (authoritative), in the gate in
-`scripts/workstatus.sh`, in `count_translations()` and the corpus loop in
-`tests/test-translations.sh`, and in a `sed` deriving the sibling path. Four
-consecutive fix rounds on #36 turned on those copies disagreeing, and the fifth
-copy was found while fixing the fourth. They agree today, each checked against
-a fixture rather than against each other. **The architectural answer is to make
-the checker the single authority and have the shell ask it** — not attempted,
-because #36 was open and red at the time and a minimal fix was worth more than
-a restructure. This is a debt, not a closed question.
+**Two `knowledge/` notes are owed and `wrap` cannot write them** — `watched_dirs`
+is `docs` only, deliberately, so each needs its own pull request:
 
-**A sixth expression, of a different rule:** what a *marker* is. The checker's
-regex tolerates any whitespace after `floppy:translation`; the site build's
-strip rule requires exactly one space. A marker written without the space is
-valid to the checker and is not stripped from the page. `tests/test-site.sh`
-catches it.
+1. **A page served as one line kills an inline `//` comment**, and takes ASI
+   with it. True of any compressing template, not of this theme alone.
+2. **lunr's trimmer drops non-Latin tokens entirely**, and the tokenizer is not
+   the suspect it looks like. True of any lunr site with non-Latin content.
 
-**Deferred, each with its reason recorded in the pull requests:** a dotfile
-translation is matched by the checker's regex and invisible to the shell globs;
-the `on=` field is validated for digit shape only, so a calendar-impossible
-date that sorts before tomorrow (`2026-02-30`) passes; `bash tests/test-site.sh
---selftest` with no second argument aborts with a raw unbound-variable error.
-
-**A `knowledge/` note is owed and cannot be written by `wrap`.** The
-locale-dependent `[a-z]` finding is a fact about shells and macOS, true whether
-or not anyone uses floppy — exactly what `knowledge/` is for. `wrap` may not
-commit there: `watched_dirs` is `docs` only, deliberately. It needs its own
-pull request.
+The third fact from this thread already landed there as
+`shell-bracket-range-follows-collation` (#39), with a machine-checkable half
+that runs on the macOS leg of every push.
 
 ## What is not true here
 
-No open issues and no open pull requests — checked against `gh`, not recalled,
-after #36 and #37 merged. Both memory stores are pushed.
+No open issues and no open pull requests — checked against `gh` after #44
+merged, not recalled. `main` is in sync with the remote and the working tree is
+clean apart from an untracked `.claude/` that predates this work. Both memory
+stores are pushed.
 
-`main` is in sync with the remote and the working tree is on it, clean apart
-from an untracked `.claude/` that predates this work. Nothing is unpushed.
-
-An earlier version of this file claimed 14 commits existed only on this machine.
-That was true when written and stopped being true at the merge — which is the
-whole reason `start` checks `run status` instead of trusting this file.
-
-**A caution the previous version of this file earned.** It once closed with the
-same "nothing is open" claim while three issues had been filed minutes earlier.
-A current-state file carries no sign of its own age, which is why `start`
-checks the live facts instead of trusting it — and why the sentence above says
-where the answer came from.
+**A caution this file earned twice.** It once closed with "nothing is open"
+while three issues had been filed minutes earlier, and it spent this session
+describing a state four merges out of date. A current-state file carries no sign
+of its own age, which is why `start` checks `run status` instead of trusting it.
