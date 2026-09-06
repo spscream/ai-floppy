@@ -27,7 +27,7 @@ repo="https://github.com/spscream/ai-floppy"
 blob="$repo/blob/main"
 
 # ---------- the page table ----------
-# source|target|title|nav_order — an empty source means the page is generated
+# source|target|title|nav_order[|parent] — an empty source means the page is generated
 # further down rather than copied. The order is the order of the sidebar, and
 # it is the reading order: what the thing is, then the model behind it, then
 # what the model cost to get right, then the reference, then the releases.

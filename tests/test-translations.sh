@@ -159,6 +159,22 @@ for f in *.[a-z][a-z].md docs/*.[a-z][a-z].md; do
     "$([[ -f "$src" ]] && echo 0 || echo 1)"
   sha="$(printf '%s' "$line1" | sed -n 's/.*blob=\([0-9a-f]*\).*/\1/p')"
   assert_eq "$f records a 40-character blob sha" "40" "${#sha}"
+
+  # `of` must name the sibling, not merely some file that exists. The checker
+  # reports this and never fails, so this loop is the only thing that can make a
+  # hand-written marker red in CI.
+  expected_src="$(printf '%s' "$f" | sed -E 's/\.[a-z]{2}\.md$/.md/')"
+  assert_eq "$f names its own sibling as the source" "$expected_src" "$src"
+
+  # And the date has to be a date. One day of slack, not politeness: an evening
+  # at UTC+3 is already tomorrow for the runners, which is the same rule frozen
+  # for metadata.as_of.
+  on="$(printf '%s' "$line1" | sed -n 's/.*on=\([^ ]*\).*/\1/p')"
+  assert_eq "$f records an ISO date" "0" \
+    "$(printf '%s' "$on" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' && echo 0 || echo 1)"
+  tomorrow="$("$py" -c 'import datetime as d; print((d.date.today()+d.timedelta(days=1)).isoformat())')"
+  assert_eq "$f is not stamped more than a day in the future" "0" \
+    "$([[ "$on" > "$tomorrow" ]] && echo 1 || echo 0)"
 done
 
 # Deliberately absent: any assertion that these files are up to date. See the
