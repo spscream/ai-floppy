@@ -18,6 +18,108 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.18.0 — 2026-09-06
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this release
+reaches `shim/run`.
+
+Minor rather than patch because there is a new config key, `statuses_personal`,
+and `commit` behaves differently on a branch the remote has never seen. Nothing
+breaks: the new key is optional and derived when unset, the file it names is
+optional too, and a repository that never writes one behaves exactly as before.
+**No migration to do.**
+
+All three fixes came out of closing one session on 2026-09-06, the day the
+pull-request model went in. That model is what turned each of them from an edge
+case into the ordinary path.
+
+### Every wrap on a protected branch failed at its last step
+
+`commit` ended with `pull --rebase` then `push`. On a branch with no upstream
+the pull has nothing to rebase against, fails with "no tracking information",
+and takes the whole tail with it. While wrap ran on the default branch — which
+has an upstream — this was an edge case. Once `main` refuses a direct push,
+every wrap runs on a branch created for it, and such a branch has no upstream
+on its first commit. So it was every close, not an occasional one.
+
+With no upstream the pull is skipped and the push is `-u origin HEAD`: there is
+nothing to rebase against on a branch the remote has never seen, and setting the
+upstream is what a first push is for. Where an upstream exists nothing changes —
+the pull there guards the two-machine case, which is the reason it exists.
+
+The push output is now read, because its failure has two kinds. A push refused
+by a branch rule used to print `push failed (network/VPN?)  Retry: git push`,
+which is advice that cannot work — and it was the first thing a consumer saw
+after protecting their own default branch. It now names the rule and prints the
+recipe:
+
+```
+  push refused by a branch rule (GH013), not by the network.
+  main is protected; the commit is made and safe locally. Move it to a branch:
+    git switch -c wrap-2026-09-06
+    git push -u origin HEAD
+    gh pr create --fill
+```
+
+`commit` still does not create the branch itself. These scripts decline to
+guess, and moving someone off the branch they were on is a guess.
+
+### The wrap lock protected the clone, not the memory
+
+The lock lived in `git rev-parse --git-dir`, on the reasoning that each worktree
+has its own "because each worktree carries its own memory copy". Measured, both
+halves: a linked worktree's `--git-dir` really is `.git/worktrees/<name>`, and
+in the store layout the second half is false. There `memory_dir` is a gitignored
+symlink into a store shared by every checkout on the machine — so two worktrees
+took two independent locks and wrote the same notes.
+
+The lock now follows the resource. With a store it lives in that store's git
+directory, named for the project key, so every session on the machine writing
+those notes serialises while another project sharing the store is not blocked.
+With the memory inside the repository the old placement was already right and is
+unchanged. `acquire` and `status` print a `covers:` line.
+
+**Two machines are covered by nothing**, and the `wrap` skill now says so
+instead of implying otherwise. It also stops claiming git does not arbitrate:
+across machines it does, by refusing to merge two rewrites of the current-state
+file. A conflict on every overlapping wrap is loud, not silent, and a reader who
+expects silence watches for the wrong failure.
+
+### The status is two files, split by who the fact is true for
+
+The current-state file was the only artefact every wrap rewrote **whole**. A
+note collides with nothing by construction and an index merges; that one file
+conflicted on any overlap, and the pull-request model sharpened it — two threads
+of work now meet as a merge conflict in it on every overlapping branch.
+
+Most of what forced those rewrites was not project state. It was one person's
+thread of work: what they were mid-way through, what is half-done, where to
+resume. That changes every session and is shared with nobody.
+
+| | `statuses_now` | `statuses_personal` (new) |
+|---|---|---|
+| true for | the project | one person, one machine |
+| holds | frozen decisions, what is red, what waits on the human, metrics and their marks | the thread of work: what is unfinished, where to pick it up |
+| lives | `docs/statuses/NOW.md`, committed with the code | the private scope, `machines/<name>/NOW.md` |
+| contention | rare — it changes rarely | none — no other machine writes that path |
+
+The new path is **derived, not a constant**: it follows `memory_dir` and
+`memory_private_dir` and takes its machine part from `machine_key`, or from
+`hostname` when that is unset. `init` writes it only as a commented example,
+with the reason — setting the key puts one machine's path into a config every
+machine reads.
+
+Being inside the memory it needs no new plumbing: `commit` sends it to the
+private store and never to the code repository. `memory-lint` stops reading it
+as a malformed note, excluded by path (`machines/*/<leaf>`) so that a second
+machine's copy arriving through the sync is skipped too, at a name this machine
+cannot compute — and only that one filename, so a genuine note filed under
+`machines/` still lints. `start` reads it after the project file when it exists;
+absence is the ordinary state and `status` says nothing rather than warning.
+
+This narrows how often two sessions collide. It does not close the two-machine
+case, and `agent-memory` says that where it describes the three status genres.
+
 ## 0.17.0 — 2026-09-06
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this release
