@@ -152,7 +152,7 @@ done
 # The same probe index.md gets, and for the same reason: a code identifier
 # survives translation, so it proves the whole README came through rather than
 # a truncated prefix of it.
-assert_contains "the Russian index carries the whole README" "quota.lock" \
+assert_contains "the Russian index carries the whole README" "## \`quota.lock\`" \
   "$(cat "$out/ru-index.md" 2>/dev/null || true)"
 
 # The marker is an implementation detail of the repository, not of the site.
