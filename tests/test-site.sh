@@ -31,7 +31,10 @@ assert_eq "build copies Gemfile"     "0" "$([[ -f "$out/Gemfile"     ]] && echo 
 # Matched on the document's own first heading rather than on the build
 # script's table: a table that lists a file it no longer copies would pass a
 # table-reading test. A new docs/*.md with no page fails this loop.
-for src in docs/*.md; do
+# The list is overridable so this file can run itself against a planted
+# document — see the positive control at the end. Unquoted on purpose: the
+# default has to stay a glob.
+for src in ${FLOPPY_SITE_DOCS:-docs/*.md}; do
   # The first heading, not the first line: a translation's first line is the
   # marker, and the marker is stripped from the page.
   h1="$(grep -m1 '^# ' "$src")"
@@ -132,13 +135,28 @@ assert_contains "and declares itself a parent" "has_children: true" "$hub"
 assert_eq "no page carries a translation marker" "" \
   "$(grep -l 'floppy:translation' "$out"/*.md 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
 
-# ---------- the heading guard can actually go red ----------
-# A positive control on the loop above. Without it, the fix is a line of code
-# nobody has ever seen fail — the same class of thing it was added to prevent.
-probe=docs/zz-probe-no-heading.md
-printf '## Only a subheading\n\nbody\n' > "$probe"
-probe_h1="$(grep -m1 '^# ' "$probe")"
-rm -f "$probe"
-assert_eq "a document with no top-level heading yields an empty needle" "" "$probe_h1"
+# ---------- positive control: the heading guard can go red ----------
+# The guard lives inside this file, so unlike tests/test-knowledge.sh — which
+# exercises its checkers by running them as separate programs — this file has to
+# run ITSELF to prove the guard fires. The first version of this control only
+# asserted that `grep -m1 '^# '` prints nothing for a headingless file, which is
+# a fact about grep: it passed with the guard deleted, and it was found that way.
+#
+# The planted document goes in a temp directory, never in the live docs/. Two
+# reasons: tests/run.sh runs test files in parallel, so a stray docs/*.md is
+# visible to whatever else is running; and a signal landing between creating and
+# deleting it would leave debris inside a tracked directory.
+if [[ -z "${FLOPPY_SITE_DOCS:-}" ]]; then
+  probe_dir="$(mktemp -d)"
+  printf '## Only a subheading\n\nbody\n' > "$probe_dir/zz-no-heading.md"
+  # $BASH, not a bare `bash`: same reason tests/run.sh gives — on macOS the
+  # point is to exercise 3.2, and a bare `bash` resolves through PATH.
+  probe_out="$(FLOPPY_SITE_DOCS="$probe_dir/zz-no-heading.md" "${BASH:-bash}" "$0" 2>&1)"
+  probe_rc=$?
+  rm -rf "$probe_dir"
+  assert_eq "the heading guard fails a document with no heading" "1" "$probe_rc"
+  assert_contains "and the failure names the guard" \
+    "has a top-level heading to match on" "$probe_out"
+fi
 
 summary
