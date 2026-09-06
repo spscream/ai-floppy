@@ -117,11 +117,36 @@ rm -f "$sb/docs/other.md" "$sb/docs/lessons.ru.md"
 # ---------- 7. the real corpus keeps the contract ----------
 # The loop below is worthless if it iterates over nothing — the empty-loop trap
 # this repository has already paid for twice. So the count is asserted first.
-# The same rule as TRANSLATION_NAME in scripts/translation-check.py and as the
-# gate in scripts/workstatus.sh: `<stem>.<two lowercase letters>.md`, in the
-# repository root and in docs/, because the checker scans both. A plain `*.*.md`
-# also swept up docs/CHANGELOG.old.md and demanded a translation marker in it.
-real_n="$(ls *.[a-z][a-z].md docs/*.[a-z][a-z].md 2>/dev/null | wc -l | tr -d ' ')"
+# Translation-shaped REGULAR files under a root. One named rule, because this
+# same decision is made in scripts/translation-check.py (TRANSLATION_NAME plus
+# os.path.isfile) and in the gate in scripts/workstatus.sh, and each time it has
+# been written out a third way it has been written out wrong. `ls` was the last
+# way it went wrong: on a directory it lists the contents, so a directory called
+# docs/zz.ru.md/ counted as a translation and this guard passed while the loop
+# below it ran zero assertions.
+count_translations() { # root -> count
+  local n=0 f
+  for f in "$1"/*.[a-z][a-z].md "$1"/docs/*.[a-z][a-z].md; do
+    [[ -f "$f" ]] && n=$((n + 1))
+  done
+  printf '%s\n' "$n"
+}
+
+# A positive control on the rule above, in a temp directory — never in the live
+# docs/, which a parallel test file would see.
+probe_root="$(mktemp -d)"
+mkdir -p "$probe_root/docs/zz.ru.md"
+printf 'x\n' > "$probe_root/docs/zz.ru.md/a.md"
+assert_eq "a directory named like a translation is not counted" "0" \
+  "$(count_translations "$probe_root")"
+printf 'x\n' > "$probe_root/docs/real.ru.md"
+assert_eq "and a regular file is counted" "1" "$(count_translations "$probe_root")"
+printf 'x\n' > "$probe_root/CHANGELOG.old.md"
+assert_eq "and a two-dot name that is not a translation is not" "1" \
+  "$(count_translations "$probe_root")"
+rm -rf "$probe_root"
+
+real_n="$(count_translations .)"
 assert_eq "there is at least one translation to check" "0" \
   "$([[ "$real_n" -ge 1 ]] && echo 0 || echo 1)"
 
