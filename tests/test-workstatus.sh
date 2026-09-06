@@ -317,4 +317,41 @@ else
   printf '  skip python3 not available\n'
 fi
 
+# ---------- the pre-gate is loose and the checker decides ----------
+# Two repositories the old gate got wrong in opposite directions. The gate no
+# longer carries the rule — it starts python and the checker answers — so both
+# are answered by the same authority the report uses.
+if command -v python3 >/dev/null 2>&1; then
+  # 1. A dotfile translation. Matched by the checker's regex from the start and
+  # invisible to every shell glob the gate used to run, so this repository had a
+  # translation and no section about it.
+  repoH="$(sandbox)"; cp shim/run "$repoH/.floppy/run"
+  : > "$repoH/.floppy/config"
+  mkdir -p "$repoH/docs"
+  printf '# Doc\n\nbody\n' > "$repoH/docs/.hidden.md"
+  printf '<!-- floppy:translation of=docs/.hidden.md blob=%s on=2026-01-01 -->\n\n# Док\n' \
+    0000000000000000000000000000000000000000 > "$repoH/docs/.hidden.ru.md"
+  outH="$(cd "$repoH" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+  rm -rf "$repoH"
+  assert_contains "a dotfile translation raises the section" \
+    "-- process: translations" "$outH"
+  assert_contains "and is named inside it" ".hidden.ru.md" \
+    "$(printf '%s\n' "$outH" | sed -n '/-- process: translations/,$p')"
+
+  # 2. A name that only looks the part. The pre-gate fires — it is deliberately
+  # loose — and the checker lists nothing, so there must be no section at all.
+  # A "clean" heading here would be a statement about a feature this repository
+  # does not use.
+  repoU="$(sandbox)"; cp shim/run "$repoU/.floppy/run"
+  : > "$repoU/.floppy/config"
+  printf '# Guide\n\nbody\n' > "$repoU/guide.md"
+  printf '# Guide\n' > "$repoU/guide.RU.md"
+  outU="$(cd "$repoU" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+  rm -rf "$repoU"
+  case "$outU" in
+    *"process: translations"*) fail "an uppercase tag raises no section" "no section" "$outU" ;;
+    *) ok "an uppercase tag raises no section" ;;
+  esac
+fi
+
 summary

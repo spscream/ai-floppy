@@ -281,30 +281,44 @@ if [[ $FLOW -eq 1 ]]; then
   # the worktree line below, which prints only when there is more than one.
   # --root is not optional: in a consumer's repository this script runs from the
   # plugin cache and the documents are somewhere else entirely.
-  # A regular file, not just a matching name: `ls` on a directory lists its
-  # contents, so a directory called docs/x.ru.md/ used to open this section in a
-  # repository that had never translated anything. translation-check.py filters
-  # with os.path.isfile for the same reason.
-  # An explicit list, not the range [a-z]: a bracket RANGE is matched through
-  # LC_COLLATE, and on the macOS runner — collation aAbBcC… — it also matched an
-  # uppercase tag, so guide.RU.md counted as a translation. The checker's python
-  # [a-z] is a literal codepoint range no locale affects, and the shell has to
-  # say the same thing the long way. Measured: CI job macos-bash-3-2, red.
-  low='[abcdefghijklmnopqrstuvwxyz]'
-  has_translation=0
-  for candidate in "$repo"/*.$low$low.md "$repo"/docs/*.$low$low.md; do
-    if [[ -f "$candidate" ]]; then has_translation=1; break; fi
+  # This is a PRE-GATE, not the rule. It answers only "is it worth starting
+  # python here", and the checker answers "is this a translation" — one
+  # authority, asked through --list. The shell used to carry its own copy of the
+  # rule; four rounds of fixes on #36 turned on that copy disagreeing with the
+  # checker's, and the fifth copy was found while fixing the fourth.
+  #
+  # `?` and not a bracket range: a RANGE is matched through LC_COLLATE, and on
+  # the macOS runner — collation aAbBcC… — [a-z] also matched an uppercase tag,
+  # so guide.RU.md counted as a translation (measured: CI job macos-bash-3-2,
+  # red). A single-character wildcard has no endpoints for a locale to reorder.
+  # Being loose is the point: guide.RU.md gets python started and is then not
+  # listed, which costs one interpreter start in a repository that has none.
+  # The dotted forms are here because a translation may be a dotfile — the
+  # checker finds those and every earlier glob missed them.
+  maybe_translation=0
+  for candidate in "$repo"/*.??.md "$repo"/.*.??.md \
+                   "$repo"/docs/*.??.md "$repo"/docs/.*.??.md; do
+    if [[ -f "$candidate" ]]; then maybe_translation=1; break; fi
   done
-  if [[ $has_translation -eq 1 ]]; then
-    hr "process: translations"
+  if [[ $maybe_translation -eq 1 ]]; then
     if command -v python3 >/dev/null 2>&1; then
-      tr_out="$(python3 "$here/translation-check.py" --root "$repo" 2>&1)"
-      if [[ -n "$tr_out" ]]; then
-        echo "$tr_out" | sed 's/^/  /'
-      else
-        echo "  clean"
+      # The heading prints only when the checker actually found something. A
+      # repository holding CHANGELOG.RU.md and no translation at all would
+      # otherwise get a "clean" section about a feature it does not use, which
+      # is the same kind of false line 0.19.0 removed from the origin section.
+      if [[ -n "$(python3 "$here/translation-check.py" --root "$repo" --list 2>/dev/null)" ]]; then
+        hr "process: translations"
+        tr_out="$(python3 "$here/translation-check.py" --root "$repo" 2>&1)"
+        if [[ -n "$tr_out" ]]; then
+          echo "$tr_out" | sed 's/^/  /'
+        else
+          echo "  clean"
+        fi
       fi
     else
+      # Without python the pre-gate is all there is, so it says so rather than
+      # deciding on its own whether these files are translations.
+      hr "process: translations"
       echo "  python3 not available — skipped"
     fi
   fi

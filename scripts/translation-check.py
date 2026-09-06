@@ -219,6 +219,13 @@ def main():
     ap.add_argument("--root", default=ROOT, help="repository to check, default: this one")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--stamp", metavar="PATH", help="re-record a translation against its source")
+    # The discovery rule, printed for whoever else needs it. It exists because
+    # "what is a translation" had been written out five times — here, in the gate
+    # in workstatus.sh, twice in tests/test-translations.sh, and in a sed
+    # deriving the sibling — and four consecutive rounds of fixes on #36 turned
+    # on those copies disagreeing. One authority, and the shell asks it.
+    ap.add_argument("--list", action="store_true",
+                    help="print the translations found, one relative path per line")
     args = ap.parse_args()
 
     if not os.path.isdir(args.root):
@@ -229,6 +236,14 @@ def main():
     try:
         if args.stamp:
             stamp(args.root, args.stamp)
+            return
+
+        if args.list:
+            # Names only, no contract check: a file shaped like a translation is
+            # listed even when its marker is missing, because the caller asking
+            # "is there anything here" must not be told no by a broken file.
+            for rel in translations(args.root):
+                print(rel)
             return
 
         broken, behind, untranslated = audit(args.root)
