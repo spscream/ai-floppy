@@ -305,6 +305,41 @@ assert_eq       "the project file is committed here" "both at once" \
   "$(git -C "$pr" log --format=%s -1)"
 assert_eq       "and the private note is NOT in this repository" "" \
   "$(git -C "$pr" ls-tree -r --name-only HEAD | grep private || true)"
+
+# ---------- the personal status goes where the config says, not where a test says ----------
+# #19 split the status in two. The personal half is only worth having if the
+# rite actually carries it: the path is read back from the shim's own resolved
+# environment, so a derivation that pointed anywhere outside the private scope
+# fails here rather than passing against a path this test invented. This is the
+# question "what stays green if it is not wired?" asked of the split itself.
+sp_rel="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1 | sed -n 's/^FLOPPY_STATUSES_PERSONAL=//p')"
+assert_contains "the resolved personal status is inside the private scope" \
+  ".agent-memory/private/machines/" "$sp_rel"
+
+mkdir -p "$pr/$(dirname "$sp_rel")"
+printf '# Mid-way through\n\nThe branch is fresh-branch-push; the guard rewrite is half done.\n' \
+  > "$pr/$sp_rel"
+outPS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "where I left off" "$sp_rel" 2>&1)"; rcPS=$?
+assert_rc       "a personal status commits through the same rite (rc)" 0 "$rcPS"
+assert_contains "and it is the workplace repository that takes it" "workplace memory" "$outPS"
+assert_contains "the personal status reached the workplace remote" \
+  "private/projects/acme/machines/" \
+  "$(git --git-dir="$wpremote" ls-tree -r --name-only main)"
+assert_eq       "and nothing of it landed in the code repository" "" \
+  "$(git -C "$pr" ls-tree -r --name-only HEAD | grep machines || true)"
+
+# The memory lint runs as commit's first gate, so a green rc above already
+# proves the status file did not read as a malformed note — but only for the
+# machine this run is on. Assert it directly too: a rc has one bit and this
+# claim is worth its own line.
+outL="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcL=$?
+assert_rc "the personal status does not turn the memory lint red" 0 "$rcL"
+
+# workstatus names it, so "where are we" does not have to guess whether a
+# working note was left behind.
+outW="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+assert_contains "status reports the personal slice" "personal, modified" "$outW"
+
 rm -rf "$B"
 
 summary
