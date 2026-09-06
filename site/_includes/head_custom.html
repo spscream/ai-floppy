@@ -32,15 +32,29 @@
   endings of one word.
 -->
 <script>
-  // The same contract as lunr.trimmer — trim non-word characters off both ends
-  // — with \p{L}\p{N} standing in for the ASCII-only \w. Re-registered under
-  // the `trimmer` label because lunr serialises a pipeline by its names; the
-  // console warning about overwriting a registered function is that
-  // re-registration, and is expected.
+  /*
+    Block comments, never `//`, and the same for anything added here later.
+    The theme serves this page as a single line, so a `//` comment swallows
+    every statement after it: the first version of this file shipped its
+    override behind one and was inert on the deployed site while the repository
+    tests stayed green. tests/test-site.sh now refuses a line comment here.
+
+    Every statement below ends in an explicit semicolon for the same
+    reason: automatic semicolon insertion needs a line terminator, and on
+    the served page there is none. Without them the collapsed script is a
+    syntax error rather than working code — which the suite now catches by
+    collapsing it and asking node to parse it.
+
+    The same contract as lunr.trimmer — trim non-word characters off both ends
+    — with \p{L}\p{N} standing in for the ASCII-only \w. Re-registered under
+    the `trimmer` label because lunr serialises a pipeline by its names; the
+    console warning about overwriting a registered function is that
+    re-registration, and is expected.
+  */
   lunr.trimmer = function (token) {
     return token.update(function (s) {
-      return s.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '')
-    })
-  }
-  lunr.Pipeline.registerFunction(lunr.trimmer, 'trimmer')
+      return s.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '');
+    });
+  };
+  lunr.Pipeline.registerFunction(lunr.trimmer, 'trimmer');
 </script>

@@ -46,6 +46,29 @@ assert_contains "the include replaces lunr's trimmer" \
 assert_contains "and re-registers it under the pipeline label" \
   "registerFunction(lunr.trimmer, 'trimmer')" "$(cat "$head_custom" 2>/dev/null)"
 
+# And the half those three miss, which cost a merged-and-inert deploy: the
+# theme serves the page as ONE line, so a `//` comment inside the script
+# swallows every statement after it. The file was correct, the asserts above
+# were green, and the override never ran in a browser.
+script_body="$(sed -n '/<script>/,/<\/script>/p' "$head_custom" 2>/dev/null)"
+assert_eq "the include's script carries no // comment" "0" \
+  "$(printf '%s\n' "$script_body" | grep -c '^[[:space:]]*//')"
+# Stronger, when the tool is here: collapse the script to one line exactly as
+# the page does, and ask node whether it still parses. A skip is honest — this
+# repository requires bash and git and nothing else.
+if command -v node >/dev/null 2>&1; then
+  # Two literal substitutions rather than one pattern with `\?`: that is a GNU
+  # extension and BSD sed on the macOS runner does not read it, which would
+  # leave the tags in and fail this check for the wrong reason.
+  one_line="$(printf '%s\n' "$script_body" | sed -e 's,<script>,,' -e 's,</script>,,' | tr '\n' ' ')"
+  printf '%s' "$one_line" > "$log.js"
+  node --check "$log.js" >/dev/null 2>&1
+  assert_rc "and still parses once the page collapses it to one line" "0" "$?"
+  rm -f "$log.js"
+else
+  printf '  skip node not available: the one-line parse check\n'
+fi
+
 # ---------- 1. every document reaches the site ----------
 # Matched on the document's own first heading rather than on the build
 # script's table: a table that lists a file it no longer copies would pass a

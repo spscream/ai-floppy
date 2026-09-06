@@ -258,6 +258,16 @@ loading lunr and before the index is built. It is not a one-line change: the
 build script assembles the site root from scratch and had to learn to copy
 `_includes/` as well.
 
+**The first fix shipped inert, and the tests were green.** The theme serves a
+page as a single line, so the `//` comments inside that script swallowed every
+statement after them; the three asserts checked the file's contents, which were
+correct, and nothing checked that the code survives the page. Once the comments
+became block comments a second defect surfaced underneath: automatic semicolon
+insertion needs a line terminator, and on one line there is none, so the
+collapsed script was a syntax error. Both are now covered by asserts that
+collapse the script the way the page does — and neither assert catches the
+other's defect, since a fully commented-out script parses perfectly.
+
 **Left open, and smaller:** lunr has no Russian stemmer, so `сессия` and
 `сессии` stay different terms. The theme's trailing wildcard covers a prefix
 being typed, not two endings of one word.
