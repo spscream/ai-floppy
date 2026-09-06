@@ -30,10 +30,25 @@ only says which of them to open and in what order.
 
 2. **Read the current-state file whole.** Its path is `statuses_now` in
    `.floppy/config` (a repository default such as `docs/statuses/NOW.md`).
-   This is the one status document read in full; it is rewritten in place, so
-   it answers "what's true right now" without needing history. If it points
-   at a dated journal entry for a detail, open only that section, and only if
-   the task needs it — not the whole journal.
+   It is rewritten in place, so it answers "what's true right now" without
+   needing history. It holds what is true about the **project**: frozen
+   decisions, what is red, what waits on the human, metrics with their marks.
+   If it points at a dated journal entry for a detail, open only that section,
+   and only if the task needs it — not the whole journal.
+
+   **Then read the personal status, if it exists** — `statuses_personal`,
+   which defaults into the private scope at `machines/<name>/NOW.md`. This is
+   the working state of whoever sits at this machine: what they were mid-way
+   through, what is unfinished, where to pick it up. Missing is the ordinary
+   case and not a fault — a repository nobody has left a working note in has
+   nothing to say here. Do not go looking for it under a second machine's
+   name: that state is theirs and is not about this session.
+
+   Two files rather than one because they behave differently, not to be tidy.
+   Project state is shared and changes rarely; personal state changes every
+   session and is shared with nobody. Keeping them in one file meant every
+   wrap rewrote the shared document to record something private, which is what
+   made overlapping sessions collide in it.
 
 3. **Read the half's own guidance** — its `AGENTS.md` or whatever document
    the consumer's routing table names for it.

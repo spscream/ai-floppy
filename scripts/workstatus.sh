@@ -199,6 +199,15 @@ else
   echo "  ! $now_file is missing — nothing for /start to read"
 fi
 [[ -n "$last" ]] && echo "  journal: $last"
+# The personal half (#19). Absent is the ordinary state, not a fault: a
+# repository nobody has left a working note in has nothing to report, and
+# saying "missing" about it would read as a step someone skipped. Only its
+# presence and age are shown — the file is one person's working state, and a
+# report that quoted it would publish into whatever the human pastes this into.
+personal_file="${FLOPPY_STATUSES_PERSONAL:-}"
+if [[ -n "$personal_file" && -f "$personal_file" ]]; then
+  echo "  $personal_file (personal, modified $(mtime_h "$personal_file"))"
+fi
 echo "  last commit: $(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M' 2>/dev/null)"
 
 # ---------- project hook ----------

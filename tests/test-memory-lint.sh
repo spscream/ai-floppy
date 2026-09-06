@@ -341,6 +341,37 @@ lint9
 assert_rc "a README in the private scope is not linted as a note" 0 "$RC9"
 rm -f "$repo9/brain/mine/README.md"
 
+# Neither is the personal status file (#19). It lives at machines/<name>/ in
+# this scope and is a status document — no frontmatter, and not supposed to
+# have any. Without the exclusion, every wrap that wrote it would turn the
+# memory lint red and block its own commit at the first gate.
+mkdir -p "$repo9/brain/mine/machines/thisone"
+printf '# What I am in the middle of\n\nPlain prose, no frontmatter.\n' \
+  > "$repo9/brain/mine/machines/thisone/NOW.md"
+lint9
+assert_rc "the personal status file is not linted as a note" 0 "$RC9"
+
+# And neither is another machine's copy, which is the reason the rule matches
+# a PATH rather than the one path this machine resolves: the private scope is
+# synced, so a second machine's status arrives here, at a name this machine
+# has no way to compute.
+mkdir -p "$repo9/brain/mine/machines/the-other-one"
+printf '# Their thread of work\n\nAlso prose.\n' \
+  > "$repo9/brain/mine/machines/the-other-one/NOW.md"
+lint9
+assert_rc "nor is a second machine's personal status" 0 "$RC9"
+
+# The positive control that keeps the exclusion honest: it is that ONE
+# filename, not the machines/ directory. A genuine note filed under a machine
+# still has to satisfy the per-note invariants — excluding the directory would
+# recreate exactly the blind spot this scope was given a lint pass to remove.
+printf -- '---\nname: machine-note\ndescription: a note about this machine\nmetadata:\n  type: project\n  evidence: guessed\n---\nBody.\n' \
+  > "$repo9/brain/mine/machines/thisone/a-machine-note.md"
+lint9
+assert_rc       "a real note under machines/ is still linted" 1 "$RC9"
+assert_contains "and is named"  "machines/thisone/a-machine-note.md" "$OUT9"
+rm -rf "$repo9/brain/mine/machines"
+
 # The quota belongs to the committed corpus, and is not borrowed for this one:
 # quota.lock is measured on the memory in THIS repository.
 repoQ="$(sandbox)"; cp shim/run "$repoQ/.floppy/run"
