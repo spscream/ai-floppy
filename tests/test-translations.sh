@@ -117,22 +117,14 @@ rm -f "$sb/docs/other.md" "$sb/docs/lessons.ru.md"
 # ---------- 7. the real corpus keeps the contract ----------
 # The loop below is worthless if it iterates over nothing — the empty-loop trap
 # this repository has already paid for twice. So the count is asserted first.
-# Translation-shaped REGULAR files under a root. One named rule, because this
-# same decision is made in scripts/translation-check.py (TRANSLATION_NAME plus
-# os.path.isfile) and in the gate in scripts/workstatus.sh, and each time it has
-# been written out a third way it has been written out wrong. `ls` was the last
-# way it went wrong: on a directory it lists the contents, so a directory called
-# docs/zz.ru.md/ counted as a translation and this guard passed while the loop
-# below it ran zero assertions.
+# The rule lives in scripts/translation-check.py --list and nowhere else. It was
+# written out five times — here, twice more in this file, in the gate in
+# scripts/workstatus.sh, and in a sed deriving the sibling — and four
+# consecutive rounds of fixes on #36 turned on those copies disagreeing. So this
+# asks the authority instead of restating it, and the probes below became
+# positive controls ON that authority rather than on a private copy of it.
 count_translations() { # root -> count
-  local n=0 f
-  # See the comment in scripts/workstatus.sh: [a-z] is a collation range and
-  # matches uppercase on macOS. An explicit list is locale-independent.
-  local low='[abcdefghijklmnopqrstuvwxyz]'
-  for f in "$1"/*.$low$low.md "$1"/docs/*.$low$low.md; do
-    [[ -f "$f" ]] && n=$((n + 1))
-  done
-  printf '%s\n' "$n"
+  "$py" scripts/translation-check.py --root "$1" --list | grep -c . || true
 }
 
 # A positive control on the rule above, in a temp directory — never in the live
@@ -156,8 +148,11 @@ real_n="$(count_translations .)"
 assert_eq "there is at least one translation to check" "0" \
   "$([[ "$real_n" -ge 1 ]] && echo 0 || echo 1)"
 
-low='[abcdefghijklmnopqrstuvwxyz]'
-for f in *.$low$low.md docs/*.$low$low.md; do
+# The same authority names the corpus. What stays hand-written below is the
+# SIBLING rule, and deliberately: the checker reports and never fails, so this
+# loop is the only thing in CI that can redden a hand-written marker. Deriving
+# the expectation from the checker would let a checker bug agree with itself.
+while IFS= read -r f; do
   [[ -f "$f" ]] || continue
   line1="$(head -1 "$f")"
   assert_contains "$f carries a marker on line 1" "floppy:translation" "$line1"
@@ -182,7 +177,7 @@ for f in *.$low$low.md docs/*.$low$low.md; do
   tomorrow="$("$py" -c 'import datetime as d; print((d.date.today()+d.timedelta(days=1)).isoformat())')"
   assert_eq "$f is not stamped more than a day in the future" "0" \
     "$([[ "$on" > "$tomorrow" ]] && echo 1 || echo 0)"
-done
+done < <("$py" scripts/translation-check.py --list)
 
 # Deliberately absent: any assertion that these files are up to date. See the
 # header of this file.
