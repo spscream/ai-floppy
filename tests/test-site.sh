@@ -32,7 +32,9 @@ assert_eq "build copies Gemfile"     "0" "$([[ -f "$out/Gemfile"     ]] && echo 
 # script's table: a table that lists a file it no longer copies would pass a
 # table-reading test. A new docs/*.md with no page fails this loop.
 for src in docs/*.md; do
-  h1="$(head -1 "$src")"
+  # The first heading, not the first line: a translation's first line is the
+  # marker, and the marker is stripped from the page.
+  h1="$(grep -m1 '^# ' "$src")"
   found=1
   for page in "$out"/*.md; do
     if grep -qF "$h1" "$page"; then found=0; break; fi
@@ -76,8 +78,15 @@ assert_eq "no page sends the reader to GitHub for a document the site carries" "
 pages_n="$(ls "$out"/*.md | wc -l | tr -d ' ')"
 assert_eq "every page has a title"     "$pages_n" "$(grep -hc '^title: '     "$out"/*.md | awk '{s+=$1} END {print s+0}')"
 assert_eq "every page has a nav_order" "$pages_n" "$(grep -hc '^nav_order: ' "$out"/*.md | awk '{s+=$1} END {print s+0}')"
-assert_eq "nav_order values are unique" "" \
-  "$(grep -h '^nav_order: ' "$out"/*.md | awk '{print $2}' | sort | uniq -d | tr '\n' ' ' | sed 's/ *$//')"
+# Uniqueness is per parent, not global. That changed when pages got children:
+# just-the-docs orders children within their parent, so the Russian pages'
+# 1-2-3 legitimately repeats the top level's. Same guard, correct group.
+dupes="$(for page in "$out"/*.md; do
+  p="$(awk -F': ' '/^parent: /{print $2; exit}' "$page")"
+  n="$(awk -F': ' '/^nav_order: /{print $2; exit}' "$page")"
+  printf '%s\t%s\n' "${p:-<top level>}" "$n"
+done | sort | uniq -d | tr '\n' ' ' | sed 's/ *$//')"
+assert_eq "nav_order values are unique within each parent" "" "$dupes"
 
 # ---------- the skills page is generated, not typed ----------
 # Asserted on each skill's own description text, not on its name: a hand-typed
@@ -103,5 +112,17 @@ assert_contains "pages workflow builds the assembled root" ".site" "$wf"
 # stale copy of every document into the repository — the one thing this whole
 # arrangement exists to avoid.
 assert_contains "the build directory is ignored" ".site/" "$(cat .gitignore)"
+
+# ---------- the Russian pages sit under one navigation group ----------
+# The hub is built before there is anything under it. That is deliberate: the
+# machinery lands here, the first document lands in the next commit, and neither
+# commit leaves the suite red.
+hub="$(cat "$out/ru.md" 2>/dev/null || true)"
+assert_contains "the Russian hub exists"       "title: Русский"     "$hub"
+assert_contains "and declares itself a parent" "has_children: true" "$hub"
+
+# The marker is an implementation detail of the repository, not of the site.
+assert_eq "no page carries a translation marker" "" \
+  "$(grep -l 'floppy:translation' "$out"/*.md 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
 
 summary
