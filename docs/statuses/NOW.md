@@ -86,70 +86,89 @@ The suite is 689 assertions and green on both CI jobs.
   corpus this small bounds nothing; `lint` warns about the absence and that
   warning stays correct until there is something to measure.
 
+## Russian documentation: done and merged
+
+**Both pull requests are on `main`** (2026-09-06): #36 `3da8fdc` carried the
+machinery and the first document, #37 `4427b70` the remaining two. All three
+documents the design scopes are translated, and
+`python3 scripts/translation-check.py` reports `clean` — until #37 it always
+listed something under `-- untranslated`, so its silence now means something.
+The suite is 741 assertions, green on both platforms.
+
+The design is `docs/specs/2026-09-06-russian-documentation-design.md`. Four
+decisions the owner took, which any later change has to argue against rather
+than around:
+
+1. `README.md` and `docs/` get Russian; `skills/*/SKILL.md` deliberately do
+   not, because those are read by a model and their wording is behaviour.
+2. Both languages side by side, English the source.
+3. An outdated translation must be detectable.
+4. The check **reports and never fails a run** — the same reasoning frozen for
+   `metadata.as_of`.
+
+**How it works, in one paragraph.** A translation is a sibling with a language
+suffix, carrying an HTML comment on line 1 that records the git blob sha of the
+English source it was made from. The blob sha rather than a plain hash, so the
+record is a pointer into history and `git cat-file blob` answers "what changed
+since this was translated". `scripts/translation-check.py` never exits
+non-zero; `status --flow` shows drift only in a repository that has
+translations.
+
+**Deviation from the design, taken deliberately in #37:** Russian pages link to
+Russian pages. The design says links keep their targets and only link text is
+translated — a rule written when no Russian document existed, which now would
+send a Russian reader to the English page. Links out to `knowledge/`,
+`CHANGELOG.md` and `LICENSE` stay English, since nothing translates those.
+
 ## Open, waiting on the owner
 
-**Russian documentation: decided, and the first pull request is ready but not
-opened.** The design is `docs/specs/2026-09-06-russian-documentation-design.md`;
-the plan it produced is `docs/plans/2026-09-06-russian-documentation-pr1.md`.
-The owner decided four things on 2026-09-06, and everything below follows from
-them:
+**Cyrillic search on the site is still unmeasured.** The design assigned this
+measurement to the first pull request and it was not made: ruby and jekyll are
+not available in the session that produced the work. `site/_config.yml` sets
+`tokenizer_separator: /[\s/]+/`, chosen for Latin text and paths. The deploy
+from these merges is the first thing that can answer it. If search over the
+three Russian pages is broken, it is a one-line change in that file.
 
-1. `README.md` and `docs/` get Russian. Not `CHANGELOG.md`, not `knowledge/`,
-   and — the one that matters most — not `skills/*/SKILL.md`, which are read by
-   a model, where wording is behaviour rather than readability.
-2. Both languages side by side, English the source. This is a public plugin;
-   replacing English narrows its audience.
-3. An outdated translation must be detectable, in the shape `knowledge/` already
-   uses — a record of what a document was made against, and a script reporting
-   drift.
-4. That check **reports and never fails a run**, for the same reason
-   `metadata.as_of` is not a gate: freshness gating turns every typo fix into
-   bilingual work and teaches whoever is in a hurry to bump the record without
-   re-reading the source.
+**"What is a translation" is written out five times.** In
+`scripts/translation-check.py` (authoritative), in the gate in
+`scripts/workstatus.sh`, in `count_translations()` and the corpus loop in
+`tests/test-translations.sh`, and in a `sed` deriving the sibling path. Four
+consecutive fix rounds on #36 turned on those copies disagreeing, and the fifth
+copy was found while fixing the fourth. They agree today, each checked against
+a fixture rather than against each other. **The architectural answer is to make
+the checker the single authority and have the shell ask it** — not attempted,
+because #36 was open and red at the time and a minimal fix was worth more than
+a restructure. This is a debt, not a closed question.
 
-**What is on the branch `russian-docs-design`, local and unpushed** — 14 commits
-carrying the machinery plus the first translated document:
+**A sixth expression, of a different rule:** what a *marker* is. The checker's
+regex tolerates any whitespace after `floppy:translation`; the site build's
+strip rule requires exactly one space. A marker written without the space is
+valid to the checker and is not stripped from the page. `tests/test-site.sh`
+catches it.
 
-- `scripts/translation-check.py` — discovers translations by name
-  (`<stem>.<two lowercase letters>.md`, root and `docs/`), compares the git blob
-  sha recorded in each against its source, and reports three things: contract
-  problems, translations behind their source, and untranslated documents. It
-  never exits non-zero, guaranteed structurally by a top-level guard as well as
-  per input.
-- The marker itself: an HTML comment on line 1, invisible on GitHub and stripped
-  from the site. It records a **git blob sha** rather than a plain hash, so the
-  recorded value is a pointer into history and `git cat-file blob` answers "what
-  changed since this was translated".
-- `scripts/site-build.sh` learned parent pages; the Russian pages sit under one
-  generated `Русский` hub, itself derived from the page table rather than typed.
-- `docs/memory-model.ru.md`, the first translation, stamped against the exact
-  version of `docs/memory-model.md` it was made from.
-- A `-- process: translations` section in `status --flow`, printed **only** in a
-  repository that actually has a translation.
+**Deferred, each with its reason recorded in the pull requests:** a dotfile
+translation is matched by the checker's regex and invisible to the shell globs;
+the `on=` field is validated for digit shape only, so a calendar-impossible
+date that sorts before tomorrow (`2026-02-30`) passes; `bash tests/test-site.sh
+--selftest` with no second argument aborts with a raw unbound-variable error.
 
-The suite is 735 assertions, up from 689, and green.
-
-**Waiting on the owner:** the branch is deliberately local. The owner decided the
-pull request opens together with the finished implementation rather than for the
-design alone. PRs 2 and 3 — `docs/lessons.ru.md` and `README.ru.md` — are one
-table row and one document each; nothing in the machinery changes for them.
-
-**Not a plugin feature, on purpose.** The script ships the way everything under
-`scripts/` ships, and it names no language anywhere. But it is not documented in
-`README.md` as a capability, `init` writes nothing for it, and no config key
-governs it. Presenting it as a feature is a separate decision with its own
-scope.
+**A `knowledge/` note is owed and cannot be written by `wrap`.** The
+locale-dependent `[a-z]` finding is a fact about shells and macOS, true whether
+or not anyone uses floppy — exactly what `knowledge/` is for. `wrap` may not
+commit there: `watched_dirs` is `docs` only, deliberately. It needs its own
+pull request.
 
 ## What is not true here
 
 No open issues and no open pull requests — checked against `gh`, not recalled,
-after 0.19.0 was published. Both memory stores are pushed.
+after #36 and #37 merged. Both memory stores are pushed.
 
-`main` is in sync with the remote, but the working tree is **not** on it: the
-branch `russian-docs-design` is checked out with 14 commits that exist nowhere
-else. Nothing is lost if this machine survives; everything is if it does not.
-That is the owner's standing decision, not an oversight — see the section
-above — but a reader of this file should not learn it from the git log.
+`main` is in sync with the remote and the working tree is on it, clean apart
+from an untracked `.claude/` that predates this work. Nothing is unpushed.
+
+An earlier version of this file claimed 14 commits existed only on this machine.
+That was true when written and stopped being true at the merge — which is the
+whole reason `start` checks `run status` instead of trusting this file.
 
 **A caution the previous version of this file earned.** It once closed with the
 same "nothing is open" claim while three issues had been filed minutes earlier.
