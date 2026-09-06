@@ -172,8 +172,14 @@ while IFS= read -r f; do
   # at UTC+3 is already tomorrow for the runners, which is the same rule frozen
   # for metadata.as_of.
   on="$(printf '%s' "$line1" | sed -n 's/.*on=\([^ ]*\).*/\1/p')"
-  assert_eq "$f records an ISO date" "0" \
-    "$(printf '%s' "$on" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' && echo 0 || echo 1)"
+  # A real date, not the shape of one. The regex this replaces accepted
+  # 2026-02-30 — four digits, two, two — and that date also sorts before
+  # tomorrow, so it passed both halves of this check. The checker rejects it,
+  # but the checker reports and never fails, so nothing in CI went red.
+  # A parser, not the checker: this loop is the independent second opinion on a
+  # hand-written marker, and asking the tool under test would end that.
+  "$py" -c 'import datetime,sys; datetime.date.fromisoformat(sys.argv[1])' "$on" 2>/dev/null
+  assert_rc "$f records a real calendar date" "0" "$?"
   tomorrow="$("$py" -c 'import datetime as d; print((d.date.today()+d.timedelta(days=1)).isoformat())')"
   assert_eq "$f is not stamped more than a day in the future" "0" \
     "$([[ "$on" > "$tomorrow" ]] && echo 1 || echo 0)"

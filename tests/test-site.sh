@@ -123,6 +123,16 @@ fi
 # and a test that passes while checking less than it claims is worse than one
 # that fails. An argument cannot arrive from the environment.
 if [[ "${1:-}" == "--selftest" ]]; then
+  # Said in a sentence, not as `$2: unbound variable`. This flag exists for the
+  # positive control at the end of this file, which always passes a document;
+  # a person who types it by hand gets no argument and, until now, got a raw
+  # shell error naming a line number instead of the thing that was missing.
+  if [[ -z "${2:-}" ]]; then
+    printf '%s: --selftest takes the document to check, e.g. %s --selftest /tmp/x.md\n' \
+      "$0" "$0" >&2
+    printf 'It is the positive control'"'"'s own entry point, not a way to run the suite.\n' >&2
+    exit 2
+  fi
   docs_list="$2"
 else
   docs_list="docs/*.md"
@@ -259,6 +269,14 @@ if [[ "${1:-}" != "--selftest" ]]; then
   # point is to exercise 3.2, and a bare `bash` resolves through PATH.
   probe_out="$("${BASH:-bash}" "$self" --selftest "$probe_doc" 2>&1)"
   probe_rc=$?
+
+  # The same flag with nothing after it. It used to die on `$2: unbound
+  # variable` — a line number where a sentence belonged. Asserted here rather
+  # than left to whoever types it next, and it cannot recurse: the guard exits
+  # before this file does anything else.
+  noarg_out="$("${BASH:-bash}" "$self" --selftest 2>&1)"; noarg_rc=$?
+  assert_rc "--selftest with no document exits 2" 2 "$noarg_rc"
+  assert_contains "and says what is missing" "takes the document to check" "$noarg_out"
   rm -rf "$probe_dir"
   assert_eq "the heading guard fails a document with no heading" "1" "$probe_rc"
   # The needle spans FAIL and the document's own path. The assertion's name
