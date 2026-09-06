@@ -546,4 +546,111 @@ assert_rc "a corpus over its cap still fails" 1 "$RCW"
 rm -rf "$repoW"
 
 
+# ---------- metadata.as_of: the date the note's evidence is from ----------
+# A note said what kind of claim it held (metadata.evidence) and never said
+# WHEN. `read` is defined in this very file as "true until something runs and
+# says otherwise", and `decided` as the case where "a date and an author" are
+# what apply instead of evidence — so both were already asking for a date that
+# had nowhere to live. git log is not that date: it moves on any reformat, and
+# it records when the file was touched, not when the claim was checked.
+#
+# Three behaviours, and the split between them is the whole design:
+#   absent   -> a one-line count, never a failure. This field arrives into
+#               corpora that already exist, and a check that reddens somebody
+#               else's memory the day they update the plugin is a check they
+#               will switch off. Same reasoning as the grandfathered cap above.
+#   unusable -> a failure: malformed, or dated far enough ahead that no clock
+#               explains it. A date nobody can compare against is worse than
+#               no date, because it reads as one.
+#   old      -> a warning and nothing more. Old and wrong are different things
+#               and only a person who knows the area can tell them apart --
+#               the rule knowledge/CONTRIBUTING.md already states for the other
+#               half of this repository's corpus.
+#
+# Dates here are computed, never written literally: a test with 2026-09-06 in
+# it passes today and starts failing on its own later, which is the exact
+# failure mode this repository has already paid for once.
+day_offset() { # $1 = signed days, e.g. +1 or -400
+  if date -u -d @0 >/dev/null 2>&1; then date -u -d "$1 days" +%Y-%m-%d   # GNU
+  else                                   date -u -v"$1"d   +%Y-%m-%d      # BSD
+  fi
+}
+TODAY="$(date -u +%Y-%m-%d)"
+
+repoA="$(sandbox)"; cp shim/run "$repoA/.floppy/run"
+echo "memory_dir=brain" > "$repoA/.floppy/config"
+mkdir -p "$repoA/brain"
+cat > "$repoA/brain/MEMORY.md" <<'EOF'
+# Index
+- [Dated](dated.md) — pointer
+- [Undated](undated.md) — pointer
+EOF
+# as_of is written by the caller of this helper; the rest of the note is fixed.
+mknote() { # $1 = slug, $2 = as_of line (may be empty)
+  { printf -- '---\nname: %s\ndescription: a note\nmetadata:\n  type: project\n  evidence: measured\n' "$1"
+    [[ -n "$2" ]] && printf '  as_of: %s\n' "$2"
+    printf -- '---\nBody.\n'
+  } > "$repoA/brain/$1.md"
+}
+lintA() { OUTA="$(cd "$repoA" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RCA=$?; }
+
+# 1. A dated note and an undated one together: the run passes, and the undated
+#    one is counted rather than named. Counted, because naming each of eight
+#    notes turns the report into a to-do list nobody works through.
+mknote dated "$TODAY"
+mknote undated ""
+lintA
+assert_rc       "a note without as_of does not fail the run" 0 "$RCA"
+assert_contains "notes without a date are counted"           "1 note(s) carry no metadata.as_of" "$OUTA"
+case "$OUTA" in
+  *"dated.md: "*) fail "a correctly dated note is not mentioned" "silent" "$OUTA" ;;
+  *)              ok   "a correctly dated note is not mentioned" ;;
+esac
+
+# 2. Malformed: not a date at all.
+mknote dated "last Tuesday"
+lintA
+assert_rc       "an unparseable as_of fails the run"  1 "$RCA"
+assert_contains "and the offending note is named"     "dated.md" "$OUTA"
+assert_contains "and the bad value is quoted back"    "last Tuesday" "$OUTA"
+
+# 3. A date one day ahead is ACCEPTED, and this is the point of the whole
+#    tolerance. Measured 2026-09-05: a knowledge note written at 22:0x UTC from
+#    a UTC+3 clock was dated a day ahead of the UTC runners, and rot-check
+#    called the contract broken. Both CI legs went red, the message named the
+#    base rather than the note, and it healed by itself after UTC midnight --
+#    which reads as flakiness. See [[note-dated-by-local-time-fails-rot-check]].
+#    No timezone on earth is more than a day off UTC, so one day of slack costs
+#    nothing and removes a self-healing red.
+mknote dated "$(day_offset +1)"
+lintA
+assert_rc "a date one day ahead is within timezone slack" 0 "$RCA"
+
+# 4. Further ahead than any clock explains is still a failure.
+mknote dated "$(day_offset +30)"
+lintA
+assert_rc       "a date far in the future fails the run" 1 "$RCA"
+assert_contains "and the message says it is in the future" "in the future" "$OUTA"
+
+# 5. Old: a warning, not a failure, and the age is stated so the reader can
+#    judge it. 400 days is past any default threshold.
+mknote dated "$(day_offset -400)"
+lintA
+assert_rc       "an aged note does not fail the run" 0 "$RCA"
+assert_contains "an aged note is reported by name"   "dated.md" "$OUTA"
+assert_contains "and its age is stated in days"      "400 days" "$OUTA"
+
+# 6. The threshold is the consumer's, because how fast a fact rots is a
+#    property of what the fact is about, not of this tool. At a threshold of
+#    1000 days the same note is simply not old.
+printf 'memory_dir=brain\nnote_stale_days=1000\n' > "$repoA/.floppy/config"
+lintA
+assert_rc "a raised threshold keeps the run passing" 0 "$RCA"
+case "$OUTA" in
+  *"400 days"*) fail "the configured threshold is honoured" "no staleness line" "$OUTA" ;;
+  *)            ok   "the configured threshold is honoured" ;;
+esac
+rm -rf "$repoA"
+
+
 summary
