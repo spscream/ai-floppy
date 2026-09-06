@@ -285,8 +285,14 @@ if [[ $FLOW -eq 1 ]]; then
   # contents, so a directory called docs/x.ru.md/ used to open this section in a
   # repository that had never translated anything. translation-check.py filters
   # with os.path.isfile for the same reason.
+  # An explicit list, not the range [a-z]: a bracket RANGE is matched through
+  # LC_COLLATE, and on the macOS runner — collation aAbBcC… — it also matched an
+  # uppercase tag, so guide.RU.md counted as a translation. The checker's python
+  # [a-z] is a literal codepoint range no locale affects, and the shell has to
+  # say the same thing the long way. Measured: CI job macos-bash-3-2, red.
+  low='[abcdefghijklmnopqrstuvwxyz]'
   has_translation=0
-  for candidate in "$repo"/*.[a-z][a-z].md "$repo"/docs/*.[a-z][a-z].md; do
+  for candidate in "$repo"/*.$low$low.md "$repo"/docs/*.$low$low.md; do
     if [[ -f "$candidate" ]]; then has_translation=1; break; fi
   done
   if [[ $has_translation -eq 1 ]]; then

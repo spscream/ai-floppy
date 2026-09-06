@@ -126,7 +126,10 @@ rm -f "$sb/docs/other.md" "$sb/docs/lessons.ru.md"
 # below it ran zero assertions.
 count_translations() { # root -> count
   local n=0 f
-  for f in "$1"/*.[a-z][a-z].md "$1"/docs/*.[a-z][a-z].md; do
+  # See the comment in scripts/workstatus.sh: [a-z] is a collation range and
+  # matches uppercase on macOS. An explicit list is locale-independent.
+  local low='[abcdefghijklmnopqrstuvwxyz]'
+  for f in "$1"/*.$low$low.md "$1"/docs/*.$low$low.md; do
     [[ -f "$f" ]] && n=$((n + 1))
   done
   printf '%s\n' "$n"
@@ -144,13 +147,17 @@ assert_eq "and a regular file is counted" "1" "$(count_translations "$probe_root
 printf 'x\n' > "$probe_root/CHANGELOG.old.md"
 assert_eq "and a two-dot name that is not a translation is not" "1" \
   "$(count_translations "$probe_root")"
+printf 'x\n' > "$probe_root/guide.md"
+printf 'x\n' > "$probe_root/guide.RU.md"
+assert_eq "and an uppercase language tag is not" "1" "$(count_translations "$probe_root")"
 rm -rf "$probe_root"
 
 real_n="$(count_translations .)"
 assert_eq "there is at least one translation to check" "0" \
   "$([[ "$real_n" -ge 1 ]] && echo 0 || echo 1)"
 
-for f in *.[a-z][a-z].md docs/*.[a-z][a-z].md; do
+low='[abcdefghijklmnopqrstuvwxyz]'
+for f in *.$low$low.md docs/*.$low$low.md; do
   [[ -f "$f" ]] || continue
   line1="$(head -1 "$f")"
   assert_contains "$f carries a marker on line 1" "floppy:translation" "$line1"
@@ -163,7 +170,7 @@ for f in *.[a-z][a-z].md docs/*.[a-z][a-z].md; do
   # `of` must name the sibling, not merely some file that exists. The checker
   # reports this and never fails, so this loop is the only thing that can make a
   # hand-written marker red in CI.
-  expected_src="$(printf '%s' "$f" | sed -E 's/\.[a-z]{2}\.md$/.md/')"
+  expected_src="$(printf '%s' "$f" | LC_ALL=C sed -E 's/\.[a-z]{2}\.md$/.md/')"
   assert_eq "$f names its own sibling as the source" "$expected_src" "$src"
 
   # And the date has to be a date. One day of slack, not politeness: an evening
