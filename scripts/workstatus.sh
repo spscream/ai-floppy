@@ -281,7 +281,13 @@ if [[ $FLOW -eq 1 ]]; then
   # the worktree line below, which prints only when there is more than one.
   # --root is not optional: in a consumer's repository this script runs from the
   # plugin cache and the documents are somewhere else entirely.
-  if [[ -n "$(ls "$repo"/docs/*.*.md "$repo"/README.*.md 2>/dev/null)" ]]; then
+  # `[a-z][a-z]`, not `*`: this glob has to mean the same thing as
+  # TRANSLATION_NAME in scripts/translation-check.py, which is `<stem>.<two
+  # lowercase letters>.md`. A plain `*` also matched docs/CHANGELOG.old.md and
+  # raised the whole section in a repository that had never translated
+  # anything. Both locations, root and docs/, because the tool scans both — a
+  # gate narrower than the tool hides exactly the drift this section reports.
+  if [[ -n "$(ls "$repo"/*.[a-z][a-z].md "$repo"/docs/*.[a-z][a-z].md 2>/dev/null)" ]]; then
     hr "process: translations"
     if command -v python3 >/dev/null 2>&1; then
       tr_out="$(python3 "$here/translation-check.py" --root "$repo" 2>&1)"

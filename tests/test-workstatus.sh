@@ -228,6 +228,43 @@ case "$out6" in
   *) ok "no translations, no section" ;;
 esac
 
+# A name with two dots is not a translation. The gate and translation-check.py
+# have to agree on that: docs/CHANGELOG.old.md in a repository that never
+# translated anything used to raise the whole section.
+repoF="$(sandbox)"; cp shim/run "$repoF/.floppy/run"
+: > "$repoF/.floppy/config"
+mkdir -p "$repoF/docs"
+printf '# Changelog\n\nv1\n' > "$repoF/docs/CHANGELOG.old.md"
+outF="$(cd "$repoF" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+rm -rf "$repoF"
+case "$outF" in
+  *"process: translations"*) fail "a two-dot name that is not a translation raises no section" "no section" "$outF" ;;
+  *) ok "a two-dot name that is not a translation raises no section" ;;
+esac
+
+# And a translation at the repository root is found, not only one under docs/.
+# translation-check.py scans both places, so a gate that scans one of them
+# reports nothing for a document that really has fallen behind.
+repoR="$(sandbox)"; cp shim/run "$repoR/.floppy/run"
+: > "$repoR/.floppy/config"
+printf '# Guide\n\nbody\n' > "$repoR/guide.md"
+printf '<!-- floppy:translation of=guide.md blob=%s on=2026-01-01 -->\n\n# Гид\n' \
+  0000000000000000000000000000000000000000 > "$repoR/guide.ru.md"
+outR="$(cd "$repoR" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+rm -rf "$repoR"
+if command -v python3 >/dev/null 2>&1; then
+  # Two assertions, and the first is the one that reproduces the defect: with a
+  # gate that only looks under docs/, this section is not printed at all for a
+  # root-level translation.
+  assert_contains "a translation at the repository root raises the section" \
+    "-- process: translations" "$outR"
+  # Sliced from the section header, because the untracked `guide.ru.md` also
+  # appears in the `-- git` listing far above — a whole-output search would pass
+  # whether or not the checker ever saw the file.
+  assert_contains "and the root translation is named inside that section" \
+    "guide.ru.md" "$(printf '%s\n' "$outR" | sed -n '/-- process: translations/,$p')"
+fi
+
 # The positive control gets a sandbox of its own. The one out6 came from is
 # deleted at line 89, and reviving it would stretch a single fixture across
 # every unrelated section in between. Built here rather than read out of this
@@ -244,7 +281,8 @@ outT="$(cd "$repoT" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&
 rm -rf "$repoT"
 if command -v python3 >/dev/null 2>&1; then
   assert_contains "--flow prints the translations sub-section" "-- process: translations" "$outT"
-  assert_contains "and names the translation that is behind"   "docs/x.ru.md"              "$outT"
+  assert_contains "and names the translation that is behind" "docs/x.ru.md" \
+    "$(printf '%s\n' "$outT" | sed -n '/-- process: translations/,$p')"
 else
   printf '  skip python3 not available\n'
 fi
