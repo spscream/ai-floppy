@@ -31,3 +31,8 @@ source is what fulfilling them looks like.
 
 They are used by `site/_includes/head_custom.html`, which is the only place
 that loads them.
+
+The site itself carries no licence notice for them, and does not need one: what
+MPL-1.1 asks for is that these files keep their headers and that their source
+stays available, which vendoring them unmodified into a public repository does.
+A footer line would be a second place to keep in step with this one.

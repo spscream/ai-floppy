@@ -29,14 +29,8 @@ aux_links:
   GitHub: https://github.com/spscream/ai-floppy
 aux_links_new_tab: true
 
-# "MIT licensed" alone stopped being true when the search grew its Russian
-# stemmer: three vendored lunr-languages files are MPL-1.1, and a footer that
-# names one licence for a page serving two is a small false statement of exactly
-# the kind this repository keeps removing elsewhere.
 footer_content: >-
-  MIT licensed, except the vendored search plugins under
-  <code>assets/js/vendor/</code>, which are MPL-1.1 — see the NOTICE beside
-  them. The pages of this site are generated from the repository's own
+  MIT licensed. The pages of this site are generated from the repository's own
   documents by <code>scripts/site-build.sh</code> — edit those, never a page.
 
 # Sitemap and description tags. Nothing else is added to the built pages.
