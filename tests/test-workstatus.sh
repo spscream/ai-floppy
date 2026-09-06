@@ -167,4 +167,55 @@ esac
 assert_contains "and the project status is still reported" "state/NOW.md" "$outN"
 rm -rf "$repoN"
 
+# ---------- a branch deleted on the remote stops being reported ----------
+# Measured here, not imagined: after PRs #29 and #30 merged with
+# --delete-branch, `run status` still listed both branches as "other branch,
+# newest commit: ... 10 minutes ago". They had been gone from the remote for
+# ten minutes; what the report was reading were this checkout's own stale
+# remote-tracking refs, which a plain `git fetch` never removes.
+#
+# That is not a cosmetic wart in a repository whose every change lands as a
+# pull request that deletes its branch on merge: it means the section is wrong
+# after every single merge, and it is wrong in the direction that invents work
+# — a branch named there reads as something still open.
+#
+# The test runs against a real remote because that is the only place the bug
+# lives. A sandbox with no origin can never distinguish a fetch that prunes
+# from one that does not.
+tmpB="$(cd "$(mktemp -d)" && pwd -P)"
+originB="$tmpB/origin.git"
+git init -q --bare -b main "$originB"
+seedB="$tmpB/seed"
+git init -q -b main "$seedB"
+: > "$seedB/README"
+git -C "$seedB" add -A
+git -C "$seedB" -c user.email=t@t -c user.name=t commit -qm base
+git -C "$seedB" remote add origin "$originB"
+git -C "$seedB" push -q -u origin main
+# Two branches, so the assertions can tell "pruned correctly" apart from
+# "printed nothing because the report died before this section".
+for b in live-branch gone-branch; do
+  git -C "$seedB" switch -q -c "$b" main
+  git -C "$seedB" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "$b"
+  git -C "$seedB" push -q -u origin "$b"
+done
+
+repoB="$tmpB/work"
+git clone -q "$originB" "$repoB"
+mkdir -p "$repoB/.floppy"; cp shim/run "$repoB/.floppy/run"
+: > "$repoB/.floppy/config"
+
+# The clone has both remote-tracking refs. Now one branch goes away on the
+# remote — exactly what `gh pr merge --delete-branch` does.
+git -C "$seedB" push -q origin --delete gone-branch
+
+outB="$(cd "$repoB" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+assert_contains "deleted-branch case: the origin section runs at all" "-- origin" "$outB"
+assert_contains "a branch still on the remote is reported" "live-branch" "$outB"
+case "$outB" in
+  *gone-branch*) fail "a branch deleted on the remote is not reported" "no gone-branch" "$outB" ;;
+  *)             ok   "a branch deleted on the remote is not reported" ;;
+esac
+rm -rf "$tmpB"
+
 summary

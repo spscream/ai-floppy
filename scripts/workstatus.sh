@@ -79,14 +79,21 @@ git log --oneline -3 2>/dev/null | sed 's/^/  /'
 # invisible until something else happens to fetch. The network may be down;
 # fetch is best-effort, and the report still prints, saying plainly that the
 # numbers below are stale.
+#
+# `--prune`, because a fetch without it is only half a refresh: it learns what
+# appeared and never learns what went away. A remote-tracking ref outlives the
+# branch it names, so the "other branch" line below kept naming branches that
+# had been deleted on merge — which, where every change lands as a pull request
+# that deletes its branch, is after every merge. It prunes only remote-tracking
+# refs under this remote; local branches are untouched.
 hr "origin"
 fetch_ok=0
 if command -v timeout >/dev/null 2>&1; then
-  timeout 15 git fetch --quiet --no-tags origin 2>/dev/null && fetch_ok=1
+  timeout 15 git fetch --quiet --prune --no-tags origin 2>/dev/null && fetch_ok=1
 elif command -v gtimeout >/dev/null 2>&1; then
-  gtimeout 15 git fetch --quiet --no-tags origin 2>/dev/null && fetch_ok=1
+  gtimeout 15 git fetch --quiet --prune --no-tags origin 2>/dev/null && fetch_ok=1
 else
-  git fetch --quiet --no-tags origin 2>/dev/null && fetch_ok=1
+  git fetch --quiet --prune --no-tags origin 2>/dev/null && fetch_ok=1
 fi
 [[ $fetch_ok -eq 0 ]] && echo "  fetch did not go through (network/VPN) — the numbers below are stale"
 up=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)
