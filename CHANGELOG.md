@@ -18,6 +18,101 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.19.0 — 2026-09-06
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this release
+reaches `shim/run`.
+
+Minor rather than patch because there is a new config key, `note_stale_days`,
+and a new note field, `metadata.as_of`. Nothing breaks and **there is no
+migration to do**: the field is optional and stays optional, an undated note is
+counted rather than named, and a corpus that never adds one lints exactly as it
+did before. `status` prints one line fewer in the case where it used to be
+wrong.
+
+### `status` kept naming branches that had already been deleted
+
+The `-- origin` section reads remote-tracking refs, and `git fetch` without
+`--prune` only learns what *appeared* — never what went away. A remote-tracking
+ref outlives the branch it names, so a branch deleted on merge stayed in the
+report until something else happened to prune it.
+
+Measured, minutes after two pull requests merged with `--delete-branch`: both
+of their branches were still listed as live, ten minutes stale. Where every
+change lands as a pull request that deletes its branch — which is what a
+protected default branch makes ordinary — that is wrong after *every* merge,
+and wrong in the direction that invents work. A branch named there reads as
+something still open.
+
+The fetch now prunes. It removes remote-tracking refs under `origin` only;
+local branches are untouched. The regression test runs against a real bare
+remote, because a sandbox with no origin cannot tell a fetch that prunes from
+one that does not.
+
+### A note said what kind of claim it held and never said when
+
+`metadata.evidence` records where a claim came from. Nothing recorded *when* it
+was last true — and two of its four values were already asking for a date:
+`read` is documented as "true until something runs and says otherwise", and
+`decided` as the case where a date and an author apply *instead* of evidence.
+Neither had anywhere to put one.
+
+`git log` is not that date. It moves on a reformat, a renamed link, a fixed
+typo, and it drifts in the direction that makes an old claim look freshly
+checked.
+
+```yaml
+metadata:
+  type: project
+  evidence: measured
+  as_of: 2026-09-06     # optional
+```
+
+`lint` gains a `-- note dates` section with three behaviours, and the split
+between them is the whole design:
+
+| state | what happens |
+|---|---|
+| no `as_of` | counted in one line, never named, never a failure |
+| unusable — malformed, or dated more than a day ahead | fails the run |
+| older than `note_stale_days` (default 180) | named, and the run still passes |
+
+**Undated is not an error, and that is load-bearing.** The field arrives into
+corpora that already exist, on machines whose owners did not ask for it. A
+check that reddens somebody's memory the day they update the plugin is a check
+they switch off — and the four that were already earning their place go with
+it.
+
+**Age warns and never fails**, for a different reason: old and wrong are
+different things. A note recording a frozen decision is fine at three years; a
+note about a dependency's behaviour is suspect at three months, and no threshold
+distinguishes them. A gate would also teach the cheap way out — bump the date
+without re-checking anything — which converts a stale note into a fresh-looking
+one and destroys the only signal the field carries. Lower `note_stale_days` if
+your memory is mostly about a fast-moving dependency.
+
+**One day of slack on a future date**, and that tolerance is the measured part.
+A note written at 22:0x UTC from a UTC+3 clock is dated ahead of a UTC runner;
+the same off-by-one had already turned both CI legs red on this repository's
+knowledge base, named the base rather than the offending note, and healed itself
+after midnight — the signature everyone reads as flakiness. No timezone is more
+than a day from UTC, so the slack costs nothing and removes a self-healing red.
+A date a month out is still a typo worth catching.
+
+Day arithmetic is computed rather than asked of `date`: `-d` is GNU and `-v` is
+BSD, so anything built on either is green on one CI leg and dead on the other.
+
+### Also in this release, not shipped to consumers
+
+The macOS temp-path question is settled by measurement: `<b>` in
+`/var/folders/<a>/<b>/T/` is fixed by the **runner image**, not drawn per
+machine. Twenty runners in one dispatch returned two components, each tied to a
+kernel version 20 out of 20 — 25.5.0 carrying `_` (6 runners), 25.6.0 without
+(14), so the same commit passes or fails by which image it lands on. The 30% is
+a rollout mix on one day, not a property of macOS, and it drops to zero when
+25.5.0 retires — leaving the defect intact and the tests green. This changes
+`tests.yml` and the knowledge base in this repository; nothing in the plugin.
+
 ## 0.18.0 — 2026-09-06
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this release
