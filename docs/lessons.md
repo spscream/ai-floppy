@@ -1,5 +1,7 @@
 # Lessons
 
+*[Русская версия](lessons.ru.md)*
+
 Things this plugin learned the expensive way. Each one is a decision or a
 failure that shaped the code, written down so the next change does not repeat
 it. The design these refer to is in [memory-model.md](memory-model.md).

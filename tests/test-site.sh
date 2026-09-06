@@ -143,9 +143,17 @@ assert_contains "the build directory is ignored" ".site/" "$(cat .gitignore)"
 hub="$(cat "$out/ru.md" 2>/dev/null || true)"
 assert_contains "the Russian hub exists"       "title: Русский"     "$hub"
 assert_contains "and declares itself a parent" "has_children: true" "$hub"
-assert_contains "and links to the Russian page"     "ru-memory-model.html" "$hub"
-assert_contains "the Russian page names its parent" "parent: Русский" \
-  "$(cat "$out/ru-memory-model.md" 2>/dev/null || true)"
+for ru_page in ru-index ru-memory-model ru-lessons; do
+  assert_contains "the hub links to $ru_page"        "$ru_page.html" "$hub"
+  assert_contains "$ru_page names its parent"        "parent: Русский" \
+    "$(cat "$out/$ru_page.md" 2>/dev/null || true)"
+done
+
+# The same probe index.md gets, and for the same reason: a code identifier
+# survives translation, so it proves the whole README came through rather than
+# a truncated prefix of it.
+assert_contains "the Russian index carries the whole README" "quota.lock" \
+  "$(cat "$out/ru-index.md" 2>/dev/null || true)"
 
 # The marker is an implementation detail of the repository, not of the site.
 assert_eq "no page carries a translation marker" "" \
