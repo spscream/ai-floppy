@@ -80,11 +80,17 @@ not quote the rate without both kernel versions.
   That file belongs to the consumer and a line in it may be hand-written; one
   line removed by hand is cheaper than a rule for when a script may delete from
   a file it does not own.
-- **No `quota.lock`** — decided when the memory was nine notes old: a ceiling
-  invented for a corpus that small bounds nothing, and `lint`'s warning stays
-  correct until there is something to measure. **That condition is now met** —
-  14 notes — so this freeze has expired on its own terms and is listed below as
-  waiting on the owner, not as settled.
+- **`quota.lock` holds measured numbers, and raising one is a defended edit**
+  (written 2026-09-06, replacing the earlier decision to have no such file —
+  that one set its own expiry at "something to measure", and a dozen notes met
+  it). `chars_max=40000` is the measured 32159 plus a tenth, rounded the way
+  `init` rounds. `note_chars_max=5000`, **not** the convention's 10000: the
+  longest note here is 3223 and the mean 2297, so 10000 would never fire and
+  the rule it enforces — a note over the cap is two notes written as one —
+  would be decorative. `pointers_max=25` is where a flat index of ~4000
+  characters, loaded by every session, makes splitting into halves cheaper than
+  reading past it. Raise a number only in the same commit as the notes that
+  need the room.
 
 ## Russian documentation: done, and its search now works
 
@@ -143,11 +149,11 @@ The suite is 778 assertions across 27 files, green on both CI jobs.
 
 ## Open, waiting on the owner
 
-**`quota.lock` is now owed a decision.** The freeze below says a ceiling was not
-worth inventing while the memory was nine notes old, and that `lint`'s warning
-stays correct "until there is something to measure". The memory is **14 notes**
-today, so that condition has been met and the freeze has expired on its own
-terms. Either measure the corpus and write the file, or restate why not.
+**Nothing is waiting on a person.** The one item that was — the expired
+`quota.lock` freeze — was closed on 2026-09-06 by measuring the corpus and
+writing the file; the numbers and the reasoning are in the frozen list above and
+in the file's own header. `lint` is clean and silent for the first time: the
+warning it printed on every run since this memory was created is gone.
 
 **Nothing else is.** The three facts this thread owed the cross-project base
 have all landed there: `shell-bracket-range-follows-collation` (#39), and
