@@ -164,7 +164,14 @@ assert_eq "the code repository is pushed too" "0" \
 # The memory must not have leaked into the code repository — that is the point.
 assert_eq "no memory file landed in the code repository" "" \
   "$(git -C "$repo" ls-files | grep agent-memory || true)"
-assert_eq "the lock is released" "free" "$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status)"
+# The first line, not the whole output: since #18 `status` also names what the
+# lock covers, which in this layout is the store rather than this checkout.
+# Still an equality on that line — "contains free" would pass on any output
+# with the word in it, including "held ... this is not free".
+assert_eq "the lock is released" "free" \
+  "$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status | head -1)"
+assert_contains "and status names the store as its scope" "$store" \
+  "$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status)"
 
 # ---------- a session that wrote only memory still closes ----------
 # Nothing changed in the code repository, so `git add` there would have nothing

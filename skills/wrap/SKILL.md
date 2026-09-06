@@ -20,14 +20,27 @@ bash .floppy/run lock acquire "<the thread of work, one phrase>"
 ```
 
 A parallel session writes into the same current-state file and the same
-memory index. Git does not arbitrate that — the second write simply
-overwrites the first. If the lock is held, write nothing: wait a minute, try
-once more, and if it's still held, tell the human another session is closing
-and leave the decision to them. Release it at the end of this skill; an
-abandoned lock ages out on its own after about thirty minutes, and whoever
-takes it over then gets a warning that the previous session may have left a
-half-written entry — that warning is the point of the takeover, not a
-side effect: it tells you to go look before trusting what's already there.
+memory index, and the second write simply overwrites the first. If the lock
+is held, write nothing: wait a minute, try once more, and if it's still held,
+tell the human another session is closing and leave the decision to them.
+Release it at the end of this skill; an abandoned lock ages out on its own
+after about thirty minutes, and whoever takes it over then gets a warning
+that the previous session may have left a half-written entry — that warning
+is the point of the takeover, not a side effect: it tells you to go look
+before trusting what's already there.
+
+**What the lock covers, exactly.** It follows the memory rather than the
+checkout, and `acquire` prints its reach as a `covers:` line. Where the
+memory is a store shared by several checkouts, one lock serialises every
+session on **this machine** that writes it, worktrees and separate clones
+alike; where the memory lives inside the repository, the lock is per working
+copy, which is the same thing said of a memory that is not shared.
+
+**Two machines are covered by nothing** — not by this lock, which is never
+committed, and not by anything else in the toolkit. There the failure is not
+a silent overwrite: git refuses to merge two rewrites of the current-state
+file and hands back a conflict, on every overlapping wrap. Loud, and yours to
+resolve. Do not read the lock as protection against that case.
 
 ## 1. Select what's worth memory
 

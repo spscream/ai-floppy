@@ -11,8 +11,34 @@
 # PID would always report "dead" and the lock would never hold. The PID in the
 # lock file is information for a human, nothing more.
 #
-# The lock lives in the git directory: never committed, and each worktree has
-# its own — which is right, because each worktree carries its own memory copy.
+# WHERE the lock lives is the whole of what it covers, so it follows the
+# resource rather than the clone. The resource is the memory: a note, an index
+# and the current-state file are what two wraps overwrite each other in.
+#
+# It used to live in `git rev-parse --git-dir` unconditionally, with the
+# reasoning that each worktree has its own and "each worktree carries its own
+# memory copy". Measured 2026-09-06, both halves: a linked worktree's --git-dir
+# really is .git/worktrees/<name>, so the locks are indeed separate — and in
+# the store layout the second half is false. There memory_dir is a gitignored
+# symlink into a store shared by every checkout on the machine, so two
+# worktrees took two locks and wrote the same notes. The lock was per-clone
+# while the thing it protects is per-store.
+#
+# So: with the memory in a store, the lock goes in that store's git directory,
+# named for the project — one store holds many projects and wrapping one of
+# them must not block the others. With the memory inside this repository, the
+# old placement was already right and is kept.
+#
+# Never committed either way, which is the boundary of what this can do: it
+# serialises every session on ONE MACHINE that shares this memory, and two
+# machines are not covered by it or by anything else. Across machines git does
+# not arbitrate silently — it produces a merge conflict, loudly, on every
+# overlapping wrap. Say that plainly rather than implying coverage.
+#
+# The private scope is a second store, and a repository whose memory is
+# internal while its private scope is external still shares that scope between
+# clones. This does not lock it: one lock per rite, following the memory that
+# every wrap writes, rather than a lock per repository the rite can touch.
 #
 #   bash .floppy/run lock acquire "denoise eval"   # 0 = taken, 1 = held
 #   bash .floppy/run lock release
@@ -25,8 +51,34 @@ cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 MAX_AGE_MIN="${WRAP_LOCK_MAX_AGE_MIN:-30}"
 
-gitdir="$(git rev-parse --git-dir 2>/dev/null)" || { echo "not a git repository"; exit 2; }
-lock="$gitdir/wrap.lock"          # a directory: mkdir is atomic
+lock=""; scope=""
+store="${FLOPPY_MEMORY_STORE:-}"
+if [[ -n "$store" && -d "$store" ]]; then
+  # `git -C` answers relative to the store, so an answer of ".git" has to be
+  # rooted there and not here — this script has already cd'd into the
+  # consumer's repository, where that same relative path names a different
+  # directory entirely.
+  store_gitdir="$(git -C "$store" rev-parse --git-dir 2>/dev/null)"
+  case "$store_gitdir" in
+    "") ;;
+    /*) ;;
+    *)  store_gitdir="$store/$store_gitdir" ;;
+  esac
+  if [[ -n "$store_gitdir" && -d "$store_gitdir" ]]; then
+    # A key with a slash in it would silently become a subdirectory that does
+    # not exist, and mkdir would fail as though the lock were held.
+    key="${FLOPPY_MEMORY_PROJECT_KEY:-}"
+    [[ -n "$key" ]] || key="$(basename "$(pwd)")"
+    key="${key//\//-}"
+    lock="$store_gitdir/wrap-$key.lock"
+    scope="every session on this machine writing $store (project '$key')"
+  fi
+fi
+if [[ -z "$lock" ]]; then
+  gitdir="$(git rev-parse --git-dir 2>/dev/null)" || { echo "not a git repository"; exit 2; }
+  lock="$gitdir/wrap.lock"        # a directory: mkdir is atomic
+  scope="this working copy only ($gitdir)"
+fi
 owner="$lock/owner"
 
 # Is the owner file older than MAX_AGE_MIN minutes? A yes/no question, and
@@ -51,12 +103,14 @@ case "${1:-}" in
     if mkdir "$lock" 2>/dev/null; then
       write_owner "$label"
       echo "ok lock acquired by '$label'"
+      echo "  covers: $scope"
       exit 0
     fi
 
     if ! is_stale; then
       echo "x another session holds the wrap lock (younger than ${MAX_AGE_MIN} min):"
       sed 's/^/    /' "$owner" 2>/dev/null
+      echo "  covers: $scope"
       echo "  Wait for it to finish, then run acquire again."
       echo "  Do not remove $lock by hand: that session is writing memory right now."
       exit 1
@@ -89,9 +143,11 @@ case "${1:-}" in
         echo "held, younger than ${MAX_AGE_MIN} min:"
       fi
       sed 's/^/    /' "$owner" 2>/dev/null
+      echo "  covers: $scope"
       exit 1
     fi
     echo "free"
+    echo "  covers: $scope"
     exit 0
     ;;
 
