@@ -164,7 +164,7 @@ have all landed there: `shell-bracket-range-follows-collation` (#39), and
 `one-line-page-eats-a-line-comment` plus `lunr-trimmer-drops-non-latin-tokens`
 in this same change, at the owner's instruction — a deliberate pull request,
 which is the only way `knowledge/` can be written, since `watched_dirs` keeps
-`wrap` inside `docs`.
+`wrap` inside `docs/statuses`.
 
 Both new notes carry a machine-checkable half that needs nothing but node, so
 the base now proves 5 of its 16 notes rather than 3. Each was checked for
