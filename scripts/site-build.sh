@@ -32,12 +32,14 @@ blob="$repo/blob/main"
 # it is the reading order: what the thing is, then the model behind it, then
 # what the model cost to get right, then the reference, then the releases.
 pages='README.md|index.md|Home|1
-docs/memory-model.md|memory-model.md|The memory model|2
-docs/lessons.md|lessons.md|Lessons|3
-|knowledge.md|The knowledge base|4
-|skills.md|The five skills|5
-CHANGELOG.md|changelog.md|Changelog|6
-|ru.md|Русский|7
+docs/guide/install.md|install.md|Install & init|2
+docs/guide/config.md|config.md|Config reference|3
+docs/guide/skills.md|skills.md|The five skills|4
+|knowledge.md|The knowledge base|5
+docs/memory-model.md|memory-model.md|The memory model|6
+docs/lessons.md|lessons.md|Lessons|7
+CHANGELOG.md|changelog.md|Changelog|8
+|ru.md|Русский|9
 README.ru.md|ru-index.md|floppy по-русски|1|Русский
 docs/memory-model.ru.md|ru-memory-model.md|Модель памяти|2|Русский
 docs/lessons.ru.md|ru-lessons.md|Уроки|3|Русский'
@@ -105,29 +107,33 @@ done <<EOF
 $pages
 EOF
 
-# ---------- the generated page ----------
-# The five skills, from the front matter each SKILL.md already carries — the
-# same text the harness shows when it decides whether to invoke one. Listed in
-# the order a session uses them, not alphabetically: `init` sets a repository
-# up, `agent-memory` is the standing instruction, and the other three are the
-# rites of one session.
-{
-  printf '# The five skills\n\n'
-  printf 'Every entry below is the skill'"'"'s own `description` field, copied at\n'
-  printf 'build time from `skills/<name>/SKILL.md`. That field is what the harness\n'
-  printf 'reads when it decides whether a skill applies, so this page cannot describe\n'
-  printf 'a skill differently from the way the agent sees it.\n\n'
-  printf 'In Claude Code the names are namespaced by the plugin (`floppy:start`); in\n'
-  printf 'Cursor they are flat (`/start`).\n\n'
+# ---------- the skills page: prose from the guide, descriptions generated ----------
+# The descriptions are each SKILL.md's own `description` field, read at build
+# time, so the site cannot describe a skill differently from the way the harness
+# reads it. That property predates the guide page and has to survive it, so the
+# page is a source document with one placeholder rather than a generated page:
+# a generated page with no source row would fall out of test-site.sh's "every
+# document reaches the site" loop.
+skills_block="$(
   for name in init agent-memory start workstatus wrap; do
     f="skills/$name/SKILL.md"
     [[ -f "$f" ]] || { printf 'missing %s\n' "$f" >&2; exit 1; }
     desc="$(awk '/^description: /{sub(/^description: /,""); print; exit}' "$f")"
-    printf '## `%s`\n\n%s\n\n[SKILL.md on GitHub](%s/%s)\n\n' \
+    printf '### `%s`\n\n%s\n\n[SKILL.md on GitHub](%s/%s)\n\n' \
       "$name" "$desc" "$blob" "$f"
   done
-} | emit skills.md "The five skills" 5
-printf 'ok skills/*/SKILL.md -> skills.md\n'
+)" || exit 1
+# Written to a file and spliced with `r`, not passed through sed's replacement
+# text: the descriptions contain `&`, `/` and newlines, all of which a
+# replacement string would eat or mangle.
+printf '%s\n' "$skills_block" > "$out/.skills-block"
+for page in skills.md ru-skills.md; do
+  [[ -f "$out/$page" ]] || continue
+  sed -e '/<!-- floppy:generated skills-list -->/{r '"$out"'/.skills-block' -e 'd;}' \
+    "$out/$page" > "$out/$page.tmp" && \mv -f "$out/$page.tmp" "$out/$page"
+done
+rm -f "$out/.skills-block"
+printf 'ok skills/*/SKILL.md -> skills.md, ru-skills.md\n'
 
 # ---------- the knowledge base page ----------
 # Same shape as the skills page and for the same reason: the note list is the
@@ -167,7 +173,7 @@ front() { awk -v k="$2: " 'index($0, k) == 1 { sub("^" k, ""); if ($0 ~ /^".*"$/
       printf -- '- [the note on GitHub](%s/%s)\n\n' "$blob" "$f"
     done
   done
-} | emit knowledge.md "The knowledge base" 4
+} | emit knowledge.md "The knowledge base" 5
 printf 'ok knowledge/notes/**/*.md -> knowledge.md\n'
 
 # ---------- the Russian hub ----------
@@ -185,7 +191,7 @@ printf 'ok knowledge/notes/**/*.md -> knowledge.md\n'
   done <<EOF
 $pages
 EOF
-} | emit ru.md "Русский" 7 "" 1
+} | emit ru.md "Русский" 9 "" 1
 printf 'ok the page table -> ru.md\n'
 
 printf '\nsite assembled in %s\n' "$out"
