@@ -121,11 +121,11 @@ are published.
   `plugin.json` moved. Every changelog entry answers **"Refresh `.floppy/run`?"**.
 - **The documentation site is generated, never hand-written.** Pages come from
   `README*.md`, `docs/*.md`, `skills/*/SKILL.md`, `knowledge/` and
-  `CHANGELOG.md`. Adding a file under `docs/` means adding a row to the page
-  table in `scripts/site-build.sh`; `tests/test-site.sh` fails otherwise, and
-  also checks that links are rewritten and that `pages.yml` still calls the
-  builder.
-- **`wrap` here may only commit `docs/`, `AGENTS.md`, `.floppy/run`,
+  `CHANGELOG.md`. Adding a file under `docs/` **or `docs/guide/`** means adding
+  a row to the page table in `scripts/site-build.sh`; `tests/test-site.sh` fails
+  otherwise, and carries a separate guard asserting its document list still
+  reaches `docs/guide/` at all.
+- **`wrap` here may only commit `docs/statuses`, `AGENTS.md`, `.floppy/run`,
   `.floppy/config`** (`watched_dirs`/`watched_files`). `skills/`, `scripts/`,
   `shim/` and `tests/` are the product and belong in reviewed commits — a
   `knowledge/` note from this repository needs a deliberate PR.
