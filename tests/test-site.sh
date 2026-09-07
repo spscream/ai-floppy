@@ -135,7 +135,7 @@ if [[ "${1:-}" == "--selftest" ]]; then
   fi
   docs_list="$2"
 else
-  docs_list="docs/*.md"
+  docs_list="docs/*.md docs/guide/*.md"
 fi
 # Unquoted on purpose: the default has to stay a glob.
 for src in $docs_list; do
@@ -156,9 +156,23 @@ for src in $docs_list; do
   assert_eq "site carries $src" "0" "$found"
 done
 
+# The loop above asserts nothing about a directory its glob does not reach, and
+# says nothing when that happens. `docs/guide/` was added to the list in the
+# same change that created it; if the list is ever narrowed back, the guide
+# pages stop being checked and every remaining assertion still passes. A check
+# that quietly stops checking is the failure this file exists to prevent.
+# Skipped under --selftest, where the list is one named document by design.
+if [[ "${1:-}" != "--selftest" ]]; then
+  guide_seen=0
+  for src in $docs_list; do
+    case "$src" in docs/guide/*.md) [[ -f "$src" ]] && guide_seen=1 ;; esac
+  done
+  assert_eq "the document list reaches docs/guide/" "1" "$guide_seen"
+fi
+
 index="$(cat "$out/index.md" 2>/dev/null || true)"
 assert_contains "index is the README"          "$(head -1 README.md)" "$index"
-assert_contains "index carries the whole README" "## \`quota.lock\`"   "$index"
+assert_contains "index carries the whole README" "## Documentation" "$index"
 # Against the version the plugin actually ships, not a version spelled out
 # here: a release that moves plugin.json and forgets the changelog publishes a
 # site whose newest entry is the release before it, and nothing says so.
