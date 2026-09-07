@@ -297,7 +297,8 @@ if [[ $FLOW -eq 1 ]]; then
   # checker finds those and every earlier glob missed them.
   maybe_translation=0
   for candidate in "$repo"/*.??.md "$repo"/.*.??.md \
-                   "$repo"/docs/*.??.md "$repo"/docs/.*.??.md; do
+                   "$repo"/docs/*.??.md "$repo"/docs/.*.??.md \
+                   "$repo"/docs/guide/*.??.md "$repo"/docs/guide/.*.??.md; do
     if [[ -f "$candidate" ]]; then maybe_translation=1; break; fi
   done
   if [[ $maybe_translation -eq 1 ]]; then
