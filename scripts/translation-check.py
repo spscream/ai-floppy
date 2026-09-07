@@ -70,32 +70,39 @@ def sources(root):
     readme = os.path.join(root, "README.md")
     if os.path.isfile(readme):
         out.append("README.md")
-    docs = os.path.join(root, "docs")
-    if os.path.isdir(docs):
-        for fn in sorted(os.listdir(docs)):
-            # Subdirectories are skipped: docs/statuses/ is the project's working
-            # state and docs/specs/ and docs/plans/ are design records.
+    # docs/ one level, then docs/guide/ one level — not a recursive walk.
+    # docs/statuses/ is the project's working state and docs/specs/ and
+    # docs/plans/ are design records; docs/guide/ is the one subdirectory
+    # that carries documents meant to be translated, so it gets its own pass
+    # rather than turning this into a walk that would also reach the others.
+    for sub in ("docs", os.path.join("docs", "guide")):
+        d = os.path.join(root, sub)
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
             if not fn.endswith(".md") or TRANSLATION_NAME.match(fn):
                 continue
-            if not os.path.isfile(os.path.join(docs, fn)):
+            if not os.path.isfile(os.path.join(d, fn)):
                 continue
-            out.append(os.path.join("docs", fn))
+            out.append(os.path.join(sub, fn))
     return out
 
 
 def translations(root):
-    """Every file whose name is shaped like a translation, in the same two places."""
+    """Every file whose name is shaped like a translation, in the same three places."""
     out = []
     for fn in sorted(os.listdir(root)):
         if TRANSLATION_NAME.match(fn) and os.path.isfile(os.path.join(root, fn)):
             out.append(fn)
-    docs = os.path.join(root, "docs")
-    if os.path.isdir(docs):
-        for fn in sorted(os.listdir(docs)):
+    for sub in ("docs", os.path.join("docs", "guide")):
+        d = os.path.join(root, sub)
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
             # isfile, not just the name: a directory wearing a translation's name
             # crashed the read below, and the crash came out as a non-zero exit.
-            if TRANSLATION_NAME.match(fn) and os.path.isfile(os.path.join(docs, fn)):
-                out.append(os.path.join("docs", fn))
+            if TRANSLATION_NAME.match(fn) and os.path.isfile(os.path.join(d, fn)):
+                out.append(os.path.join(sub, fn))
     return out
 
 
