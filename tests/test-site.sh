@@ -170,6 +170,34 @@ if [[ "${1:-}" != "--selftest" ]]; then
   assert_eq "the document list reaches docs/guide/" "1" "$guide_seen"
 fi
 
+# The loop above goes document -> page. Nothing went the other way, and that
+# direction is where the site breaks: a table row whose document is gone is
+# invisible to a glob over the documents. Measured 2026-09-08 — deleting
+# docs/guide/config.md and keeping its row left the build at exit 0 and the
+# suite at 88 passed, 0 failed, with index.html linking to a config.html that
+# was never written. site-build.sh now refuses that row outright; this asks the
+# artifact instead, so a dangling link still fails here whatever produced it.
+#
+# Read off the built pages, never off the page table: a loop reading the table
+# under test would agree with any table, including one listing a file it no
+# longer copies.
+dangling_links() { # $1 = a directory of built pages
+  local h acc=""
+  for h in $(grep -hoE '\]\([A-Za-z0-9._-]+\.html\)' "$1"/*.md 2>/dev/null \
+             | sed 's/^](//; s/)$//' | sort -u); do
+    [[ -f "$1/${h%.html}.md" ]] || acc="$acc $h"
+  done
+  printf '%s' "${acc# }"
+}
+assert_eq "every internal link resolves to a page the build wrote" "" "$(dangling_links "$out")"
+# The same function on a planted page, so that an empty answer above means
+# "nothing dangling" and not "the extraction stopped matching anything".
+probe_links="$(mktemp -d)"
+printf -- '[gone](zz-not-built.html)\n' > "$probe_links/x.md"
+assert_eq "and the check can see a dangling link when there is one" \
+  "zz-not-built.html" "$(dangling_links "$probe_links")"
+rm -rf "$probe_links"
+
 index="$(cat "$out/index.md" 2>/dev/null || true)"
 assert_contains "index is the README"          "$(head -1 README.md)" "$index"
 assert_contains "index carries the whole README" "## Documentation" "$index"
