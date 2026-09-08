@@ -1,4 +1,4 @@
-<!-- floppy:translation of=docs/guide/skills.md blob=f4c773e84f7e7f3ae0d298aae8823a070434df6f on=2026-09-08 -->
+<!-- floppy:translation of=docs/guide/skills.md blob=b48b8b2449180dd5360157db2ca816568fd1c1e8 on=2026-09-08 -->
 # Пять скиллов
 
 
@@ -7,7 +7,7 @@ Claude Code и Cursor показывают имена по-разному. Claud
 `/start`, а плагин отображает как «Created by Floppy». Этот документ использует
 короткое имя. Только короткое имя верно в обоих приложениях.
 
-- **`init`** — настройка. См. выше.
+- **`init`** — настройка. См. [Установка и init](install.ru.md).
 - **`agent-memory`** — правила для памяти. У этого скилла нет шагов. Остальные
   скиллы этим правилам подчиняются. Одна заметка содержит один факт. У каждой
   заметки есть поле `metadata.evidence` с одним из значений: `measured`, `read`,

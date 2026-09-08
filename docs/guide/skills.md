@@ -6,7 +6,7 @@ name, for example `floppy:start`. Cursor shows the short name, for example
 `/start`, and shows the plugin as "Created by Floppy". This document uses the
 short name. Only the short name is correct in both applications.
 
-- **`init`** — the setup. See above.
+- **`init`** — the setup. See [Install & init](install.md).
 - **`agent-memory`** — the rules for the memory. This skill has no steps. The
   other skills obey these rules. One note contains one fact. Each note has the
   field `metadata.evidence` with one of these values: `measured`, `read`,

@@ -62,7 +62,13 @@ while IFS='|' read -r src tgt _title _order _parent; do
   # `/memory-model.html` would resolve above it. Every page sits in the same
   # directory, so the bare file name is both correct and baseurl-agnostic.
   rewrite+=(-e "s,\]\($esc\),]($html),g")
-  rewrite+=(-e "s,\]\($base\),]($html),g")
+  # A page under docs/guide/ has to climb out to reach a sibling written at the
+  # repository root — `../memory-model.md` — and the bare-basename rule above
+  # did not recognise the climbed form, so the link fell through to the
+  # catch-all and left for GitHub with an unnormalised `..` in the URL
+  # (measured on docs/guide/config.md, both languages). `(\.\./)*` accepts any
+  # number of leading climbs, including zero.
+  rewrite+=(-e "s,\]\((\.\./)*$base\),]($html),g")
 done <<EOF
 $pages
 EOF

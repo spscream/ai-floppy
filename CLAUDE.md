@@ -103,8 +103,8 @@ in bash 3.2). Scopes are `public/projects/<key>` in `public_repo` and
 `machines/<k>/` one level deeper for facts that are not true everywhere.
 `docs/memory-model.md` is the **design** the paths are moving towards — read it
 before changing any path in the scripts. Every config key and its default is
-documented in the README table, and `tests/test-docs.sh` asserts that every
-`cfg_get` call in `lib-config.sh` appears there.
+documented in the `docs/guide/config.md` table, and `tests/test-docs.sh`
+asserts that every `cfg_get` call in `lib-config.sh` appears there.
 
 Here, `memory_dir` is a **symlink into a store repository**, and the private
 scope under it is a symlink again — this repository is public and its documents

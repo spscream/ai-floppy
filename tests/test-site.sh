@@ -200,6 +200,16 @@ assert_eq "no page sends the reader to GitHub for a document the site carries" "
   "$(grep -hoE '\]\(https://github\.com/[^)]*/blob/main/(README\.md|CHANGELOG\.md|docs/[^)]*)\)' "$out"/*.md \
      | sort -u | tr '\n' ' ' | sed 's/ *$//')"
 
+# A separate assertion, not a replacement: the one above requires the target to
+# start with README.md, CHANGELOG.md or docs/, so a link that climbed out with
+# `../` (docs/guide/*.md linking to a root-level sibling) slips past it
+# untouched. A GitHub URL containing `..` is broken regardless of what it
+# points at — it is the shape a relative link takes when the rewriter's
+# basename rule fails to recognise it. Found by a live broken link that this
+# suite reported clean.
+assert_eq "no page links to a GitHub URL that climbs out of the repository root" "" \
+  "$(grep -hoE '\]\(https://github\.com/[^)]*/\.\.[^)]*\)' "$out"/*.md | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+
 # Front matter present and orderable on every page: a missing nav_order sorts
 # a page to the end of the sidebar silently, a repeated one orders two pages by
 # title instead of by intent.
