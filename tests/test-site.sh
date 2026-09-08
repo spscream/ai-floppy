@@ -251,6 +251,27 @@ assert_contains "pages workflow builds the assembled root" ".site" "$wf"
 # arrangement exists to avoid.
 assert_contains "the build directory is ignored" ".site/" "$(cat .gitignore)"
 
+# ---------- the design documents sit under one navigation group ----------
+# Same shape as the Russian hub below, and the child list is hand-written for
+# the same reason: a loop reading the table under test would agree with any
+# table, including a broken one.
+behind="$(cat "$out/behind.md" 2>/dev/null || true)"
+assert_contains "the Behind it hub exists"     "title: Behind it"   "$behind"
+assert_contains "and declares itself a parent" "has_children: true" "$behind"
+for page in memory-model lessons; do
+  assert_contains "the hub links to $page"  "$page.html" "$behind"
+  assert_contains "$page names its parent"  "parent: Behind it" \
+    "$(cat "$out/$page.md" 2>/dev/null || true)"
+done
+# The list above cannot notice a SEVENTH page: it checks that each name it
+# knows is present, and a hub with an extra child satisfies every one of them.
+# That is the hole the Russian block below had from the day it was written —
+# a page added to the table joins its hub silently and no assertion moves.
+# A literal count closes it in the only direction a hand-written list cannot,
+# and it is a literal, not a recomputation of the table.
+assert_eq "the Behind it hub lists exactly its two children" "2" \
+  "$(printf '%s\n' "$behind" | grep -c '^- \[')"
+
 # ---------- the Russian pages sit under one navigation group ----------
 # The hub is built before there is anything under it. That is deliberate: the
 # machinery lands here, the first document lands in the next commit, and neither
@@ -267,6 +288,9 @@ done
 # The same probe index.md gets, and for the same reason: a code identifier
 # survives translation, so it proves the whole README came through rather than
 # a truncated prefix of it.
+assert_eq "the Russian hub lists exactly its six children" "6" \
+  "$(printf '%s\n' "$hub" | grep -c '^- \[')"
+
 assert_contains "the Russian index carries the whole README" "## Документация" \
   "$(cat "$out/ru-index.md" 2>/dev/null || true)"
 
