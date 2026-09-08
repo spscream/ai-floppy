@@ -7,33 +7,34 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
+**The cross-project scope is wired** (#55, merged 2026-09-08). `common/` — the
+subject-level sibling of `projects/<key>`, for facts about no single project —
+was documented from 0.7.0 and created, linked or read by no verb until now;
+fifteen notes sat in one private store where no session could reach them.
+`store` and `workplace` wire it as `<memory_dir>/common/shared` and
+`<memory_dir>/common/private`, either verb alone leaving a usable half. Three
+gates had to be taught it as well, because each routes by path under its own
+pathspec — the details, and how the tests were falsified, are in
+`wiring-a-scope-is-more-than-its-symlink`. The 15 notes are now linted: 8 were
+missing `metadata.evidence` and one had a `name` that did not match its file;
+all nine are fixed in the private store.
+
 **The documentation split is finished** (#48, #50, merged 2026-09-08). The
 guide, the config reference and the skills prose left `README.md` for
 `docs/guide/` in both languages; the front page is a landing with the two
-install commands. Then the archaeology — the plugin-cache post-mortem, the
-0.5.0 rename history, the 0.4.2 two-repositories incident — left the guide
-pages for `docs/lessons.md`, and the memory model and the lessons got a
-"Behind it" navigation parent. Nothing was rewritten in either half; review
-verified the moved lines byte-for-byte.
+install commands. The archaeology then left the guide for `docs/lessons.md`,
+and the memory model and the lessons got a "Behind it" navigation parent.
+Nothing was rewritten in either half; review verified the moved lines
+byte-for-byte.
 
 **Four guard defects that the split exposed are all closed** (#49, #51, #52,
-#53, merged 2026-09-08):
-
-- Four one-level-deep assumptions broke on the new directory — the site glob,
-  the translation checker's scan, `workstatus`'s pre-gate, the site's link
-  rewriter. The fourth shipped two live 404s past six per-task reviews, because
-  the guard written for that class was blind to its own form. Verified on the
-  deployed site afterwards, not only locally.
-- A page-table row whose document is gone is no longer invisible: the site
-  guard now asserts in the other direction too, so a half-finished move cannot
-  ship a link to a page that was never built.
-- The interpreter is pinned in one place. See the freeze below; the note that
-  started that work turned out to be half wrong, and the corrected measurement
-  is in `macos-runner-carries-one-bash-and-it-is-3-2`.
-- `wrap-guard.sh`'s "memory wiring" error no longer advises `bash .floppy/run
-  store` where `store` would refuse. A consumer repository followed that half
-  on 2026-09-08, hit the refusal, and reported the tool as inapplicable; the
-  message now branches on whether `public_repo` and `project_key` are set.
+#53, merged 2026-09-08). Four one-level-deep assumptions broke on the new
+directory; the site guard now also asserts that every page-table row has a
+document; the interpreter is pinned once (see the freeze below); and
+`wrap-guard.sh` no longer advises a command that would refuse. What each one
+cost is in `one-directory-level-broke-four-guards`,
+`a-table-row-with-no-document-is-invisible` and
+`macos-runner-carries-one-bash-and-it-is-3-2`.
 
 **0.19.0 is released** (2026-09-06) — tagged, published, all three manifests
 agree. It brought `--prune` to `status`'s fetch and `metadata.as_of` with
@@ -43,12 +44,11 @@ agree. It brought `--prune` to `status`'s fetch and `metadata.as_of` with
 live. `<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**, not
 drawn per machine: twenty runners returned two components, each tied to a kernel
 version 20 out of 20 — 25.5.0 with `_` (6 runners), 25.6.0 without (14). The
-same commit passes or fails by which image it lands on. 2100 `mktemp` suffixes
-carried no non-alphanumeric character.
-
-The 30% is a rollout mix on one day, not a property of macOS, and it goes to zero
-when 25.5.0 is retired — **leaving the defect intact and the tests green**. Do
-not quote the rate without both kernel versions.
+same commit passes or fails by which image it lands on, and 2100 `mktemp`
+suffixes carried no non-alphanumeric character. The 30% is a rollout mix on one
+day, not a property of macOS, and it goes to zero when 25.5.0 is retired —
+**leaving the defect intact and the tests green**. Do not quote the rate
+without both kernel versions.
 
 ## What is frozen
 
@@ -67,6 +67,12 @@ not quote the rate without both kernel versions.
   added later, in one place instead of 180. Do not "fix" those call sites one
   by one; the two dispatcher execs are the exception and already carry
   `"${BASH:-bash}"`, because they run outside the suite too.
+- **`common/` gets no view under `agents_memory_dir`, unlike every other
+  scope** (decided 2026-09-08, #55). The symmetric shape — one `<views>/common/`
+  holding `shared` and `private` — assumes one store per namespace, and the
+  public namespace has one store per project. The suite's own two-store fixture
+  failed on it. The links go straight into each clone; see
+  `one-common-view-collides-across-stores` before "fixing" the asymmetry.
 - **Branch protection is symmetric, and must stay so** — no bypass actors, not
   even for the owner. Both sessions writing here are the same git principal, so
   a bypass exempts both.
@@ -78,15 +84,13 @@ not quote the rate without both kernel versions.
   These scripts decline to guess, and moving someone off the branch they were
   on is a guess. Revisit only with a real wrap that the message failed to help.
 - **`metadata.as_of` is optional and `lint` never fails on age** (decided
-  2026-09-06, #32). Undated notes are counted in one line, not named; an aged
-  note is named and the run still passes. Two reasons, and both have to hold
-  for the field to survive: the check lands in corpora that already exist on
-  machines whose owners did not ask for it, and one that reddens their memory
-  on plugin-update day gets switched off — taking the four earning checks with
-  it; and a gate on age teaches people to bump the date without re-checking,
-  which destroys the only signal the field carries. A future date more than one
-  day out is still a hard failure — that day of slack is the UTC+3 evening
-  measured in the note, not politeness.
+  2026-09-06, #32). Undated notes are counted, not named; an aged note is named
+  and the run still passes. Two reasons, both load-bearing: a check that reddens
+  an existing corpus on plugin-update day gets switched off, taking the four
+  earning checks with it; and a gate on age teaches people to bump the date
+  without re-checking, destroying the only signal the field carries. A future
+  date more than one day out is still a hard failure — that day of slack is the
+  UTC+3 evening measured in the note, not politeness.
 - **`statuses_personal` is derived, not written live by `init`** — a literal
   value in `.floppy/config` would put one machine's path into a file every
   machine reads. `init` writes it commented, with that reason beside it. The
@@ -116,13 +120,11 @@ not quote the rate without both kernel versions.
 
 ## The Russian documentation thread is closed
 
-Five pull requests on 2026-09-06 (#40–#44) finished it: the three documents, the
-search over them, and the two defects they deferred. The measurements that thread
-produced live in memory rather than here — `site-search-broke-on-the-trimmer-not-the-tokenizer`,
-`served-page-collapses-inline-scripts`, `lunr-languages-is-mpl-1-1`. Search on the
-live site answers Russian queries with stemming; every English count was unchanged.
-What stays unverified is a browser: everything from the served script through the
-built index and the query is measured, the DOM is not.
+Five pull requests on 2026-09-06 (#40–#44) finished it. The measurements live in
+memory rather than here — `site-search-broke-on-the-trimmer-not-the-tokenizer`,
+`served-page-collapses-inline-scripts`, `lunr-languages-is-mpl-1-1`. What stays
+unverified is a browser: everything from the served script through the built
+index and the query is measured, the DOM is not.
 
 ## What this thread froze
 
@@ -148,44 +150,42 @@ built index and the query is measured, the DOM is not.
   hand-written marker, since the checker reports and never fails. Deriving its
   expectation from the checker would let a checker bug agree with itself.
 
-## Open, and none of it waits on a person
+## Open
 
 One item waits on a decision; the rest is work, in the order it earns:
 
-- **`common/` is documented and not wired** — note
-  `common-scope-is-documented-but-not-wired`. This one **waits on the owner**:
-  either wire it beside `private`, or correct the status line in
-  `docs/memory-model.md`, which calls the subject level implemented when half
-  of it is. Sixteen notes are unreachable either way.
+- **0.20.0 is due and has not been cut.** Six merges have landed since 0.19.0
+  (#48–#55) with no changelog entry, which is this repository's habit — entries
+  are written at release. #55 is the one that makes a release owed rather than
+  optional: it adds a capability and a second `.gitignore` rule that `init`
+  now writes. Cutting it means the three manifests together plus the entry, and
+  that entry answers **"Refresh `.floppy/run`?" with no** — the shim is
+  untouched. **Waits on the owner**, who decides when a version ships.
 
 Two smaller things, recorded so they are not rediscovered: `translation-check.py`
 runs in no workflow at all, so a stale translation is noticed by a person and
 never by CI; and the Russian hub loop in `tests/test-site.sh` is still a
 hand-written list, so page seven will have the hole page four had.
 
-**Two deviations from the spec, recorded rather than fixed.** `quota.lock`'s
-justification was to be condensed on its way into the config reference and
-shipped byte-identical, so 22% of that page is argument — the load-bearing
-reason survives and is guarded, and the spec's named fallback (move it whole to
-`lessons.md`) was never taken. And the spec asked for the site's positive control
-to plant a document under the new directory; what shipped instead is a separate
-reach guard, which was measured to be stronger — an unregistered page under
-`docs/guide/` does redden the suite.
+**Two deviations from #48's spec, recorded rather than fixed.** `quota.lock`'s
+justification shipped byte-identical instead of condensed, so 22% of the config
+page is argument — the load-bearing reason survives and is guarded. And the
+site's positive control is a separate reach guard rather than a planted
+document, which was measured to be the stronger of the two.
 
 ## What is not true here
 
-No open issues and no open pull requests — checked against `gh` after #53
-merged, not recalled. `main` is at `5e833b0`, local is in sync, and every
-branch those five pull requests used is deleted. The working tree is clean
+No open issues and no open pull requests — checked against `gh` after #55
+merged, not recalled. `main` is at `0ef2cd3`, local is in sync, and the branch
+that pull request used is deleted on both sides. The working tree is clean
 apart from an untracked `.claude/` that predates this work. Both memory stores
-are pushed. `quota.lock` is unchanged this session: one note replaced another,
-so the corpus did not grow.
+are committed and pushed, including the nine note fixes in the private one.
 
-The note `macos-job-runs-bash5-for-scripts-tests-invoke` **no longer exists**,
-and nothing here should be read as still asserting it. It claimed the macOS job
-runs the scripts under bash 5; measured on the runner, that image carries one
-bash and it is 3.2.57. Its replacement carries the inventory and the reason the
-old claim was marked `measured` when it had only been read.
+`quota.lock` is unchanged: one note was retired as false and two written, so the
+corpus stands at 20 notes and 20 pointers against a ceiling of 25, inside the
+band. The 15 notes in `common/` carry no `metadata.as_of` and `lint` says so as
+a warning every run — that is the field behaving as designed (counted, never
+named, never a failure), not something to fix by dating them from guesswork.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
 while three issues had been filed minutes earlier, and it spent this session
