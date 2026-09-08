@@ -7,27 +7,29 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
-**0.19.0 is released** (2026-09-06) — tagged `v0.19.0`, GitHub release
-published, all three manifests agree, site rebuilt from the push. Two changes
-reach consumers, neither needing a migration and neither touching the shim:
+**The documentation is split by audience** (#48, merged 2026-09-08). Installation,
+the config reference and the skills prose left `README.md` for `docs/guide/`, in
+both languages; the front page is a landing with the two install commands still
+on it. Nothing was rewritten — review verified all 441 moved lines byte-for-byte,
+and the Russian half was the same three cuts, its outline having matched the
+English 22 headings to 22.
 
-- **`status` stopped naming branches that were already deleted.** The
-  `-- origin` section reads remote-tracking refs and the fetch had no
-  `--prune`, so it learned what appeared and never what went away. Measured
-  minutes after two pull requests merged with `--delete-branch`: both branches
-  still listed as live. Where a protected default branch makes
-  pull-request-and-delete the ordinary path, that is wrong after every merge,
-  in the direction that invents work.
-- **A note can say *when* it was true.** `metadata.as_of` is the date a note's
-  evidence is from, with `note_stale_days` (180) as the threshold and a
-  `-- note dates` section in `lint`. The practice comes from `knowledge/LINKS.md`
-  §5; the memory note on that survey says why it cannot be read as a to-do list.
-  This repository's own nine notes are dated from the evidence in their bodies.
+**The guards changed more than the documents did.** `tests/test-docs.sh` used to
+ask "is this somewhere in README.md?"; it now asks whether each answer is in the
+file that should hold it, which is stricter — a key documented in the wrong place
+used to pass. Four one-level-deep assumptions broke on the new directory and were
+fixed: the site glob, the translation checker's scan, `workstatus`'s pre-gate,
+and the site's link rewriter. The fourth shipped two live 404s past six per-task
+reviews, because the guard written for that class was blind to its own form; a
+four-lens whole-branch review caught it, two lenses independently. Verified on the
+deployed site afterwards, not only locally: ten pages 200, zero URLs containing
+`..`, and the six new pages carry 49 fragments in the search index.
 
-**0.18.0** (2026-09-06) closed the three issues the pull-request model turned
-from edge cases into the ordinary path: `commit` on a branch with no upstream, the
-wrap lock following the memory rather than the clone, and the status splitting
-into two files. Details in `CHANGELOG.md`; the decisions they froze are below.
+**0.19.0 is released** (2026-09-06) — tagged, published, all three manifests
+agree. It brought `--prune` to `status`'s fetch, so a branch deleted on merge
+stops being listed as live, and `metadata.as_of` with `note_stale_days`. 0.18.0
+closed the three issues a protected default branch turned from edge cases into
+the ordinary path. Details in `CHANGELOG.md`; what they froze is below.
 
 **The macOS temp path is measured** (#29/#30, 2026-09-06) and this one is still
 live. `<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**, not
@@ -96,36 +98,15 @@ not quote the rate without both kernel versions.
   reading past it. Raise a number only in the same commit as the notes that
   need the room.
 
-## Russian documentation: done, and its search now works
+## The Russian documentation thread is closed
 
-**Five pull requests on 2026-09-06 closed this thread** (#40–#44). The three
-documents were already translated and merged (#36, #37); what landed since is
-the search over them, the debt they left, and the defects they deferred.
-
-**The one measurement the design asked for was made, and the design's own
-prediction was wrong.** Search over the Russian pages returned nothing, and
-`search.tokenizer_separator` — named in the spec as the suspect and as a
-one-line fix — was never involved. `lunr.trimmer` strips `\W` from both ends of
-every token, JavaScript's `\w` is ASCII-only, so a Cyrillic word trimmed to the
-empty string: 1855 terms with two containing Cyrillic, and one empty-string term
-holding 124 postings. Measured against the deployed index, not a local build.
-The spec records the answer under its own "Known unknown"; the memory note is
-`site-search-broke-on-the-trimmer-not-the-tokenizer`.
-
-**The first fix shipped inert and the suite stayed green.** The theme serves a
-page as one line, so the `//` comments in the injected script swallowed it.
-Under that, a second defect: automatic semicolon insertion needs a line
-terminator. Both are guarded now, by two checks that collapse the script the way
-the page does and that deliberately do not overlap — a fully commented-out
-script parses. Note: `served-page-collapses-inline-scripts`.
-
-**Where the search stands, measured on the live site after the last deploy:**
-`сессия` and `сессии` both 9 hits, `заметка` and `заметки` both 14, `память` 12,
-`памяти` 17. Every English count unchanged (`memory` 71, `wrap` 30, `floppy`
-81). What remains unverified is a browser: everything from the served script
-text through the built index and the query is measured, the DOM is not.
-
-The suite is 778 assertions across 27 files, green on both CI jobs.
+Five pull requests on 2026-09-06 (#40–#44) finished it: the three documents, the
+search over them, and the two defects they deferred. The measurements that thread
+produced live in memory rather than here — `site-search-broke-on-the-trimmer-not-the-tokenizer`,
+`served-page-collapses-inline-scripts`, `lunr-languages-is-mpl-1-1`. Search on the
+live site answers Russian queries with stemming; every English count was unchanged.
+What stays unverified is a browser: everything from the served script through the
+built index and the query is measured, the DOM is not.
 
 ## What this thread froze
 
@@ -151,33 +132,55 @@ The suite is 778 assertions across 27 files, green on both CI jobs.
   hand-written marker, since the checker reports and never fails. Deriving its
   expectation from the checker would let a checker bug agree with itself.
 
-## Open, waiting on the owner
+## Open, and none of it waits on a person
 
-**Nothing is waiting on a person.** The one item that was — the expired
-`quota.lock` freeze — was closed on 2026-09-06 by measuring the corpus and
-writing the file; the numbers and the reasoning are in the frozen list above and
-in the file's own header. `lint` is clean and silent for the first time: the
-warning it printed on every run since this memory was created is gone.
+Nothing is blocked on a decision. What follows is work, in the order it earns:
 
-**Nothing else is.** The three facts this thread owed the cross-project base
-have all landed there: `shell-bracket-range-follows-collation` (#39), and
-`one-line-page-eats-a-line-comment` plus `lunr-trimmer-drops-non-latin-tokens`
-in this same change, at the owner's instruction — a deliberate pull request,
-which is the only way `knowledge/` can be written, since `watched_dirs` keeps
-`wrap` inside `docs/statuses`.
+- **PR B, the other half of the split.** Three incidents move out of the guide
+  pages into `docs/lessons.md` — the plugin-cache post-mortem, the 0.5.0 rename
+  history, the 0.4.2 two-repositories incident — two of them into lessons that
+  already exist. Plus the "Behind it" navigation parent over the memory model and
+  the lessons. Described in `docs/specs/2026-09-07-documentation-split-design.md`.
+- **A page-table row whose document is gone is invisible.** Measured: delete
+  `docs/lessons.md`, keep its row and inbound links, and the suite reports 79
+  passed 0 failed while the home page links to a page never built. The loop is
+  glob-driven, so it fails in one direction only. Note:
+  `a-table-row-with-no-document-is-invisible`.
+- **The macOS job runs bash 5 for every script a test invokes.** `run.sh` hands
+  `$BASH` to each test file; the test files then call the script under test with
+  a bare `bash`. Note: `macos-job-runs-bash5-for-scripts-tests-invoke`.
+- **`wrap-guard.sh:205` advises `bash .floppy/run store` unconditionally**, in a
+  message that also fires where `public_repo` is unset and `store` therefore
+  cannot run. A consumer repository followed that half on 2026-09-08, reached a
+  dead end, and reported the tool as inapplicable; the correct fix there was the
+  other half of the same sentence. The message should branch on the config.
+- **`common/` is documented and not wired** — note
+  `common-scope-is-documented-but-not-wired`. Either wire it beside `private`,
+  or correct the status line in `docs/memory-model.md`, which currently calls
+  the subject level implemented when half of it is.
 
-Both new notes carry a machine-checkable half that needs nothing but node, so
-the base now proves 5 of its 16 notes rather than 3. Each was checked for
-discrimination rather than assumed: the same commands run against the *fixed*
-forms print `ran asi-ok` and `память memory`, the opposite of what they
-assert.
+Two smaller things, recorded so they are not rediscovered: `translation-check.py`
+runs in no workflow at all, so a stale translation is noticed by a person and
+never by CI; and the Russian hub loop in `tests/test-site.sh` is still a
+hand-written list, so page seven will have the hole page four had.
+
+**Two deviations from the spec, recorded rather than fixed.** `quota.lock`'s
+justification was to be condensed on its way into the config reference and
+shipped byte-identical, so 22% of that page is argument — the load-bearing
+reason survives and is guarded, and the spec's named fallback (move it whole to
+`lessons.md`) was never taken. And the spec asked for the site's positive control
+to plant a document under the new directory; what shipped instead is a separate
+reach guard, which was measured to be stronger — an unregistered page under
+`docs/guide/` does redden the suite.
 
 ## What is not true here
 
-No open issues and no open pull requests — checked against `gh` after #44
+No open issues and no open pull requests — checked against `gh` after #48
 merged, not recalled. `main` is in sync with the remote and the working tree is
 clean apart from an untracked `.claude/` that predates this work. Both memory
-stores are pushed.
+stores are pushed. `quota.lock`'s `chars_max` was raised from 40000 to 55000 in
+the same commit as the five notes that needed the room, by the rule `init` uses
+to seed it.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
 while three issues had been filed minutes earlier, and it spent this session
