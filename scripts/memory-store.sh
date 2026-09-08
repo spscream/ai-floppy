@@ -161,6 +161,22 @@ if grep -qxF "/$mem_dir/$priv_dir" "$repo/.gitignore" 2>/dev/null; then
   echo "note /$mem_dir/$priv_dir in .gitignore is covered by /$mem_dir and can be removed"
 fi
 
+# ---------- the cross-project scope ----------
+# public/common, the subject-level sibling of public/projects/<key>: facts
+# about no single project that the team may read. Wired here rather than by a
+# verb of its own — see link_common_scope for why.
+#
+# AFTER the ignore line above, not before, and the order is load-bearing: the
+# container it creates sits under a memory directory this repository has just
+# been told to ignore whole, and it asks git whether that is so. Run first, it
+# gets "no" and writes a second rule for a path already covered — measured
+# 2026-09-08, in this plugin's own checkout, twice over.
+#
+# It is not fatal on its own. A store that wires but whose common scope refuses
+# (a real directory in the way, a link to somewhere else) has still moved this
+# project's memory, and saying so beats undoing it.
+link_common_scope "$dir" public shared "$link" || common_failed=1
+
 # ---------- does a write reach the store? ----------
 # The step that actually proves the wiring. Everything above can look right
 # while a write lands somewhere else.
@@ -181,4 +197,7 @@ dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
 [[ "$ahead" != "0" && "$ahead" != "?" ]] && echo "! $ahead commit(s) not pushed in $dir — the next machine cannot see them"
 echo
 echo "next: bash .floppy/run link   (the harness's memory directory, per machine and per worktree)"
-exit 0
+# The project scope is wired and proven above; a common scope that refused is
+# reported by its own message and carried out in the exit code, so a script
+# calling this verb does not read "ok" over a half-wired memory.
+exit "${common_failed:-0}"

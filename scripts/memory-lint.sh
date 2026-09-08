@@ -29,6 +29,13 @@ IDX="$MEM/MEMORY.md"
 # the private scope" guarded a directory that no longer existed — the same
 # way of applying to nothing that 0.4.0 introduced this variable to prevent.
 LOCAL_DIR="${FLOPPY_MEMORY_PRIVATE_DIR:-${FLOPPY_MEMORY_LOCAL_DIR:-private}}"
+# The cross-project scope, wired 2026-09-08. Not from config, unlike the name
+# above: `common/` is a directory in the memory GRAMMAR — the sibling of
+# projects/<key> that answers "about no single project" — and the store paths
+# spell it literally. A consumer who renamed it here would rename it in one of
+# the two places it is written, which is the shape of every path defect this
+# file exists to catch.
+COMMON_DIR="common"
 fail=0
 
 err() { printf '  x %s\n' "$1"; fail=1; }
@@ -102,7 +109,8 @@ esac
 # cannot run on half the machines is worse than none.
 notes=()
 while IFS= read -r __line; do notes+=("$__line"); done < <(
-  find -L "$MEM" -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
+  find -L "$MEM" -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" -not -path "$MEM/$COMMON_DIR/*" \
+    -not -name 'MEMORY.md' -not -name 'INDEX.md' | sort
 )
 
 # The private scope, which every query above deliberately skips. It is a
@@ -146,8 +154,33 @@ if [[ -d "$MEM/$LOCAL_DIR" ]]; then
   )
 fi
 
+# The cross-project scope, which the three queries above now skip by path. It
+# is a THIRD corpus in a fourth place: <memory_dir>/common/shared and
+# <memory_dir>/common/<private> are links into the two stores at a path that is
+# nobody's project scope, so its notes belong to every project that wires it
+# and to none of them in particular.
+#
+# It gets exactly what the private scope gets, and for the same two reasons:
+#   yes - the per-note invariants. A note's frontmatter is a property of the
+#         note, true wherever it lives, and these notes had never been checked
+#         by anything. Measured the day the scope was wired: of 15 notes, 8
+#         carried no metadata.evidence and one had a name that did not match
+#         its file, so a [[link]] to it resolved by luck.
+#   no  - the index tree, and no quota. The scope is flat with a README rather
+#         than pointers, and the ceilings in quota.lock are measurements of
+#         THIS project's corpus — applying them to a corpus several projects
+#         write would be the borrowed cap this project refuses everywhere else.
+common_notes=()
+if [[ -d "$MEM/$COMMON_DIR" ]]; then
+  while IFS= read -r __line; do common_notes+=("$__line"); done < <(
+    find -L "$MEM/$COMMON_DIR" -name '*.md' \
+      -not -name 'MEMORY.md' -not -name 'INDEX.md' -not -name 'README.md' \
+      -not -path "*/machines/*/$sp_leaf" | sort
+  )
+fi
+
 # Every note whose own invariants are checked, wherever it lives.
-all_notes=("${notes[@]+"${notes[@]}"}" "${private_notes[@]+"${private_notes[@]}"}")
+all_notes=("${notes[@]+"${notes[@]}"}" "${private_notes[@]+"${private_notes[@]}"}" "${common_notes[@]+"${common_notes[@]}"}")
 
 # Days since 1970-01-01 in the proleptic Gregorian calendar, computed rather
 # than asked of `date`. `date -d` is GNU and `date -v` is BSD, so anything built
@@ -324,14 +357,16 @@ EOF
 hr "index"
 indexes=("$IDX")
 while IFS= read -r __line; do indexes+=("$__line"); done < <(
-  find -L "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/$LOCAL_DIR/*" | sort
+  find -L "$MEM" -mindepth 2 -maxdepth 3 -name 'INDEX.md' -not -path "$MEM/$LOCAL_DIR/*" \
+    -not -path "$MEM/$COMMON_DIR/*" | sort
 )
 
 # Notes may not sit deeper than the deepest index that could list them.
 while IFS= read -r __deep; do
   [[ -z "$__deep" ]] && continue
   err "${__deep#"$MEM"/}: nested deeper than a sub-index can reach — the index tree stops at three levels"
-done < <(find -L "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" | sort)
+done < <(find -L "$MEM" -mindepth 4 -name '*.md' -not -path "$MEM/$LOCAL_DIR/*" \
+  -not -path "$MEM/$COMMON_DIR/*" | sort)
 
 idx_pointers=0
 for f in "${indexes[@]}"; do
@@ -619,15 +654,21 @@ EOF
   done
 fi
 
-# ---------- links into local/ ----------
-hr "links into $LOCAL_DIR/"
-# Committed memory must not link into the machine-local scope: a fresh clone
-# does not have it.
+# ---------- links out of this corpus ----------
+hr "links into $LOCAL_DIR/ and $COMMON_DIR/"
+# Committed memory must not link into a scope a fresh clone does not have. That
+# is the private one, and since 2026-09-08 the cross-project one as well: both
+# are links into another repository, wired per machine, and a relative link
+# from a committed note into either is dead for anyone who has not wired it.
+# Routing to them is the reader's job — the start rite names the scope — not a
+# pointer's, which is why this is an error and not a warning.
 for f in "${indexes[@]}" "${notes[@]+"${notes[@]}"}"; do
   rel="${f#"$MEM"/}"
-  if grep -o "](\($LOCAL_DIR/[^)]*\))" "$f" >/dev/null 2>&1; then
-    err "$rel: link into $LOCAL_DIR/ — dead on a second machine, refer to it by meaning instead"
-  fi
+  for __scope in "$LOCAL_DIR" "$COMMON_DIR"; do
+    if grep -o "](\($__scope/[^)]*\))" "$f" >/dev/null 2>&1; then
+      err "$rel: link into $__scope/ — dead for anyone who has not wired that scope, refer to it by meaning instead"
+    fi
+  done
 done
 
 # ---------- [[slug]] links ----------
@@ -642,9 +683,18 @@ done
 
 # ---------- summary ----------
 printf '\n'
+# The two foreign corpora are named on the clean line, not just counted into
+# silence. A green run that says "19 notes" while quietly checking 34 teaches
+# the reader that the number is the whole memory — and the lesson this
+# repository already paid for is that a green report which does not say what it
+# ran is indistinguishable from one that ran nothing.
+also=""
+[[ ${#private_notes[@]} -gt 0 ]] && also="$also, ${#private_notes[@]} in $LOCAL_DIR/"
+[[ ${#common_notes[@]} -gt 0 ]] && also="$also, ${#common_notes[@]} in $COMMON_DIR/"
 if [[ $fail -eq 0 ]]; then
-  printf 'clean: %d notes, %d pointers across %d indexes\n' "${#notes[@]}" "$idx_pointers" "${#indexes[@]}"
+  printf 'clean: %d notes, %d pointers across %d indexes%s\n' \
+    "${#notes[@]}" "$idx_pointers" "${#indexes[@]}" "${also:+ (also checked${also#,})}"
 else
-  printf 'problems found: %d notes checked\n' "${#notes[@]}"
+  printf 'problems found: %d notes checked%s\n' "${#notes[@]}" "${also:+ (also checked${also#,})}"
 fi
 exit $fail

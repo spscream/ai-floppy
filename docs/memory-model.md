@@ -2,10 +2,15 @@
 
 *[Русская версия](memory-model.ru.md)*
 
-**Status: implemented in 0.7.0** for the namespace and subject levels; the
-validity level (`workplaces/`, `machines/`) is directories only — no verb
-creates or reads them yet. Written 2026-08-25 against 0.6.1, revised on
-implementation. It exists because the layout
+**Status: implemented** for the namespace and subject levels; the validity
+level (`workplaces/`, `machines/`) is directories only — no verb creates or
+links them, though `statuses_personal` has written into `machines/<name>/`
+since 0.18.0. The namespace level and `projects/<key>` shipped in 0.7.0; the
+subject level was only half of that until 2026-09-08, when `common/` was wired.
+Until then this line said "implemented" for a scope that no verb created,
+linked or read — sixteen notes sat in one private store where no session could
+reach them, and the claim here is what stopped anybody noticing. Written
+2026-08-25 against 0.6.1, revised on implementation. It exists because the layout
 was renamed three times in one day — `projects/<key>`, then `/memory` and
 `/local`, then `/shared` and `/private` — and each rename was a correction to a
 model nobody had written down. The names kept saying the wrong thing because
@@ -116,13 +121,30 @@ machine. It reads, in order:
    `machines/<this machine>/` — only the two that match. The others are not
    just irrelevant, they are **false here**, which is worse.
 3. `<namespace>/common/` and its two matching validity directories, when the
-   task is not about the project alone.
+   task is not about the project alone. It reaches a session as
+   `<memory_dir>/common/shared` and `<memory_dir>/common/<private>` — one link
+   per namespace, because the two namespaces are two different repositories and
+   a machine may have wired only one of them.
+
+   `common/` is deliberately NOT reachable from `MEMORY.md`. A pointer from
+   committed memory into it would be dead for anyone who has not wired the
+   scope, which is the same rule the private scope has carried since 0.4.0 and
+   which `lint` enforces for both. Routing to it is the reader's job — the
+   `start` rite names the scope — not a pointer's.
 
 Six cells is more than a session should open one by one, so the index does the
 routing: **one index per subject directory** (`projects/<key>/INDEX.md`,
 `common/INDEX.md`), listing every note under it including those in the validity
 directories, each pointer marked with where it is true. One file to read, and
 the pointer says whether the note applies here.
+
+`lint` does not yet demand that index of `common/`, and the gap is deliberate
+rather than pending. The scope arrives already written — the corpora that have
+one filled it by hand for a year — and a check that reports every existing note
+an orphan on the first run is a check its owner turns off, taking the per-note
+invariants with it. Those invariants it does apply, and they found what an
+unchecked corpus holds: of the first fifteen notes, eight carried no
+`metadata.evidence` and one had a `name` that did not match its file.
 
 ## What the configuration needs
 
@@ -147,6 +169,14 @@ axis, and that is the mistake this document exists to stop.
   creates that link; the notes are written straight into the checkout. Adding a
   link is one more entity in every project for a rare case, and the case has
   three notes in it so far.
+- **Whether `common/` deserves a view under `agents_memory_dir`.** Every other
+  scope has one, and this one does not: a single `<views>/common/` has one name
+  and, for the public namespace, as many meanings as there are stores — two
+  projects with two public stores under one `agents_memory_dir` both want it to
+  mean their own. Measured 2026-09-08, on the test suite's own two-store
+  fixture. The links go straight into each clone instead, which has no shared
+  name to collide over. A per-store view name would work and buys only
+  browsing convenience.
 - **The migration.** Six cells is a bigger move than the three renames that
   preceded it, and none of them should be started before this document has been
   read by a human and disagreed with.

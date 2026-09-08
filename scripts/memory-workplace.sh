@@ -268,6 +268,17 @@ done
 # already covers it.
 ignore_wiring_link "$link"
 
+# ---------- the cross-project scope ----------
+# private/common, the subject-level sibling of private/projects/<key>: facts
+# about no single project that stay off the team's repository — an evaluation
+# of an outside tool, a shell trap, this machine's ports. Sixteen such notes
+# were already written here by hand while nothing linked them, which is what
+# this call ends.
+#
+# Reported, not fatal: the project scope above is wired and proven, and a
+# common scope that refuses says why in its own message.
+link_common_scope "$dir" private "$priv" "$repo/$mem_dir" || common_failed=1
+
 # ---------- does a write reach the repository? ----------
 probe="$link/.write-probe-$$"
 if echo "probe" > "$probe" 2>/dev/null && [[ -f "$target/.write-probe-$$" ]]; then
@@ -284,4 +295,4 @@ ahead="$(git -C "$dir" rev-list --count @{u}..HEAD 2>/dev/null || echo '?')"
 dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
 [[ "$dirty" != "0" ]] && echo "! $dirty uncommitted change(s) in $dir — /wrap commits and pushes them"
 [[ "$ahead" != "0" && "$ahead" != "?" ]] && echo "! $ahead commit(s) not pushed in $dir — the other machine cannot see them"
-exit 0
+exit "${common_failed:-0}"

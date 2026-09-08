@@ -11,7 +11,7 @@ does not contain it.
 | key | default | what it controls |
 |---|---|---|
 | `memory_dir` | `.agent-memory` | the directory of the memory of this repository |
-| `memory_private_dir` | `private` | the name of the private scope in the memory: facts about this project that the code repository must not carry, such as somebody else's checkout or an access note. The workplace repository holds them, so **other machines do read them**. Facts about one machine go to `machines/<name>/` of that repository instead. Only the name is a setting; the rule is not — committed memory must not link into this scope, and the check uses this key |
+| `memory_private_dir` | `private` | the name of the private scope in the memory: facts about this project that the code repository must not carry, such as somebody else's checkout or an access note. The workplace repository holds them, so **other machines do read them**. Facts about one machine go to `machines/<name>/` of that repository instead. Only the name is a setting; the rule is not — committed memory must not link into this scope, and the check uses this key. The same rule covers `common/`, whose name is fixed rather than configurable: it is written into the store paths themselves, and a name settable in one of the two places would be a name that drifts |
 | `public_repo` | *(not set)* | the git URL of the repository that holds this project's **public** memory when the code repository cannot. Set `project_key` also. Then run `bash .floppy/run store` one time for each machine and each worktree |
 | `private_repo` | *(not set)* | the git URL of the repository that holds this project's **private** memory: facts the team must not get. `bash .floppy/run workplace` wires it |
 | `machine_key` | *(not set)* | the name of this machine in the memory repositories, chosen by you. `hostname` is not used: on one of the author's machines it is `WIN-GVR0V5UPOD7`. Only needed for a note that is true on one machine |
@@ -88,11 +88,23 @@ The scopes are two directories beside each other:
 ```
 public/projects/<key>      in public_repo
 private/projects/<key>     in private_repo
+public/common              in public_repo    — about no single project
+private/common             in private_repo   — about no single project
 ```
 
-Below either of them, a note that is **not** true everywhere goes one level
+Below any of them, a note that is **not** true everywhere goes one level
 deeper: `workplaces/<workplace_key>/` or `machines/<machine_key>/`. A note that
 is true everywhere sits directly in the scope, which is the common case.
+
+The two `common` scopes are the sibling of `projects/<key>`, for facts that are
+about no single project — an outside tool that was evaluated, a shell trap,
+what one machine has installed. `store` and `workplace` wire them beside the
+project's own, as `<memory_dir>/common/shared` and `<memory_dir>/common/private`;
+a machine that ran only one of the two verbs gets only that half. Nothing in
+the committed index may point into them, for the same reason nothing may point
+into the private scope: the link is per machine, so it is dead for anyone who
+has not wired it. `start` names the scope instead, and `lint` fails on such a
+link.
 
 The private scope is private to the project, and every machine of the workplace
 reads it — see [docs/memory-model.md](../memory-model.md). Facts about ONE

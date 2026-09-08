@@ -40,6 +40,60 @@ out2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc2=$
 assert_rc       "orphan note fails the run"  1 "$rc2"
 assert_contains "orphan note is named"       "orphan.md" "$out2"
 
+# ---------- the cross-project scope is a corpus, not this project's ----------
+# common/ holds notes that belong to every project wiring the store and to none
+# of them in particular. Its notes get the per-note invariants — they had never
+# been checked by anything before 2026-09-08, and eight of the first fifteen
+# carried no metadata.evidence — and nothing else. Not the index tree: the
+# scope is flat with a README, so demanding pointers would report every note an
+# orphan. Not the quota either: those ceilings are measurements of THIS
+# project's corpus, and applying them to a corpus several projects write is the
+# borrowed cap this project refuses everywhere else.
+#
+# A directory here rather than the symlink the verbs create: the checks read
+# paths, and this file must not need a second git repository to state what it
+# is asserting.
+rm -f "$repo/brain/half/orphan.md"   # the positive control above, done with
+mkdir -p "$repo/brain/common/shared"
+cat > "$repo/brain/common/shared/a-trap.md" <<'EOF'
+---
+name: a-trap
+description: true in every project
+metadata:
+  type: reference
+  evidence: measured
+---
+Body.
+EOF
+outc="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcc=$?
+assert_rc       "a common note needs no pointer in this project's index" 0 "$rcc"
+assert_contains "and is not counted into this project's corpus"  "1 notes" "$outc"
+assert_contains "but the run says it checked it"                 "1 in common/" "$outc"
+
+# The invariants it DOES get. Without this the assertions above would also pass
+# on a scope that is skipped entirely, which is what they looked like before.
+cat > "$repo/brain/common/shared/undated.md" <<'EOF'
+---
+name: undated
+description: no evidence field
+metadata:
+  type: reference
+---
+Body.
+EOF
+outc2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcc2=$?
+assert_rc       "a common note missing evidence fails the run" 1 "$rcc2"
+assert_contains "and is named by its path in the scope" "common/shared/undated.md" "$outc2"
+rm -f "$repo/brain/common/shared/undated.md"
+
+# A committed note may not link INTO the scope: common/ is wired per machine,
+# so the link is dead for anyone who has not wired it. Same rule the private
+# scope has carried since 0.4.0, and the same reason.
+printf 'See [the trap](common/shared/a-trap.md).\n' >> "$repo/brain/half/a-note.md"
+outc3="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcc3=$?
+assert_rc       "a committed note linking into common/ fails" 1 "$rcc3"
+assert_contains "and says why the link is dead" "has not wired that scope" "$outc3"
+
 rm -rf "$repo"
 
 # ---------- three-level index tree ----------

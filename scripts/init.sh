@@ -7,7 +7,8 @@
 #   .floppy/run              copied from this checkout — the ONLY file copied
 #   .floppy/config            flat key=value, memory_dir/memory_language set
 #   <memory_dir>/MEMORY.md    the empty router, so `lint` is green immediately
-#   .gitignore                gains "/<memory_dir>/<memory_private_dir>" (no
+#   .gitignore                gains "/<memory_dir>/common/", and
+#                             "/<memory_dir>/<memory_private_dir>" (no
 #                              trailing slash: that path is a symlink, and a
 #                              slash-terminated rule matches directories only,
 #                              so the symlink would not be ignored and would
@@ -263,27 +264,44 @@ gi="$repo/.gitignore"
 # renamed the scope is covered too.
 priv_dir="$(sed -n 's/^memory_private_dir=//p' "$repo/.floppy/config" 2>/dev/null | head -n1)"
 [[ -n "$priv_dir" ]] || priv_dir="private"
-ignore_line="/$mem_dir/$priv_dir"
+# Two rules, because there are two pieces of per-machine wiring under the
+# memory directory and they have different shapes. The private scope is a
+# SYMLINK, so its rule carries no trailing slash. The cross-project scope is a
+# real DIRECTORY holding one symlink per namespace — it cannot be a single link
+# of its own, because the two namespaces live in two different repositories —
+# so its rule is slash-terminated and covers the leaves with it.
+#
+# Writing them here rather than leaving them to `workplace` and `store` keeps a
+# fresh repository's tree clean: those verbs add whichever line is missing, and
+# a line added after the first commit is an edit somebody has to notice and
+# carry. Both are idempotent either way.
 touch "$gi"
-# In the store layout memory_dir is itself ignored, and a rule for a path
-# underneath it adds nothing — git already refuses the whole subtree. Writing
-# it anyway leaves a fresh repository with two ignore blocks that read as two
-# protections when there is one. Ask git rather than re-derive the answer:
-# `store` may have put that line there, or a person may have.
-if git -C "$repo" check-ignore -q -- "$mem_dir" 2>/dev/null; then
-  echo "ok .gitignore: $mem_dir is already ignored whole, so $ignore_line is not needed"
-elif grep -qxF "$ignore_line" "$gi"; then
-  echo "ok .gitignore already has $ignore_line"
-else
-  # Ensure a trailing newline before appending, so the new block does not
-  # land glued onto whatever the last existing line was.
-  if [[ -s "$gi" ]] && [[ "$(tail -c1 "$gi")" != "" ]]; then
-    printf '\n' >> "$gi"
+ignore_line="/$mem_dir/$priv_dir"
+common_ignore="/$mem_dir/common/"
+while IFS='	' read -r entry why; do
+  [[ -z "$entry" ]] && continue
+  # In the store layout memory_dir is itself ignored, and a rule for a path
+  # underneath it adds nothing — git already refuses the whole subtree. Writing
+  # it anyway leaves a fresh repository with two ignore blocks that read as two
+  # protections when there is one. Ask git rather than re-derive the answer:
+  # `store` may have put that line there, or a person may have.
+  if git -C "$repo" check-ignore -q -- "$mem_dir" 2>/dev/null; then
+    echo "ok .gitignore: $mem_dir is already ignored whole, so $entry is not needed"
+  elif grep -qxF "$entry" "$gi"; then
+    echo "ok .gitignore already has $entry"
+  else
+    # Ensure a trailing newline before appending, so the new block does not
+    # land glued onto whatever the last existing line was.
+    if [[ -s "$gi" ]] && [[ "$(tail -c1 "$gi")" != "" ]]; then
+      printf '\n' >> "$gi"
+    fi
+    printf '\n# floppy: %s\n%s\n' "$why" "$entry" >> "$gi"
+    echo "ok .gitignore: $entry"
   fi
-  printf '\n# floppy: the private memory scope — a symlink into the private memory\n# repository, never committed here (see agent-memory)\n%s\n' \
-    "$ignore_line" >> "$gi"
-  echo "ok .gitignore: $ignore_line"
-fi
+done <<EOF
+$ignore_line	the private memory scope — a symlink into the private memory repository, never committed here (see agent-memory)
+$common_ignore	the cross-project scope — per-machine links into the memory repositories, never committed here (see agent-memory)
+EOF
 
 # ---------- AGENTS.md section ----------
 agents="$repo/AGENTS.md"
