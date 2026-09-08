@@ -21,3 +21,9 @@ _site/
 # stray `git add -A` is all it takes to commit a binary nobody reads
 __pycache__/
 *.pyc
+
+# floppy: subagent memory and this machine's local overrides are working state,
+# not history. `.claude/settings.json` IS tracked — it carries the project's own
+# permission rules, and a rule nobody else gets is a rule that does not hold.
+/.claude/agent-memory/
+/.claude/settings.local.json

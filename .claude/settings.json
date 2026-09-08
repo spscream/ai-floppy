@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "mcp__basic-memory"
+    ]
+  },
+  "deniedMcpServers": [
+    {
+      "serverName": "basic-memory"
+    }
+  ]
+}
