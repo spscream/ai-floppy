@@ -164,4 +164,7 @@ if [[ ! -f "$FLOPPY_ROOT/scripts/run" ]]; then
   echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
   exit 1
 fi
-exec bash "$FLOPPY_ROOT/scripts/run" "$@"
+# $BASH, not a bare `bash`, for the reason scripts/run gives at its own exec:
+# an interpreter chosen on the command line has to survive both hops, or
+# `/bin/bash .floppy/run` silently runs the verbs on whatever PATH offers.
+exec "${BASH:-bash}" "$FLOPPY_ROOT/scripts/run" "$@"

@@ -60,7 +60,12 @@ run_script() { # script-name, then its args
     echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
     exit 1
   fi
-  exec bash "$s" "$@"
+  # $BASH, not a bare `bash`: whoever chose an interpreter for this dispatcher
+  # chose it for the verb too. A bare `bash` re-resolves through PATH, where a
+  # Homebrew bash 5 sits ahead of /bin/bash on macOS — so `/bin/bash .floppy/run
+  # status` ran memory-lint.sh and workstatus.sh on 5.x, and CI's macos-bash-3-2
+  # job tested 3.2 for the test files and nothing else (measured 2026-09-08).
+  exec "${BASH:-bash}" "$s" "$@"
 }
 
 verb="${1:-}"; shift 2>/dev/null || true

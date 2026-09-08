@@ -12,6 +12,35 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 BASH_UNDER_TEST="${BASH:-bash}"
 
+# ---------- and pin `bash` in PATH, which is the level below that ----------
+# The line above fixes ONE indirection. There are two more under it, and
+# neither was covered until 2026-09-08: every test file invokes the script it
+# is testing with a bare `bash` (about 180 call sites across 19 files), and
+# both dispatchers — shim/run and scripts/run — hand the next file on with
+# `exec bash`. All of them re-resolve through PATH, where a Homebrew bash 5
+# sits ahead of /bin/bash on the macOS runner. So on the job named
+# macos-bash-3-2, every script under test ran on bash 5 and the badge said
+# otherwise; only the test files themselves were genuinely on 3.2.
+#
+# Rewriting the call sites is the obvious fix and the wrong shape: a large diff
+# that still leaves the next `bash foo.sh` anyone writes free to regress. One
+# directory holding a single `bash` that IS the interpreter under test, put at
+# the front of PATH, covers every level below this one — the call sites, both
+# execs, and whatever is added later. tests/test-interpreter.sh asserts it
+# actually took, because a pin that stopped working would be invisible here.
+case "$BASH_UNDER_TEST" in
+  */*) real_bash="$BASH_UNDER_TEST" ;;
+  *)   real_bash="$(command -v "$BASH_UNDER_TEST" 2>/dev/null || true)" ;;
+esac
+if [[ -z "$real_bash" || ! -x "$real_bash" ]]; then
+  printf 'cannot resolve the interpreter under test (%s) to a path\n' "$BASH_UNDER_TEST" >&2
+  exit 2
+fi
+bindir="$(mktemp -d)"
+ln -s "$real_bash" "$bindir/bash"
+PATH="$bindir:$PATH"; export PATH
+trap 'rm -rf "$bindir"' EXIT
+
 # ---------- how many files run at once ----------
 # Measured 2026-08-25, this suite on a mac: 69.5s of wall time serially across
 # 16 files, and three of them — memory-dirs 15.3s, wrap-flow 13.3s,
@@ -44,7 +73,8 @@ fi
 # job count says, and a header claiming twelve jobs for one file is a small lie
 # in the first line of every filtered run.
 [[ ${#selected[@]} -lt "$njobs" ]] && njobs=${#selected[@]}
-printf 'bash: %s (%s), %s job(s)\n\n' "$BASH_UNDER_TEST" "${BASH_VERSION:-?}" "$njobs"
+printf 'bash: %s (%s), %s job(s), `bash` pinned in PATH\n\n' \
+  "$BASH_UNDER_TEST" "${BASH_VERSION:-?}" "$njobs"
 
 rc=0
 
@@ -66,7 +96,7 @@ fi
 # No `wait -n` and no associative arrays: this runner is itself executed by
 # bash 3.2 on the macOS job, where neither exists.
 outdir="$(mktemp -d)"
-trap 'rm -rf "$outdir"' EXIT
+trap 'rm -rf "$outdir" "$bindir"' EXIT
 
 pids=()
 i=0
