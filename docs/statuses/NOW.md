@@ -7,29 +7,37 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
-**The documentation is split by audience** (#48, merged 2026-09-08). Installation,
-the config reference and the skills prose left `README.md` for `docs/guide/`, in
-both languages; the front page is a landing with the two install commands still
-on it. Nothing was rewritten — review verified all 441 moved lines byte-for-byte,
-and the Russian half was the same three cuts, its outline having matched the
-English 22 headings to 22.
+**The documentation split is finished** (#48, #50, merged 2026-09-08). The
+guide, the config reference and the skills prose left `README.md` for
+`docs/guide/` in both languages; the front page is a landing with the two
+install commands. Then the archaeology — the plugin-cache post-mortem, the
+0.5.0 rename history, the 0.4.2 two-repositories incident — left the guide
+pages for `docs/lessons.md`, and the memory model and the lessons got a
+"Behind it" navigation parent. Nothing was rewritten in either half; review
+verified the moved lines byte-for-byte.
 
-**The guards changed more than the documents did.** `tests/test-docs.sh` used to
-ask "is this somewhere in README.md?"; it now asks whether each answer is in the
-file that should hold it, which is stricter — a key documented in the wrong place
-used to pass. Four one-level-deep assumptions broke on the new directory and were
-fixed: the site glob, the translation checker's scan, `workstatus`'s pre-gate,
-and the site's link rewriter. The fourth shipped two live 404s past six per-task
-reviews, because the guard written for that class was blind to its own form; a
-four-lens whole-branch review caught it, two lenses independently. Verified on the
-deployed site afterwards, not only locally: ten pages 200, zero URLs containing
-`..`, and the six new pages carry 49 fragments in the search index.
+**Four guard defects that the split exposed are all closed** (#49, #51, #52,
+#53, merged 2026-09-08):
+
+- Four one-level-deep assumptions broke on the new directory — the site glob,
+  the translation checker's scan, `workstatus`'s pre-gate, the site's link
+  rewriter. The fourth shipped two live 404s past six per-task reviews, because
+  the guard written for that class was blind to its own form. Verified on the
+  deployed site afterwards, not only locally.
+- A page-table row whose document is gone is no longer invisible: the site
+  guard now asserts in the other direction too, so a half-finished move cannot
+  ship a link to a page that was never built.
+- The interpreter is pinned in one place. See the freeze below; the note that
+  started that work turned out to be half wrong, and the corrected measurement
+  is in `macos-runner-carries-one-bash-and-it-is-3-2`.
+- `wrap-guard.sh`'s "memory wiring" error no longer advises `bash .floppy/run
+  store` where `store` would refuse. A consumer repository followed that half
+  on 2026-09-08, hit the refusal, and reported the tool as inapplicable; the
+  message now branches on whether `public_repo` and `project_key` are set.
 
 **0.19.0 is released** (2026-09-06) — tagged, published, all three manifests
-agree. It brought `--prune` to `status`'s fetch, so a branch deleted on merge
-stops being listed as live, and `metadata.as_of` with `note_stale_days`. 0.18.0
-closed the three issues a protected default branch turned from edge cases into
-the ordinary path. Details in `CHANGELOG.md`; what they froze is below.
+agree. It brought `--prune` to `status`'s fetch and `metadata.as_of` with
+`note_stale_days`. Details in `CHANGELOG.md`; what it froze is below.
 
 **The macOS temp path is measured** (#29/#30, 2026-09-06) and this one is still
 live. `<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**, not
@@ -52,6 +60,13 @@ not quote the rate without both kernel versions.
   documentation belonged to the rite — while `docs/` held only working
   documents the question did not arise. It does now, and this is the answer.
   `watched_files` is unchanged: `AGENTS.md`, `.floppy/run`, `.floppy/config`.
+- **The suite pins its interpreter in PATH, not at every call site** (shipped
+  2026-09-08, #52). `tests/run.sh` puts a directory holding one `bash` — a
+  symlink to the interpreter it was itself started with — at the front of PATH.
+  That covers the ~180 bare-`bash` call sites across 19 test files and anything
+  added later, in one place instead of 180. Do not "fix" those call sites one
+  by one; the two dispatcher execs are the exception and already carry
+  `"${BASH:-bash}"`, because they run outside the suite too.
 - **Branch protection is symmetric, and must stay so** — no bypass actors, not
   even for the owner. Both sessions writing here are the same git principal, so
   a bypass exempts both.
@@ -89,8 +104,9 @@ not quote the rate without both kernel versions.
 - **`quota.lock` holds measured numbers, and raising one is a defended edit**
   (written 2026-09-06, replacing the earlier decision to have no such file —
   that one set its own expiry at "something to measure", and a dozen notes met
-  it). `chars_max=40000` is the measured 32159 plus a tenth, rounded the way
-  `init` rounds. `note_chars_max=5000`, **not** the convention's 10000: the
+  it). `chars_max` is the measured corpus plus a tenth, rounded the way `init`
+  rounds — 55000 since 2026-09-08. `note_chars_max=5000`, **not** the
+  convention's 10000: the
   longest note here is 3223 and the mean 2297, so 10000 would never fire and
   the rule it enforces — a note over the cap is two notes written as one —
   would be decorative. `pointers_max=25` is where a flat index of ~4000
@@ -134,30 +150,13 @@ built index and the query is measured, the DOM is not.
 
 ## Open, and none of it waits on a person
 
-Nothing is blocked on a decision. What follows is work, in the order it earns:
+One item waits on a decision; the rest is work, in the order it earns:
 
-- **PR B, the other half of the split.** Three incidents move out of the guide
-  pages into `docs/lessons.md` — the plugin-cache post-mortem, the 0.5.0 rename
-  history, the 0.4.2 two-repositories incident — two of them into lessons that
-  already exist. Plus the "Behind it" navigation parent over the memory model and
-  the lessons. Described in `docs/specs/2026-09-07-documentation-split-design.md`.
-- **A page-table row whose document is gone is invisible.** Measured: delete
-  `docs/lessons.md`, keep its row and inbound links, and the suite reports 79
-  passed 0 failed while the home page links to a page never built. The loop is
-  glob-driven, so it fails in one direction only. Note:
-  `a-table-row-with-no-document-is-invisible`.
-- **The macOS job runs bash 5 for every script a test invokes.** `run.sh` hands
-  `$BASH` to each test file; the test files then call the script under test with
-  a bare `bash`. Note: `macos-job-runs-bash5-for-scripts-tests-invoke`.
-- **`wrap-guard.sh:205` advises `bash .floppy/run store` unconditionally**, in a
-  message that also fires where `public_repo` is unset and `store` therefore
-  cannot run. A consumer repository followed that half on 2026-09-08, reached a
-  dead end, and reported the tool as inapplicable; the correct fix there was the
-  other half of the same sentence. The message should branch on the config.
 - **`common/` is documented and not wired** — note
-  `common-scope-is-documented-but-not-wired`. Either wire it beside `private`,
-  or correct the status line in `docs/memory-model.md`, which currently calls
-  the subject level implemented when half of it is.
+  `common-scope-is-documented-but-not-wired`. This one **waits on the owner**:
+  either wire it beside `private`, or correct the status line in
+  `docs/memory-model.md`, which calls the subject level implemented when half
+  of it is. Sixteen notes are unreachable either way.
 
 Two smaller things, recorded so they are not rediscovered: `translation-check.py`
 runs in no workflow at all, so a stale translation is noticed by a person and
@@ -175,12 +174,18 @@ reach guard, which was measured to be stronger — an unregistered page under
 
 ## What is not true here
 
-No open issues and no open pull requests — checked against `gh` after #48
-merged, not recalled. `main` is in sync with the remote and the working tree is
-clean apart from an untracked `.claude/` that predates this work. Both memory
-stores are pushed. `quota.lock`'s `chars_max` was raised from 40000 to 55000 in
-the same commit as the five notes that needed the room, by the rule `init` uses
-to seed it.
+No open issues and no open pull requests — checked against `gh` after #53
+merged, not recalled. `main` is at `5e833b0`, local is in sync, and every
+branch those five pull requests used is deleted. The working tree is clean
+apart from an untracked `.claude/` that predates this work. Both memory stores
+are pushed. `quota.lock` is unchanged this session: one note replaced another,
+so the corpus did not grow.
+
+The note `macos-job-runs-bash5-for-scripts-tests-invoke` **no longer exists**,
+and nothing here should be read as still asserting it. It claimed the macOS job
+runs the scripts under bash 5; measured on the runner, that image carries one
+bash and it is 3.2.57. Its replacement carries the inventory and the reason the
+old claim was marked `measured` when it had only been read.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
 while three issues had been filed minutes earlier, and it spent this session
