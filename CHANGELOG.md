@@ -18,6 +18,123 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.20.0 — 2026-09-08
+
+**Refresh `.floppy/run`: yes** — the first release since 0.14.0 that says so,
+and the change is one line. The shim's last line was `exec bash`, which throws
+away an interpreter chosen on the command line: `/bin/bash .floppy/run status`
+ran the shim on `/bin/bash` and every verb under whatever `bash` PATH offered
+first. It is now `exec "${BASH:-bash}"`. The *plugin search* is untouched, so an
+un-refreshed copy still finds the plugin and still works — defer this one if you
+never name an interpreter yourself.
+
+```bash
+cp "$FLOPPY_ROOT/shim/run" .floppy/run
+```
+
+Minor rather than patch because there is a new scope with new wiring, and
+`init` writes a second `.gitignore` rule. **There is no migration to do**: a
+memory without `common/` lints, wraps and commits exactly as before, and the
+verbs create the scope on the next `store` / `workplace`.
+
+### The cross-project scope is wired, not just documented
+
+`common/` — the subject-level sibling of `projects/<key>`, for facts about no
+single project — has been in the memory model since 0.7.0 and was created,
+linked or read by no verb. It was documentation of a thing that did not exist.
+On this repository fifteen such notes sat in a private store where no session
+could reach them.
+
+`store` and `workplace` now wire it as two links under the memory directory:
+
+| path | wired by | holds |
+|---|---|---|
+| `<memory_dir>/common/shared` | `store` | facts about no one project that the team may read |
+| `<memory_dir>/common/private` | `workplace` | the same, kept off the team's repository |
+
+Two links and not one, because the two namespaces live in two different
+repositories. **Either verb alone leaves a usable half** — a machine that ran
+only `workplace` gets only `common/private`, which is the ordinary case and not
+an error.
+
+`common/` gets **no view directory** under `agents_memory_dir`, unlike every
+other scope. The symmetric shape — one `<views>/common/` holding both leaves —
+assumes one store per namespace, and the public namespace has one store per
+project; the suite's own two-store fixture, which exists for `init` and not for
+this, failed on it the first time it ran. The links go straight into each clone.
+
+Three gates had to be taught the scope separately, because each routes by path
+under its own pathspec, and each dropped it in silence:
+
+- **`lint`** checks the per-note invariants there and nothing else. A note's
+  frontmatter is a property of the note, true wherever it lives, and these notes
+  had never been checked by anything — measured on the day the scope was wired,
+  8 of 15 carried no `metadata.evidence` and one had a `name` that did not match
+  its file, so a `[[link]]` to it resolved by luck. It does **not** apply the
+  index tree or `quota.lock`: those ceilings are measurements of one project's
+  corpus, and a corpus several projects write to would be wearing a borrowed cap.
+- **A committed note may not link into `common/`**, the rule that already held
+  for the private scope and for the same reason: both are wired per machine, so
+  a relative link into either is dead for anyone who has not wired it. Routing
+  is the reader's job — `start` names the scope — not a pointer's.
+- **`commit`** peels the two leaves off before the project arm claims them and
+  sends each to the repository it actually resolves into. A leaf pointing
+  somewhere else is **refused by name rather than committed to the wrong
+  repository**: notes going to a repository the session never reported writing
+  to is the failure worth a hard stop.
+
+`lint`'s clean line now names the foreign corpora rather than counting them into
+silence — `clean: 20 notes, 20 pointers across 1 indexes (also checked 15 in
+common/)`. A green run reporting "20 notes" while quietly checking 35 teaches
+the reader that the number is the whole memory.
+
+### `status --flow` reports stale translations
+
+Where a repository keeps `<stem>.<lang>.md` documents carrying the translation
+marker on line 1 — the HTML comment naming `of=`, `blob=` and `on=`, whose one
+authority is `translation-check.py --list` — the flow report now says which have
+drifted from the source they name. The section prints only where the
+checker actually lists something, so a repository with no translations sees no
+heading — the same rule as the worktree line.
+
+The shell asks; `translation-check.py --list` answers. The pre-gate in
+`workstatus.sh` is deliberately loose and decides one thing only, whether
+starting python is worth it. It uses `?` and never a bracket range: a range is
+matched through `LC_COLLATE`, and on the macOS runner — collation `aAbBcC…` —
+`[a-z]` also matched an uppercase tag, so `guide.RU.md` counted as a
+translation and turned the `macos-bash-3-2` leg red. A single-character wildcard
+has no endpoints for a locale to reorder.
+
+### The guard stopped advising a command that would refuse
+
+`wrap-guard.sh`'s memory-wiring error told everyone to run `bash .floppy/run
+store`. In a repository with no `public_repo` and no `project_key` that verb
+refuses, so the advice was a dead end: a consumer followed it on 2026-09-08, hit
+the refusal, and reported the tool as inapplicable. The message now branches on
+whether those keys are set, and points at `init` where they are not.
+
+### Also in this release, not shipped to consumers
+
+The user documentation left `README.md`. The guide, the config reference and the
+skills prose are under `docs/guide/` in both languages, the front page is a
+landing with the two install commands, and the archaeology — the plugin-cache
+post-mortem, the 0.5.0 rename, the 0.4.2 two-repositories incident — is in
+`docs/lessons.md`. Nothing was rewritten in either language; review verified the
+moved lines byte-for-byte.
+
+That move broke four guards at once, all of them assuming exactly one directory
+level, and one of them shipped two live 404s past six per-task reviews because
+the guard written for that class was blind to its own form. The site's page
+table is now asserted in both directions, so a row whose document was never
+built fails the suite instead of printing `ok`.
+
+`tests/run.sh` pins its interpreter by putting a directory holding one `bash` —
+a symlink to the interpreter it was started with — at the front of PATH. That
+covers ~180 bare-`bash` call sites across 19 test files, and everything added
+later, in one place. The claim that the macOS job ran the scripts under bash 5
+was retracted: measured on the runner, that image carries one bash and it is
+3.2.57.
+
 ## 0.19.0 — 2026-09-06
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this release
