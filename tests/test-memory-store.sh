@@ -118,7 +118,18 @@ guard_out="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard docs/a
 guard_rc=$?
 assert_eq       "ignored-but-not-external fails the guard" "1" "$guard_rc"
 assert_contains "and names the real cause"   "nothing will ever commit these notes" "$guard_out"
-assert_contains "and points at the fix"      "run store" "$guard_out"
+# This repository has no public_repo, so `store` would refuse (exit 2) — the
+# advice it gets must be the half it can act on. A consumer followed the other
+# half on 2026-09-08, hit the refusal, and reported the tool as inapplicable.
+assert_contains "and points at the fix it can take" "Drop the ignore line" "$guard_out"
+assert_contains "and says why store is not it"     "without both keys" "$guard_out"
+
+# With a destination configured the other half becomes actionable, and the
+# message offers it. Same guard, same broken state — only the config differs.
+printf 'memory_dir=.agent-memory\nwatched_dirs=docs\npublic_repo=%s\nproject_key=acme\n' "$remote" > "$repo3/.floppy/config"
+guard_out="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard docs/a.md 2>&1)"
+assert_contains "a configured repository is sent to store" "run store" "$guard_out"
+printf 'memory_dir=.agent-memory\nwatched_dirs=docs\n' > "$repo3/.floppy/config"
 
 # A memory that is neither ignored nor external — the ordinary layout — must
 # not trip it. Without this the check above could be passing on everything.

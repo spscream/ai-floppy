@@ -200,9 +200,21 @@ done
 # Without this the failure still surfaced, but wearing the wrong name: the
 # guard reported "not changed: wrong path, or the edit was lost" for every note,
 # at the end of the session, pointing at the edit instead of at the wiring.
+#
+# The second half of that advice is only advice where it can be taken. `store`
+# refuses without both public_repo and project_key (memory-store.sh:46, exit 2),
+# so in a repository that never opted into an external store the sentence names
+# a command that cannot run. Measured 2026-09-08 in a consumer repository: the
+# reader followed that half, hit the refusal, and reported the tool as
+# inapplicable — while the other half of the same sentence was the correct fix.
+# So the message branches on the config instead of offering both every time.
 if [[ "$external" == "0" && -e "$mem_dir" ]] && git check-ignore -q -- "$mem_dir" 2>/dev/null; then
   hr "memory wiring"
-  err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Either drop the ignore line, or finish the external setup so the path resolves into the store (bash .floppy/run store)"
+  if [[ -n "${FLOPPY_MEMORY_REPO:-}" && -n "${FLOPPY_MEMORY_PROJECT_KEY:-}" ]]; then
+    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Either drop the ignore line, or finish the external setup so the path resolves into the store (bash .floppy/run store)"
+  else
+    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Drop the ignore line so this repository commits them — or, to host them elsewhere, set public_repo and project_key in .floppy/config first, because without both keys \`bash .floppy/run store\` refuses and cannot be the fix"
+  fi
 fi
 
 # ---------- the external memory is actually wired to publish ----------
