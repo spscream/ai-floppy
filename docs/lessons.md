@@ -23,6 +23,15 @@ On 2026-08-25 the memory layout was renamed **four times in one day**:
 one before it, and every one was derived from the situation rather than from a
 written model.
 
+Which version shipped which: before 0.5.0 the two scopes were
+`projects/<key>/memory` and `projects/<key>` itself, and the second contained
+the first whenever one repository served both, so the private notes and the
+shared memory sat in one tree. In 0.5.0 and 0.5.1 the second one was
+`projects/<key>/local`; 0.6.0 renamed it to `private`, because that name says
+"machine-local" and the scope is nothing of the sort. 0.7.0 moved the audience
+to a namespace directory at the top and dropped the leaf that repeated it —
+the layout that [memory-model.md](memory-model.md) describes.
+
 The cause: each name glued two independent axes together. `local` said "about
 this machine" but meant "private to a project, shared between machines".
 `workplace_repo` named an audience with a word from the "where is it true"
@@ -121,6 +130,26 @@ already knows, and the two would diverge **precisely in the dangerous case**:
 the symlink was not created, the config still says "external", writes land in
 an ordinary directory inside the code repository, and the ignore rule hides
 them there. Resolving a path cannot be wrong about where a write will go.
+
+This is not hypothetical: the derivation replaced a pair of config keys that
+had already collided. Before version 0.4.2, `store` and `workplace` each
+had its own directory key, and the two keys had the same default value. If you
+set both keys, they gave one directory. No message told you. Measured on
+2026-08-25, in that condition:
+
+- The first verb cloned its repository into the directory.
+- The second verb found a `.git` directory there, and did not clone.
+- The second verb did not compare the remote with the configured URL.
+- The second verb reported "ok a write through the link lands in the workplace
+  repository".
+- The notes went into the store repository instead. `commit` would have pushed
+  them there.
+
+Nothing was red at any point. What removed the condition was to stop asking the
+config where the checkout goes: the directory is derived from the URL, so two
+URLs cannot give one directory. The guard came with it, for the state no correct
+mode expresses — a checkout already at that path whose `origin` is not the
+configured URL.
 
 Applying it:
 

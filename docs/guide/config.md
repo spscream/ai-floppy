@@ -81,9 +81,9 @@ two clones. There is one clone for each repository, never one for each project.
 If `public_repo` and `private_repo` hold the same URL, there is one clone,
 and both scopes are in it, beside each other.
 
-## The scope names changed in 0.5.0
+## Where the scopes are
 
-The scopes are now two directories beside each other:
+The scopes are two directories beside each other:
 
 ```
 public/projects/<key>      in public_repo
@@ -94,15 +94,12 @@ Below either of them, a note that is **not** true everywhere goes one level
 deeper: `workplaces/<workplace_key>/` or `machines/<machine_key>/`. A note that
 is true everywhere sits directly in the scope, which is the common case.
 
-Before 0.5.0 they were `projects/<key>/memory` and `projects/<key>` itself. The
-second one contained the first whenever one repository served both, so the
-private notes and the shared memory were in one tree. In 0.5.0 and 0.5.1 the
-second one was `projects/<key>/local`; 0.6.0 renamed it to `private`, because
-that name says "machine-local" and the scope is nothing of the sort. 0.7.0
-moved the audience to a namespace directory at the top and dropped the leaf
-that repeated it — see [docs/memory-model.md](../memory-model.md). It is private to the
-project and every machine of the workplace reads it. Facts about ONE machine
-go to `machines/<name>/` of the workplace repository.
+The private scope is private to the project, and every machine of the workplace
+reads it — see [docs/memory-model.md](../memory-model.md). Facts about ONE
+machine go to `machines/<name>/` of the workplace repository.
+
+These names are the current set and not the first. What the renames before
+them cost is in [the lessons](../lessons.md).
 
 If your repository still uses the old names, the verb stops and prints the
 `git mv` commands. It does not move the notes itself. Two reasons: these notes
@@ -116,21 +113,7 @@ A project can use `store` and `workplace` together. `store` moves all of the
 memory into a different repository. `workplace` attaches a shared scope at
 `<memory_dir>/private`. These can be two different repositories.
 
-Before version 0.4.2, each of the two had its own directory key, and the two
-keys had the same default value. If you set both keys, they gave one directory.
-No message told you.
-
-Measured on 2026-08-25, in that condition:
-
-- The first verb cloned its repository into the directory.
-- The second verb found a `.git` directory there, and did not clone.
-- The second verb did not compare the remote with the configured URL.
-- The second verb reported "ok a write through the link lands in the workplace
-  repository".
-- The notes went into the store repository instead. `commit` would have pushed
-  them there.
-
-Two changes prevent this condition:
+Two changes keep the two repositories apart:
 
 - The checkout directory comes from the URL. Thus two URLs cannot give one
   directory.
@@ -138,7 +121,8 @@ Two changes prevent this condition:
   configured URL. If the two are different, the verb stops, and shows both.
 
 The second change also finds a different problem: an unrelated repository at
-that path.
+that path. Before 0.4.2 neither check existed, and the two verbs shared one
+directory in silence — [the lessons](../lessons.md) have the measurement.
 
 You do not need to move anything. If a checkout is already at the parent
 directory, floppy continues to use it, and the verb tells you so.
