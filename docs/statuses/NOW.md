@@ -131,13 +131,20 @@ green**. Do not quote the rate without both kernel versions.
   closing quote is glued to its last row, and the first derivation dropped
   `ru-lessons` in silence.
 
-## Open, and one item waits on a person
+## Open
 
-- **Two homes now exist for a cross-project fact**, and nothing decides between
-  them: `basic-memory`, which the owner's global rules name, and
-  `common/private`, which floppy wires as of 2026-09-08 and which `start` reads.
-  **Waits on the owner** — this is a decision about where their memory lives,
-  not a chore, and consolidating in either direction moves notes.
+- **The status could be written as the session runs, not at `wrap`.** `wrap`
+  fires where context is largest and the accumulated change is biggest — a turn
+  at 400–500k context costs $0.20–0.25 in cache reads alone, and a wrap spends
+  several of them collecting facts, reconciling the status, writing the index.
+  Selecting facts *when they appear* would leave wrap with checking and
+  committing. It belongs in the plugin (`wrap` / `workstatus` and their
+  conventions), not in a per-project rule, because the plugin already owns both
+  the status format and the moment it is written. The same principle is already
+  in force for rejected options, which are recorded at the moment of refusal
+  because a compaction leaves nothing to recover the reasoning from. Not
+  designed, not scheduled — brought here 2026-09-08 from the store where it was
+  written and could not be seen.
 - **`translation-check.py` has no gate for the contract half outside the
   suite**, by design, but nothing runs it on a *consumer's* repository either:
   `workstatus.sh` reports it and `status --flow` is the only place it surfaces.
@@ -154,6 +161,18 @@ merged, not recalled. `main` is at `79872c5`, local is in sync, and every branch
 those three pull requests used is deleted on both sides. The working tree is
 clean apart from an untracked `.claude/` that predates this work. Both memory
 stores are committed and pushed.
+
+**The cross-project home is decided** (2026-09-08). `basic-memory` is denied in
+this repository — `.claude/settings.json` carries both a `permissions.deny` rule
+and a `deniedMcpServers` entry, so the server does not even connect here, while
+staying untouched for the projects that use it. Ten notes were carried over
+first: eight into `knowledge/notes/` (five harness, three shell, two practice —
+counting by area, the two practice notes are the git/measurement pair) and one
+into `common/private`; two candidates were dropped as duplicates of notes this
+memory already holds. Four of the new notes carry an executable `recheck_cmd`,
+which took the machine-checkable half of the base from five notes to nine. The
+argument and the condition for revisiting are in
+`basic-memory-is-off-in-this-repository`.
 
 `quota.lock` is unchanged this session: no note was written, so the corpus
 stands at 20 notes and 20 pointers against a ceiling of 25. The 15 notes in
