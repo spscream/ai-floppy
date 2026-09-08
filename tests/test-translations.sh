@@ -206,4 +206,25 @@ done < <("$py" scripts/translation-check.py --list)
 # Deliberately absent: any assertion that these files are up to date. See the
 # header of this file.
 
+# ---------- the drift workflow is wired to the checker ----------
+# Same reasoning as the knowledge schedule in test-knowledge.sh and the pages
+# workflow in test-site.sh: a workflow that stopped calling the script would
+# keep running, keep going green, and say nothing — and this one is the ONLY
+# thing watching drift, because the loop above deliberately refuses to.
+tw="$(cat .github/workflows/translations.yml 2>/dev/null || true)"
+assert_contains "the drift workflow runs the checker" "translation-check.py" "$tw"
+# On main, not on pull_request. Gating a branch on freshness is the thing this
+# checker exists not to do — it would turn a typo fix in an English document
+# into bilingual work. The assertion is that the trigger stayed that way.
+assert_contains "and is triggered by a push to main" "branches: [main]" "$tw"
+# A full checkout, because the checker resolves the blob sha its marker
+# recorded. Under the default shallow fetch that object is absent and every
+# translation reports behind on a repository that is fine — a false red that
+# would file an issue naming every document.
+assert_contains "and checks out full history, not a shallow clone" "fetch-depth: 0" "$tw"
+# The result has to land where a person sees it, and has to stop being there
+# once it is fixed. Without the close, the label trains everyone to ignore it.
+assert_contains "and files an issue for drift" "gh issue create" "$tw"
+assert_contains "and closes it again when the corpus is clean" "gh issue close" "$tw"
+
 summary

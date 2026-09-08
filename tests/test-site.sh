@@ -307,7 +307,33 @@ assert_eq "the Behind it hub lists exactly its two children" "2" \
 hub="$(cat "$out/ru.md" 2>/dev/null || true)"
 assert_contains "the Russian hub exists"       "title: Русский"     "$hub"
 assert_contains "and declares itself a parent" "has_children: true" "$hub"
-for ru_page in ru-index ru-install ru-config ru-skills ru-memory-model ru-lessons; do
+# Derived from the page table rather than hand-written. The list used to be a
+# literal here, and a seventh Russian page would have joined the hub with no
+# assertion of its own — the same hole the "Behind it" block above describes,
+# in the block that had it first. Reading the table means a page added there is
+# covered on the commit that adds it.
+#
+# Derivation alone would be self-agreeing: a table row the builder skips is a
+# row this loop skips too, and the pair would report ok over a missing page.
+# The literal count below is what the derivation cannot fake, so the two are
+# kept together — a new page reddens the count until a person changes it
+# deliberately, and the loop then covers that page without a second edit.
+#
+# Both quotes have to be stripped, and the closing one is the trap: it is glued
+# to the last row, so that page's parent reads "Русский'" and the row drops out
+# of the loop in silence. The count assertion below caught exactly that while
+# this was being written.
+ru_pages=()
+while IFS='|' read -r _src tgt _title _order parent; do
+  [[ "$parent" == "Русский" ]] || continue
+  ru_pages+=("${tgt%.md}")
+done < <(sed -n "/^pages='/,/'\$/p" scripts/site-build.sh | sed "s/^pages='//; s/'\$//")
+
+# Asserted before the loop, because a loop over an empty list passes every
+# assertion it does not make. This is the failure mode a green report hides.
+assert_eq "the page table yields six Russian pages" "6" "${#ru_pages[@]}"
+
+for ru_page in "${ru_pages[@]}"; do
   assert_contains "the hub links to $ru_page"        "$ru_page.html" "$hub"
   assert_contains "$ru_page names its parent"        "parent: Русский" \
     "$(cat "$out/$ru_page.md" 2>/dev/null || true)"

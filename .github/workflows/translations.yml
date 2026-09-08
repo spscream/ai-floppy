@@ -1,0 +1,132 @@
+name: translations
+
+# Watches for translations that have fallen BEHIND their source.
+#
+# Why this is a workflow of its own and not a step in tests.yml. The suite
+# already covers the other half: tests/test-translations.sh walks this
+# repository's real translations and reddens a marker that is malformed, names
+# a source that does not exist, or is stamped in the future. That is the
+# contract, it is wrong rather than merely old, and a gate is right for it.
+#
+# Drift is the opposite case. `translation-check.py` reports it and never exits
+# non-zero on purpose, and gating it on `pull_request` would turn every typo fix
+# in an English document into bilingual work — or, worse, teach whoever is in a
+# hurry to re-stamp without re-reading, which converts a stale translation into
+# a fresh-looking one and destroys the only signal the record carries. The same
+# reasoning is frozen for `metadata.as_of` in the memory linter and for
+# knowledge-rot-check.py.
+#
+# So the decision to act lives here, in the workflow, and the action is to tell
+# a person rather than to stop anything. `main` only: drift is created by a
+# merge, not by a branch, and a branch that will be rebased has nothing to say.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    # Both, and `contents` is not redundant with the workflow-level block
+    # above: a job-level `permissions` REPLACES it rather than adding to it, so
+    # naming only `issues` here would leave the checkout below with no read
+    # token. knowledge.yml gets away with issues-only because the job that
+    # holds it never checks anything out.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The checker compares the source against the blob sha its marker
+          # recorded, and resolves that sha with `git cat-file`. A shallow
+          # checkout has the current blob and not the recorded one, so every
+          # translation would be reported behind on a repository that is fine.
+          fetch-depth: 0
+
+      # Printed whatever the outcome, so the run's log is the report and the
+      # issue below is only the notification.
+      - name: report
+        run: python3 scripts/translation-check.py
+
+      - name: file or close the drift issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # `untranslated` is deliberately not a trigger: a document nobody has
+          # chosen to translate is not a defect, and making it one would mean
+          # every new English page opens an issue on the day it lands.
+          # A crash inside the checker is not "no drift". It catches its own
+          # exceptions and still exits 0 — the one rule it may never break —
+          # which means an empty stdout here is the difference between a clean
+          # corpus and a checker that died, and reading it as clean would close
+          # the issue on a report nobody produced. This step is the one place
+          # allowed to be loud about that, because it is not the gate the
+          # script refuses to be: it fails on the tool being broken, never on a
+          # translation being old.
+          behind="$(python3 -c '
+          import json, subprocess, sys
+          out = subprocess.run([sys.executable, "scripts/translation-check.py", "--json"],
+                               capture_output=True, text=True).stdout
+          try:
+              d = json.loads(out)
+          except ValueError:
+              sys.stderr.write("::error::translation-check.py printed no JSON — the checker itself failed\n")
+              sys.exit(1)
+          print("\n".join("  " + i["path"] for i in d["behind"]))
+          ')"
+
+          # The label is created here rather than assumed. `gh issue create`
+          # fails outright on a label that does not exist, and a workflow whose
+          # only failure mode is a missing repository setting is the same defect
+          # as advice pointing at a command that refuses.
+          if ! gh label list --limit 100 --json name -q '.[].name' | grep -qx translation-drift; then
+            gh label create translation-drift --color d876e3 \
+              --description "A translation is stamped against an older version of its source"
+          fi
+
+          existing="$(gh issue list --state open --label translation-drift \
+            --limit 1 --json number -q '.[0].number // empty')"
+
+          if [ -z "$behind" ]; then
+            # Closed automatically, unlike the knowledge-rot issue, because this
+            # condition has an unambiguous end: the checker says clean or it does
+            # not. Leaving it open would train everyone to ignore the label.
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Every translation matches its source again. Run: $RUN"
+              gh issue close "$existing"
+            fi
+            exit 0
+          fi
+
+          body="These translations were stamped against an older version of their source:
+
+          $behind
+
+          For each one: read what changed in the source, bring the translation up to it, then re-stamp.
+
+          \`\`\`bash
+          python3 scripts/translation-check.py            # names the source blob and prints a diff recipe per file
+          python3 scripts/translation-check.py --stamp <path>
+          \`\`\`
+
+          Do not re-stamp without reading the diff. The record is only worth something because it means somebody looked.
+
+          Run: $RUN
+
+          This issue is updated while the condition holds and closed automatically once the checker is clean."
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still behind. Run: $RUN
+
+          $behind"
+          else
+            gh issue create --label translation-drift \
+              --title "a translation is behind its source" --body "$body"
+          fi
