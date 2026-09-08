@@ -202,3 +202,107 @@ ignore_wiring_link() {
     echo "ok told $(basename "$iw_top") to ignore the wiring link $iw_rel (commit its .gitignore)"
   fi
 }
+
+# link_common_scope <clone> <namespace> <leaf> <memory-dir>
+# Wires the subject-level sibling of projects/<key>: `common/`, for facts that
+# are about no single project. <namespace> is the audience directory the
+# caller's own scope already sits under (public or private), and <leaf> is the
+# name that namespace carries (`shared` or the private dir), so the two verbs
+# together build <memory_dir>/common/{shared,private}.
+#
+# Why both verbs call this rather than a `common` verb of its own. A machine
+# does not wire this scope separately: whoever ran `store` or `workplace` has
+# already said where that repository is, and the common scope is a sibling
+# directory inside it. A separate command would leave the ordinary case — one
+# store wired, the other not — with a documented scope and no link to it, which
+# is the exact state this scope spent 0.7.0 through 0.19.0 in: sixteen notes in
+# the private store that no session could reach, because `common/` is a SIBLING
+# of what <memory_dir>/private points at and cannot be reached through it.
+#
+# NO VIEW HOP, unlike every other scope here, and this is the one asymmetry in
+# the file worth reading twice. The obvious shape — one <views>/common/
+# directory holding `shared` and `private`, mirroring <views>/<key>/ — assumes
+# there is ONE store per namespace to point at. For the private namespace that
+# holds; for the public one it does not, and the difference is not theoretical:
+# a second project wiring a second public store under the same
+# agents_memory_dir wants <views>/common/shared to mean its own store, and
+# view_link correctly refuses to repoint memory wiring. Measured 2026-09-08 —
+# the suite's own two-store fixture failed on the first draft, which is what
+# the fixture is for. Linking straight into the clone has no global name to
+# collide over and works for any number of stores.
+#
+# It creates the directory and never seeds a file into it. The scope is flat
+# with a README, like the private one, and an INDEX.md written by a script is
+# an index nobody chose the shape of.
+link_common_scope() {
+  lc_clone="$1"; lc_ns="$2"; lc_leaf="$3"; lc_mem="$4"
+  lc_target="$lc_clone/$lc_ns/common"
+  mkdir -p "$lc_target"
+
+  # The container is this plugin's own wiring, not memory: it holds one symlink
+  # per namespace and never a note. A symlink standing here is an earlier
+  # draft's view hop; a file is somebody's doing and is refused rather than
+  # cleared, on the same rule as everywhere else in this file.
+  lc_dir="$lc_mem/common"
+  if [[ -L "$lc_dir" || ( -e "$lc_dir" && ! -d "$lc_dir" ) ]]; then
+    echo "x $lc_dir is not a directory, and the cross-project scope needs one"
+    echo "  Remove it by hand and run this again. Nothing was moved or deleted."
+    return 1
+  fi
+  mkdir -p "$lc_dir"
+
+  lc_link="$lc_dir/$lc_leaf"
+  lc_want="$(cd "$lc_target" && pwd -P)"
+  if [[ -L "$lc_link" ]]; then
+    if [[ -d "$lc_link" ]]; then lc_cur="$(cd "$lc_link" && pwd -P)"; else lc_cur="$(readlink "$lc_link")"; fi
+    if [[ "$lc_cur" == "$lc_want" ]]; then
+      echo "ok common/$lc_leaf already wired"
+    else
+      echo "x $lc_link points at $lc_cur, not $lc_want"
+      echo "  Sort this out by hand — it may be another store."
+      return 1
+    fi
+  elif [[ -e "$lc_link" ]]; then
+    # Same refusal the two verbs make for their own scope, for the same reason:
+    # those notes may be the only copies in existence.
+    lc_n="$(find "$lc_link" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+    echo "x a real directory sits where common/$lc_leaf belongs, with $lc_n memory file(s) in it."
+    echo "  Move them into $lc_target yourself, remove the directory, and run this again."
+    echo "  Nothing was moved or deleted: this script does not decide the fate of memory."
+    return 1
+  else
+    ln -s "$lc_want" "$lc_link"
+    echo "ok common/$lc_leaf -> $lc_want"
+  fi
+
+  # With a store, <memory_dir> is itself a symlink into the store's working
+  # tree, so this wiring lands inside a repository that is not the consumer's.
+  ignore_wiring_link "$lc_link"
+
+  # And when the memory lives in the consumer's own repository, that call says
+  # nothing by design — for the private scope `init`'s ignore rule already
+  # covers it, and there is no such rule for this one. Without a line here the
+  # container is an untracked directory of absolute symlinks: measured
+  # 2026-09-08, the wrap guard reported it as somebody else's untracked change
+  # and refused every commit in the layout where memory_dir is a real directory.
+  # The whole container, not each leaf: it holds nothing but wiring.
+  lc_here="${lc_dir#"${FLOPPY_REPO:-/nonexistent}"/}"
+  [[ "$lc_here" != "$lc_dir" ]] || return 0    # not inside the consumer's repository
+
+  # Ask about the MEMORY DIRECTORY, not the container inside it. In the store
+  # layout that directory is a symlink, and `git check-ignore` answers a path
+  # beyond a symbolic link with `fatal: ... is beyond a symbolic link` and exit
+  # 128 — which a plain `if !` reads as "not ignored". Measured 2026-09-08 on
+  # this plugin's own checkout: it appended the rule to a repository that
+  # already ignores the whole memory, once per verb, so two identical blocks
+  # appeared in a file neither verb should have touched at all.
+  lc_mem_here="${lc_mem#"$FLOPPY_REPO"/}"
+  git -C "$FLOPPY_REPO" check-ignore -q -- "$lc_mem_here" 2>/dev/null && return 0
+  grep -qxF "/$lc_here/" "$FLOPPY_REPO/.gitignore" 2>/dev/null && return 0
+  git -C "$FLOPPY_REPO" check-ignore -q -- "$lc_here" 2>/dev/null && return 0
+
+  printf '\n# per-machine wiring, not memory: links into the cross-project scope\n/%s/\n' "$lc_here" \
+    >> "$FLOPPY_REPO/.gitignore"
+  echo "ok added /$lc_here/ to .gitignore (commit it)"
+  return 0
+}

@@ -186,6 +186,45 @@ if [[ -n "$priv_store" ]]; then
   files=("${_rest[@]+"${_rest[@]}"}")
 fi
 
+# The cross-project scope, wired 2026-09-08. Peeled off BEFORE the arm below,
+# which matches "$mem_dir"/* and would otherwise swallow both leaves: a note
+# written to common/shared belongs at <namespace>/common/<note> in the store,
+# and staging it under the project's own prefix names a path that does not
+# exist there — where `git add` fails and takes the whole commit with it.
+#
+# The two leaves land in the two repositories the rite already closes, at a
+# different path inside them, so they join those file lists rather than opening
+# a third and fourth section. A leaf resolving somewhere else is a layout no
+# verb here builds; it is refused by name rather than committed to the wrong
+# repository.
+common_dir="common"
+cs_files=(); cp_files=()
+if [[ -n "${FLOPPY_COMMON_SHARED_STORE:-}" || -n "${FLOPPY_COMMON_PRIVATE_STORE:-}" ]]; then
+  _rest=()
+  for f in "${files[@]+"${files[@]}"}"; do
+    f="${f#./}"
+    case "$f" in
+      "$mem_dir/$common_dir/shared"/*)
+        rel="${f#"$mem_dir/$common_dir/shared"/}"
+        cs_files+=("${FLOPPY_COMMON_SHARED_PREFIX:+${FLOPPY_COMMON_SHARED_PREFIX}/}$rel") ;;
+      "$mem_dir/$common_dir/$priv_dir"/*)
+        rel="${f#"$mem_dir/$common_dir/$priv_dir"/}"
+        cp_files+=("${FLOPPY_COMMON_PRIVATE_PREFIX:+${FLOPPY_COMMON_PRIVATE_PREFIX}/}$rel") ;;
+      *) _rest+=("$f") ;;
+    esac
+  done
+  files=("${_rest[@]+"${_rest[@]}"}")
+fi
+if [[ ${#cp_files[@]} -gt 0 ]]; then
+  if [[ "${FLOPPY_COMMON_PRIVATE_STORE:-}" != "$priv_store" ]]; then
+    echo "  $common_dir/$priv_dir resolves into ${FLOPPY_COMMON_PRIVATE_STORE:-nowhere}, not the workplace"
+    echo "  repository $priv_store this rite closes. Nothing was committed: those notes"
+    echo "  would go to a repository the session never reported writing to."
+    exit 1
+  fi
+  priv_files+=("${cp_files[@]}")
+fi
+
 if [[ "$external" == "1" ]]; then
   mem_prefix=""
   [[ -n "$store" && "$mem_real" != "$store" ]] && mem_prefix="${mem_real#"$store"/}"
@@ -199,6 +238,15 @@ if [[ "$external" == "1" ]]; then
   done
 else
   proj_files=("${files[@]+"${files[@]}"}")
+fi
+if [[ ${#cs_files[@]} -gt 0 ]]; then
+  if [[ "${FLOPPY_COMMON_SHARED_STORE:-}" != "$store" ]]; then
+    echo "  $common_dir/shared resolves into ${FLOPPY_COMMON_SHARED_STORE:-nowhere}, not the store"
+    echo "  $store this rite closes. Nothing was committed: those notes would go to a"
+    echo "  repository the session never reported writing to."
+    exit 1
+  fi
+  store_files+=("${cs_files[@]}")
 fi
 
 store_unpushed=0

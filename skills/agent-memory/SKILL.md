@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: Conventions for the durable session memory this toolkit keeps — one fact per file, note frontmatter and metadata.evidence, the three-level index tree, the quota.lock ratchet, and which of project/workplace/machine scope a fact belongs to. Load this before writing, moving, or reorganizing a memory note, or whenever start/workstatus/wrap need the ground rules — they assume these conventions rather than restate them.
+description: Conventions for the durable session memory this toolkit keeps — one fact per file, note frontmatter and metadata.evidence, the three-level index tree, the quota.lock ratchet, and which of project/cross-project/workplace/machine scope a fact belongs to. Load this before writing, moving, or reorganizing a memory note, or whenever start/workstatus/wrap need the ground rules — they assume these conventions rather than restate them.
 ---
 
 # Agent memory
@@ -195,6 +195,28 @@ Confusing "private" with "machine-bound" is the mistake this scope exists to
 prevent: a fact can be private to a workplace and still need to sync between
 that workplace's machines, which a plain `.gitignore`'d local directory
 cannot do.
+
+**A second question, independent of that one: is the fact about THIS project at
+all?** An evaluation of an outside tool, a shell trap, what this machine has
+installed — those are true in every project, and filing them under one project
+buries them for the others. They belong in the cross-project scope,
+`<memory_dir>/common/`, which holds one link per audience: `common/shared` for
+what the team may read and `common/private` for what stays off their
+repository. Both are wired by `store` and `workplace` respectively, so a
+machine that ran only one of them has only that half.
+
+Two rules follow from where those links point, and both are checked:
+
+- **Nothing in the committed index links into `common/`** — nor into the
+  private scope. Both are wired per machine, so a pointer into either is dead
+  for anyone who has not wired it. A session reaches the scope because `start`
+  names it, not because a pointer led there; `lint` fails on such a link.
+- **A note in `common/` obeys the same frontmatter rules as any other.** It is
+  read by sessions on projects that know nothing about where it came from, so
+  `metadata.evidence` matters more there, not less.
+
+The quota does not reach it, and that is deliberate: `quota.lock` holds
+measurements of ONE project's corpus, and `common/` is written by several.
 
 ## The memory may not live in this repository at all
 

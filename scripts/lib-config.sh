@@ -197,6 +197,47 @@ if [[ -d "$_priv" ]]; then
   fi
 fi
 export FLOPPY_PRIVATE_REAL FLOPPY_PRIVATE_STORE
+
+# The cross-project scope, wired 2026-09-08. `common/` is the SUBJECT sibling
+# of projects/<key> in the same store — facts about no single project — and it
+# reaches a session as one link per namespace: <memory_dir>/common/shared into
+# the public store, <memory_dir>/common/<private> into the private one.
+#
+# It needs its own derivation and cannot borrow the two above, because the
+# prefix is what differs. A note written to common/shared belongs at
+# public/common/<note> in the store; reusing the project scope's prefix would
+# stage it at public/projects/<key>/common/shared/<note>, a path that does not
+# exist there — and `git add` of a path that matches nothing takes the whole
+# commit with it. Measured as a design fault before the scope shipped, not
+# after: nothing derived these paths while the scope was documented and
+# unwired, which is the half-implementation this wiring closes.
+#
+# Derived, never configured, for the reason every path above is: a key in a
+# file disagrees with the filesystem exactly when the link is what failed to
+# be created.
+_derive_common() { # $1 = leaf under common/, $2 = variable stem
+  _dc_path="$FLOPPY_MEMORY_REAL/common/$1"
+  _dc_real=""; _dc_store=""; _dc_prefix=""
+  if [[ -d "$_dc_path" ]]; then
+    _dc_real="$(cd "$_dc_path" && pwd -P)"
+    _dc_top="$(git -C "$_dc_real" rev-parse --show-toplevel 2>/dev/null || true)"
+    # Only a repository that is not this one. A plain common/ directory inside
+    # a memory this repository holds itself is already covered by every gate
+    # here, and a second one would double-report it. Unlike the private scope
+    # above, the memory store is NOT excluded: common/shared normally resolves
+    # into that very repository, at a different path, and that path is the
+    # whole reason this block exists.
+    if [[ -n "$_dc_top" && "$_dc_top" != "$_repo_real" ]]; then
+      _dc_store="$_dc_top"
+      [[ "$_dc_real" != "$_dc_store" ]] && _dc_prefix="${_dc_real#"$_dc_store"/}"
+    fi
+  fi
+  eval "FLOPPY_${2}_REAL=\"\$_dc_real\"; FLOPPY_${2}_STORE=\"\$_dc_store\"; FLOPPY_${2}_PREFIX=\"\$_dc_prefix\""
+}
+_derive_common shared COMMON_SHARED
+_derive_common "$FLOPPY_MEMORY_PRIVATE_DIR" COMMON_PRIVATE
+export FLOPPY_COMMON_SHARED_REAL FLOPPY_COMMON_SHARED_STORE FLOPPY_COMMON_SHARED_PREFIX
+export FLOPPY_COMMON_PRIVATE_REAL FLOPPY_COMMON_PRIVATE_STORE FLOPPY_COMMON_PRIVATE_PREFIX
 # Where this project's memory is hosted when it cannot live in this repository.
 # No defaults, deliberately: a project that never opted in must not be pointed
 # at somebody else's store. Read by `store`; the rest of the rite derives the

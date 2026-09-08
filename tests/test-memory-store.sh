@@ -71,10 +71,36 @@ assert_eq "the code repository ignores it" "0" \
 env_out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1)"
 assert_contains "the shim derives the external layout" "FLOPPY_MEMORY_EXTERNAL=1" "$env_out"
 
+# ---------- the cross-project scope, wired beside the project's own ----------
+# public/common is the subject-level sibling of public/projects/<key>: facts
+# about no single project. Documented from 0.7.0 and wired by nothing until
+# 2026-09-08, which left notes in the store that no session could reach.
+assert_contains "it wires the common scope"           "common/shared" "$OUT"
+assert_eq "the link lands beside the project's memory, not inside it" \
+  "$checkout/public/common" "$(cd "$repo/.agent-memory/common/shared" && pwd -P)"
+# A DIRECTORY holding one link per namespace, not a link of its own: the two
+# namespaces are two different repositories and only one of them is wired here.
+[[ -L "$repo/.agent-memory/common" ]] \
+  && fail "the container is a directory, not a link" "directory" "symlink" \
+  || ok "the container is a directory, not a link"
+# The link holds an absolute path and lands inside the store's working tree, so
+# committed it dangles on every machine whose checkout lives elsewhere.
+assert_eq "the store is told to ignore the wiring" "0" \
+  "$(git -C "$checkout" check-ignore -q -- public/projects/acme/common/shared; echo $?)"
+# ...and THIS repository is told nothing, because it already ignores the whole
+# memory directory. `git check-ignore` cannot answer for a path beyond a
+# symbolic link — it exits 128 with a fatal, which a plain `if !` reads as "not
+# ignored" — so the first version of this wiring appended the rule anyway, once
+# per verb, to a file neither verb should have touched. Measured on the
+# plugin's own checkout 2026-09-08.
+assert_eq "and this repository's .gitignore is left alone" "0" \
+  "$(grep -c 'cross-project scope' "$repo/.gitignore" || true)"
+
 # ---------- idempotent ----------
 run_store "$repo"
 assert_eq       "a second run succeeds"    "0" "$RC"
 assert_contains "and changes nothing"      "already wired" "$OUT"
+assert_contains "including the common scope" "common/shared already wired" "$OUT"
 assert_eq "the ignore line is not duplicated" "1" \
   "$(grep -c '^/.agent-memory$' "$repo/.gitignore")"
 
@@ -154,6 +180,16 @@ assert_contains "it wires the store"                "linked" "$init_out"
 # than in a directory that would have blocked the symlink.
 assert_eq "the index landed in the store" "0" \
   "$([[ -f "$checkout2/public/projects/beta/MEMORY.md" ]] && echo 0 || echo 1)"
+# Two projects, two DIFFERENT stores, one agents_memory_dir — the ordinary case
+# and the one that killed the first design of this scope. A single shared view
+# directory for common/ has one name and two meanings here, and view_link
+# rightly refuses to repoint it; linking straight into each clone has no shared
+# name to collide over. Measured 2026-09-08: the first draft failed here.
+assert_eq "a second project's common scope points at its OWN store" \
+  "$checkout2/public/common" "$(cd "$repo4/.agent-memory/common/shared" && pwd -P)"
+assert_eq "and the first project's is untouched" \
+  "$checkout/public/common" "$(cd "$repo/.agent-memory/common/shared" && pwd -P)"
+
 assert_contains "the config records where the store is" "public_repo=$remote" "$(cat "$repo4/.floppy/config")"
 # Exact line, not a substring: "project_key=beta" is a substring of
 # "memory_project_key=beta", so a contains-check passes on the very defect this

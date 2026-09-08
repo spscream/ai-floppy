@@ -57,6 +57,16 @@ only says which of them to open and in what order.
    sub-index within it), not the whole memory tree. Read the one or two notes
    that plainly relate to this task; skip the rest.
 
+   **Then, only if the task is not about this project alone, open
+   `<memory_dir>/common/`** — the scope for facts about no single project: an
+   outside tool that was evaluated, a shell trap, what this machine has
+   installed. It holds one directory per audience (`shared`, `private`), each a
+   link into a memory repository, and either may be absent on a machine that
+   wired only one. Nothing in the project's index points there and nothing
+   should — the link would be dead for anyone who has not wired the scope —
+   which is exactly why it is named here instead. A repository that has no
+   `common/` directory never wired it, and that is not a fault to report.
+
 5. **Check live facts instead of trusting the documents:**
 
    ```bash

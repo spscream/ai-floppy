@@ -113,55 +113,61 @@ while IFS= read -r line; do
 "
 done < <(git status --porcelain --untracked-files=all -- "${PROJECT_WATCHED[@]}" 2>/dev/null)
 
-# The same question, asked of the store, with the answers translated back into
-# the paths this session actually typed. A note is written as
-# `.agent-memory/flow/x.md` through the symlink; the store calls the same file
-# `projects/<key>/memory/flow/x.md`. Reporting the store's vocabulary here
-# would name files the human cannot find in their own tree.
-if [[ "$external" == "1" && -n "$store" ]]; then
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    path="${line:3}"
-    [[ "$path" == *" -> "* ]] && path="${path##* -> }"
-    path="${path%\"}"; path="${path#\"}"
-    if [[ -n "$mem_prefix" ]]; then
-      case "$path" in
-        "$mem_prefix"/*) path="${path#"$mem_prefix"/}" ;;
-        *) continue ;;   # something else in the store, not this project's memory
+# The same question, asked of every repository this session could have written
+# memory into, with the answers translated back into the paths it actually
+# typed. A note is written as `.agent-memory/flow/x.md` through the symlink;
+# the store calls the same file `public/projects/<key>/flow/x.md`. Reporting
+# the store's vocabulary here would name files the human cannot find in their
+# own tree.
+#
+# One function and four calls, not four loops. There are now four foreign
+# scopes — the whole memory, the private scope, and since 2026-09-08 the
+# cross-project scope in each namespace — and they differ only in three values.
+# The two copies this replaced had already been written twice; a third and
+# fourth would be two more chances for one of them to stop translating.
+#
+# Each call scans its own PATHSPEC, which is what makes the extra calls
+# necessary rather than redundant: a store is scanned under this project's
+# scope, and common/ is that scope's sibling, so a note written there was
+# invisible here and came back as "not changed: wrong path, or the edit was
+# lost" — the message for a typo.
+scan_scope() { # $1 = store dir, $2 = prefix inside it, $3 = what the human types
+  ss_store="$1"; ss_prefix="$2"; ss_as="$3"
+  [[ -n "$ss_store" ]] || return 0
+  while IFS= read -r ss_line; do
+    [[ -z "$ss_line" ]] && continue
+    ss_path="${ss_line:3}"
+    # A rename prints "old -> new"; the new path is the one that gets committed.
+    [[ "$ss_path" == *" -> "* ]] && ss_path="${ss_path##* -> }"
+    ss_path="${ss_path%\"}"; ss_path="${ss_path#\"}"
+    if [[ -n "$ss_prefix" ]]; then
+      case "$ss_path" in
+        "$ss_prefix"/*) ss_path="${ss_path#"$ss_prefix"/}" ;;
+        *) continue ;;   # another scope in the same repository, not this one
       esac
     fi
-    changed_set="$changed_set$mem_dir/$path
+    changed_set="$changed_set$ss_as/$ss_path
 "
-  done < <(git -C "$store" status --porcelain --untracked-files=all -- "${mem_prefix:-.}" 2>/dev/null)
-fi
+  done < <(git -C "$ss_store" status --porcelain --untracked-files=all -- "${ss_prefix:-.}" 2>/dev/null)
+}
 
-# The same question again, of the workplace repository, when the private scope
-# is a symlink into it. This one is not covered by the block above: there the
-# WHOLE memory is foreign, here only the private scope is, and the two shapes
-# coexist. Answers are translated back into the path the human typed —
-# `.agent-memory/private/x.md`, not `private/projects/<key>/x.md`, which names
-# a file they cannot find in their own tree.
+# The whole memory, when it is hosted elsewhere. No `external` test beside it:
+# FLOPPY_MEMORY_STORE is filled only when the memory resolves outside this
+# repository, so a non-empty store IS that condition, said once.
+scan_scope "$store" "$mem_prefix" "$mem_dir"
+
+# The private scope, when it is a symlink into the workplace repository while
+# the rest of the memory sits elsewhere — the two shapes coexist.
 priv_store="${FLOPPY_PRIVATE_STORE:-}"
 priv_real="${FLOPPY_PRIVATE_REAL:-}"
 priv_dir="${FLOPPY_MEMORY_PRIVATE_DIR:-private}"
 priv_prefix=""
 [[ -n "$priv_store" && "$priv_real" != "$priv_store" ]] && priv_prefix="${priv_real#"$priv_store"/}"
-if [[ -n "$priv_store" ]]; then
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    path="${line:3}"
-    [[ "$path" == *" -> "* ]] && path="${path##* -> }"
-    path="${path%\"}"; path="${path#\"}"
-    if [[ -n "$priv_prefix" ]]; then
-      case "$path" in
-        "$priv_prefix"/*) path="${path#"$priv_prefix"/}" ;;
-        *) continue ;;   # another project's scope in the same repository
-      esac
-    fi
-    changed_set="$changed_set$mem_dir/$priv_dir/$path
-"
-  done < <(git -C "$priv_store" status --porcelain --untracked-files=all -- "${priv_prefix:-.}" 2>/dev/null)
-fi
+scan_scope "$priv_store" "$priv_prefix" "$mem_dir/$priv_dir"
+
+# The cross-project scope, one leaf per namespace.
+scan_scope "${FLOPPY_COMMON_SHARED_STORE:-}"  "${FLOPPY_COMMON_SHARED_PREFIX:-}"  "$mem_dir/common/shared"
+scan_scope "${FLOPPY_COMMON_PRIVATE_STORE:-}" "${FLOPPY_COMMON_PRIVATE_PREFIX:-}" "$mem_dir/common/$priv_dir"
 
 # ---------- other people's work in flight ----------
 hr "changed but not yours"

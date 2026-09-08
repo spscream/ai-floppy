@@ -251,7 +251,11 @@ printf '# Half\n- [A note](a-note.md) — pointer\n' > "$pr/.agent-memory/half/I
 printf -- '---\nname: a-note\ndescription: a note\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
   > "$pr/.agent-memory/half/a-note.md"
 printf '| Notes | 1 | 2 | up |\n' > "$pr/docs/statuses/NOW.md"
-printf '/.agent-memory/private\n' > "$pr/.gitignore"
+# Both wiring rules, as `init` now writes them: the private scope is a symlink,
+# the cross-project scope a directory of symlinks. Without the second, the
+# first `workplace` run adds it and the assertions below about a clean tree are
+# measuring that edit rather than the rite.
+printf '/.agent-memory/private\n/.agent-memory/common/\n' > "$pr/.gitignore"
 git -C "$pr" add -A
 git -C "$pr" -c user.email=t@t -c user.name=t commit -qm base
 git init -q --bare -b main "$B/code.git"
@@ -339,6 +343,69 @@ assert_rc "the personal status does not turn the memory lint red" 0 "$rcL"
 # working note was left behind.
 outW="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
 assert_contains "status reports the personal slice" "personal, modified" "$outW"
+
+# ---------- the cross-project scope reaches the same rite ----------
+# `common/` was documented in docs/memory-model.md from 0.7.0 and wired by no
+# verb until 2026-09-08: sixteen notes sat in the private store where no
+# session could reach them, because common/ is a SIBLING of what
+# .agent-memory/private points at. Wiring it is only half the job — the half
+# that is easy to assert. What matters is whether the RITE carries a note
+# written there, and every gate on the way asks a different repository under a
+# different pathspec, so each one could drop it silently:
+#   guard   scans each store under this project's scope, and common/ is not in it
+#   commit  translates a path into the store's vocabulary by prefix, and this
+#           note's prefix is private/common, never private/projects/<key>
+# Asserting the symlink alone would pass with both of those broken. This is the
+# "what stays green if it is not wired?" question asked of the scope itself.
+assert_eq "the common scope is wired as a directory of links" "link" \
+  "$([[ -L "$pr/.agent-memory/common/private" ]] && echo link || echo no)"
+assert_eq "and it points at the namespace's common, not the project's scope" \
+  "private/common" \
+  "$(cd "$pr/.agent-memory/common/private" && pwd -P | sed 's|.*/\(private/common\)$|\1|')"
+
+printf -- '---\nname: a-shell-trap\ndescription: true in every project, not this one\nmetadata:\n  type: reference\n  evidence: measured\n---\nBody.\n' \
+  > "$pr/.agent-memory/common/private/a-shell-trap.md"
+
+outCC="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check .agent-memory/common/private/a-shell-trap.md 2>&1)"; rcCC=$?
+assert_rc "check accepts a note written into the common scope" 0 "$rcCC"
+case "$outCC" in
+  *"not changed: wrong path"*) fail "and does not call it unchanged" "no such line" "$outCC" ;;
+  *)                           ok   "and does not call it unchanged" ;;
+esac
+
+outCM="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "a shell trap" \
+  .agent-memory/common/private/a-shell-trap.md 2>&1)"; rcCM=$?
+assert_rc       "commit carries it (rc)" 0 "$rcCM"
+# The path in the remote is the whole point: private/common/, NOT
+# private/projects/acme/. A prefix borrowed from the project scope names a path
+# that does not exist in the store, where `git add` fails and takes the commit.
+assert_contains "and it lands in the namespace's common scope" "private/common/a-shell-trap.md" \
+  "$(git --git-dir="$wpremote" ls-tree -r --name-only main)"
+assert_eq       "and not in this repository" "" \
+  "$(git -C "$pr" ls-tree -r --name-only HEAD | grep a-shell-trap || true)"
+
+# The guard has to see the other direction too: a change in that scope which
+# this session did not claim belongs to another session or the other machine.
+printf 'stray\n' > "$pr/.agent-memory/common/private/not-mine.md"
+outCS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard .agent-memory/half/a-note.md 2>&1)"; rcCS=$?
+assert_rc       "an unclaimed common note is caught (rc)" 1 "$rcCS"
+assert_contains "and is named in the path the human typed" \
+  ".agent-memory/common/private/not-mine.md" "$outCS"
+rm -f "$pr/.agent-memory/common/private/not-mine.md"
+
+# The scope's notes are linted — they had never been checked by anything, and
+# eight of the first fifteen turned out to carry no metadata.evidence.
+printf -- '---\nname: unchecked\ndescription: no evidence field\nmetadata:\n  type: reference\n---\nBody.\n' \
+  > "$pr/.agent-memory/common/private/unchecked.md"
+outCL="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcCL=$?
+assert_rc       "a common note missing evidence turns the lint red" 1 "$rcCL"
+assert_contains "and the note is named" "common/private/unchecked.md" "$outCL"
+rm -f "$pr/.agent-memory/common/private/unchecked.md"
+
+# ...and the clean line says the scope was checked, rather than reporting a
+# count that silently means something narrower.
+outCL2="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"
+assert_contains "the clean line names what else it checked" "in common/" "$outCL2"
 
 rm -rf "$B"
 
