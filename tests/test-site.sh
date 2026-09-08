@@ -135,7 +135,7 @@ if [[ "${1:-}" == "--selftest" ]]; then
   fi
   docs_list="$2"
 else
-  docs_list="docs/*.md"
+  docs_list="docs/*.md docs/guide/*.md"
 fi
 # Unquoted on purpose: the default has to stay a glob.
 for src in $docs_list; do
@@ -156,9 +156,23 @@ for src in $docs_list; do
   assert_eq "site carries $src" "0" "$found"
 done
 
+# The loop above asserts nothing about a directory its glob does not reach, and
+# says nothing when that happens. `docs/guide/` was added to the list in the
+# same change that created it; if the list is ever narrowed back, the guide
+# pages stop being checked and every remaining assertion still passes. A check
+# that quietly stops checking is the failure this file exists to prevent.
+# Skipped under --selftest, where the list is one named document by design.
+if [[ "${1:-}" != "--selftest" ]]; then
+  guide_seen=0
+  for src in $docs_list; do
+    case "$src" in docs/guide/*.md) [[ -f "$src" ]] && guide_seen=1 ;; esac
+  done
+  assert_eq "the document list reaches docs/guide/" "1" "$guide_seen"
+fi
+
 index="$(cat "$out/index.md" 2>/dev/null || true)"
 assert_contains "index is the README"          "$(head -1 README.md)" "$index"
-assert_contains "index carries the whole README" "## \`quota.lock\`"   "$index"
+assert_contains "index carries the whole README" "## Documentation" "$index"
 # Against the version the plugin actually ships, not a version spelled out
 # here: a release that moves plugin.json and forgets the changelog publishes a
 # site whose newest entry is the release before it, and nothing says so.
@@ -185,6 +199,16 @@ assert_eq "no page links to a .md file" "" \
 assert_eq "no page sends the reader to GitHub for a document the site carries" "" \
   "$(grep -hoE '\]\(https://github\.com/[^)]*/blob/main/(README\.md|CHANGELOG\.md|docs/[^)]*)\)' "$out"/*.md \
      | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+
+# A separate assertion, not a replacement: the one above requires the target to
+# start with README.md, CHANGELOG.md or docs/, so a link that climbed out with
+# `../` (docs/guide/*.md linking to a root-level sibling) slips past it
+# untouched. A GitHub URL containing `..` is broken regardless of what it
+# points at — it is the shape a relative link takes when the rewriter's
+# basename rule fails to recognise it. Found by a live broken link that this
+# suite reported clean.
+assert_eq "no page links to a GitHub URL that climbs out of the repository root" "" \
+  "$(grep -hoE '\]\(https://github\.com/[^)]*/\.\.[^)]*\)' "$out"/*.md | sort -u | tr '\n' ' ' | sed 's/ *$//')"
 
 # Front matter present and orderable on every page: a missing nav_order sorts
 # a page to the end of the sidebar silently, a repeated one orders two pages by
@@ -234,7 +258,7 @@ assert_contains "the build directory is ignored" ".site/" "$(cat .gitignore)"
 hub="$(cat "$out/ru.md" 2>/dev/null || true)"
 assert_contains "the Russian hub exists"       "title: Русский"     "$hub"
 assert_contains "and declares itself a parent" "has_children: true" "$hub"
-for ru_page in ru-index ru-memory-model ru-lessons; do
+for ru_page in ru-index ru-install ru-config ru-skills ru-memory-model ru-lessons; do
   assert_contains "the hub links to $ru_page"        "$ru_page.html" "$hub"
   assert_contains "$ru_page names its parent"        "parent: Русский" \
     "$(cat "$out/$ru_page.md" 2>/dev/null || true)"
@@ -243,7 +267,7 @@ done
 # The same probe index.md gets, and for the same reason: a code identifier
 # survives translation, so it proves the whole README came through rather than
 # a truncated prefix of it.
-assert_contains "the Russian index carries the whole README" "## \`quota.lock\`" \
+assert_contains "the Russian index carries the whole README" "## Документация" \
   "$(cat "$out/ru-index.md" 2>/dev/null || true)"
 
 # The marker is an implementation detail of the repository, not of the site.

@@ -35,8 +35,11 @@ private_repo=git@github.com:spscream/agents_memory.git
 # What wrap may commit here. Deliberately narrow: in THIS repository the
 # session procedure is the product — skills/, scripts/, shim/, tests/ are the
 # tool itself, and they belong in ordinary reviewed commits, not in a closing
-# rite. docs/ and the two wiring files are the whole of it.
-watched_dirs=docs
+# rite. Since 2026-09-08 the user documentation is on that same side: docs/guide
+# and the two lesson documents go through review like the code, and the rite
+# may write only the status file. wrap-guard matches these by prefix, so a
+# nested path needs no code change.
+watched_dirs=docs/statuses
 watched_files=AGENTS.md,.floppy/run,.floppy/config
 
 # A metric that got worse stays in the current-state file, marked. The mark is

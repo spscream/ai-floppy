@@ -148,6 +148,24 @@ real_n="$(count_translations .)"
 assert_eq "there is at least one translation to check" "0" \
   "$([[ "$real_n" -ge 1 ]] && echo 0 || echo 1)"
 
+# The count above is worthless about a directory the scan does not reach, and
+# says nothing when that happens: it stayed green at 3 while docs/guide/ held
+# 3 more translations the scan never saw. `docs/guide/` was added to
+# `sources()`/`translations()` in the same change that repaired this, and if
+# either is ever narrowed back to `docs` alone, the guide translations drop
+# out of `--list` and every remaining assertion in this file still passes,
+# because every one of them iterates over `--list`'s own output. A check that
+# quietly stops checking is the failure this loop exists to prevent — the
+# same rule test-site.sh already applies to the document list's reach into
+# docs/guide/. Run against the real repository, not the temp sandboxes above:
+# a sandbox with no docs/guide/ proves nothing about whether the scan reaches
+# one.
+guide_seen=0
+while IFS= read -r f; do
+  case "$f" in docs/guide/*) guide_seen=1 ;; esac
+done < <("$py" scripts/translation-check.py --list)
+assert_eq "the translation list reaches docs/guide/" "1" "$guide_seen"
+
 # The same authority names the corpus. What stays hand-written below is the
 # SIBLING rule, and deliberately: the checker reports and never fails, so this
 # loop is the only thing in CI that can redden a hand-written marker. Deriving

@@ -317,6 +317,28 @@ else
   printf '  skip python3 not available\n'
 fi
 
+# And a translation under docs/guide/ is found too, not only at the root or
+# directly under docs/. The pre-gate's glob was extended to reach docs/guide/
+# on the branch that split the guide out of README.md; deleting those two
+# glob terms leaves this whole suite green, so the guard has to be a case that
+# goes red on that deletion, not prose.
+repoG="$(sandbox)"; cp shim/run "$repoG/.floppy/run"
+: > "$repoG/.floppy/config"
+mkdir -p "$repoG/docs/guide"
+printf '# Doc\n\nbody\n' > "$repoG/docs/guide/x.md"
+printf '<!-- floppy:translation of=docs/guide/x.md blob=%s on=2026-01-01 -->\n\n# Док\n' \
+  0000000000000000000000000000000000000000 > "$repoG/docs/guide/x.ru.md"
+outG="$(cd "$repoG" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status --flow 2>&1)"
+rm -rf "$repoG"
+if command -v python3 >/dev/null 2>&1; then
+  assert_contains "--flow prints the translations sub-section for docs/guide/" \
+    "-- process: translations" "$outG"
+  assert_contains "and names the docs/guide/ translation that is behind" "docs/guide/x.ru.md" \
+    "$(printf '%s\n' "$outG" | sed -n '/-- process: translations/,$p')"
+else
+  printf '  skip python3 not available\n'
+fi
+
 # ---------- the pre-gate is loose and the checker decides ----------
 # Two repositories the old gate got wrong in opposite directions. The gate no
 # longer carries the rule — it starts python and the checker answers — so both

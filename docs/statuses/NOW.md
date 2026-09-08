@@ -42,10 +42,14 @@ not quote the rate without both kernel versions.
 
 ## What is frozen
 
-- **`watched_dirs` / `watched_files` stay narrow** — `docs` plus `AGENTS.md`,
-  `.floppy/run`, `.floppy/config`. In this repository the session procedure is
-  the product: `skills/`, `scripts/`, `shim/` and `tests/` belong in reviewed
-  commits, never in a closing rite. Widening this needs a deliberate decision.
+- **`watched_dirs` is `docs/statuses`, and documentation is product**
+  (narrowed 2026-09-08). The closing rite may write the status file and
+  nothing else; `docs/guide/`, `docs/lessons.md` and `docs/memory-model.md`
+  go through review like `skills/`, `scripts/`, `shim/` and `tests/`. The
+  earlier entry kept `docs` whole, which was never a decision that
+  documentation belonged to the rite — while `docs/` held only working
+  documents the question did not arise. It does now, and this is the answer.
+  `watched_files` is unchanged: `AGENTS.md`, `.floppy/run`, `.floppy/config`.
 - **Branch protection is symmetric, and must stay so** — no bypass actors, not
   even for the owner. Both sessions writing here are the same git principal, so
   a bypass exempts both.
@@ -160,7 +164,7 @@ have all landed there: `shell-bracket-range-follows-collation` (#39), and
 `one-line-page-eats-a-line-comment` plus `lunr-trimmer-drops-non-latin-tokens`
 in this same change, at the owner's instruction — a deliberate pull request,
 which is the only way `knowledge/` can be written, since `watched_dirs` keeps
-`wrap` inside `docs`.
+`wrap` inside `docs/statuses`.
 
 Both new notes carry a machine-checkable half that needs nothing but node, so
 the base now proves 5 of its 16 notes rather than 3. Each was checked for
