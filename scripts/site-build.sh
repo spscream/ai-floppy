@@ -111,6 +111,14 @@ emit() { # target title nav_order [parent] [has_children]  — body on stdin
 
 while IFS='|' read -r src tgt title order parent; do
   [[ -z "$src" ]] && continue
+  # A row whose document is gone used to print `ok` for a page it never wrote.
+  # Measured 2026-09-08 by deleting docs/guide/config.md and keeping its row:
+  # the redirect below failed on stderr, `set -e` is deliberately not on here,
+  # the loop carried on, this line claimed the copy, the build exited 0 — and
+  # the whole suite stayed green at 88 passed, 0 failed while the home page
+  # linked to a config.html nobody had written. Same refusal the skills block
+  # below already makes, for the same reason.
+  [[ -f "$src" ]] || { printf 'missing %s — the page table lists it\n' "$src" >&2; exit 1; }
   emit "$tgt" "$title" "$order" "$parent" < "$src"
   printf 'ok %s -> %s\n' "$src" "$tgt"
 done <<EOF
