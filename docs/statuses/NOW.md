@@ -7,38 +7,34 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
-**0.20.0 is released** (2026-09-08) — tagged, published, three manifests agree.
-It carries ten merges that had piled up behind 0.19.0. Its headline is one
-consumers have not seen since 0.14.0: **"Refresh `.floppy/run`" is yes**, and
-the entry says why it is a *small* yes — #52 changed the shim's last line to
-`exec "${BASH:-bash}"`, so an un-refreshed copy still finds the plugin and
-works, and the refresh matters only where somebody names an interpreter
-(`/bin/bash .floppy/run`). Minor rather than patch for `common/`, not for a
-config key: no key was added since 0.19.0.
+**0.21.0 is released** (2026-09-09) — tagged, published, three manifests agree.
+Its subject is the rite, not the code: **a note is written at the moment the
+fact appears, not collected at `wrap`** (#61, #62). Minor rather than patch
+because the ritual behaves differently, though no verb, key or path moved and
+a memory written the old way stays correct. **Refresh `.floppy/run`: no** —
+the shim is untouched. The previous release, 0.20.0 (2026-09-08), is the one
+that said **yes**, the first since 0.14.0, and said why it was a small yes:
+#52 changed the shim's last line to `exec "${BASH:-bash}"`, so an
+un-refreshed copy still works except where somebody names an interpreter.
 
-**The cross-project scope is wired** (#55, #56). `common/` — the subject-level
-sibling of `projects/<key>` — was documented from 0.7.0 and created, linked or
-read by no verb; fifteen notes sat where no session could reach them. `store`
-and `workplace` wire it as `common/shared` and `common/private`, either verb
-alone leaving a usable half. Three gates had to be taught it separately, each
-routing by path under its own pathspec — see
-`wiring-a-scope-is-more-than-its-symlink`. The 15 notes are linted now; 8 were
-missing `metadata.evidence` and one had a `name` that did not match its file.
+**The documentation was audited against the code** (2026-09-09) — README and
+both language sets, the guide, the skills, `memory-model`, `lessons`, the
+knowledge contract, `CHANGELOG` and the manifests, each claim checked against
+the script that implements it. Six divergences, all now fixed in one pull
+request; what they were and what each cost is in
+`a-check-can-pass-while-testing-something-adjacent`. The largest was not in a document at
+all: `skills/init/SKILL.md` carried **four of the shim's six** plugin-search
+branches, so `init` told a Cursor user "plugin not found" for a plugin
+`.floppy/run` resolves — reproduced with the old block, and the two Cursor
+branches now have cases in `tests/test-init-bootstrap.sh`.
 
-**The documentation split is finished** (#48, #50). The guide, config reference
-and skills prose left `README.md` for `docs/guide/` in both languages, the
-archaeology left the guide for `docs/lessons.md`, and review verified the moved
-lines byte-for-byte. **The four guard defects it exposed are closed** (#49,
-#51, #52, #53): four one-level-deep assumptions, a page-table row whose
-document was never built, the interpreter pinned once, and a guard that advised
-a command which would refuse. What each cost is in
+**The cross-project scope is wired** (#55, #56), **the documentation split is
+finished** (#48–#53), and **drift is watched with the Russian hub list derived**
+(#58). All three closed; their frozen consequences are below, and the four
+guard defects the split exposed are in
 `one-directory-level-broke-four-guards`,
 `a-table-row-with-no-document-is-invisible` and
 `macos-runner-carries-one-bash-and-it-is-3-2`.
-
-**Drift is watched, and the Russian hub list is derived** (#58). Both were
-recorded here as "not to be rediscovered" and both are now closed. See the
-freeze below for the shape the drift workflow had to take.
 
 **The macOS temp path is measured** (#29/#30, 2026-09-06) and is still live.
 `<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**, not drawn
@@ -103,7 +99,9 @@ green**. Do not quote the rate without both kernel versions.
 - **`store` reports the redundant `.gitignore` line rather than removing it.**
   That file belongs to the consumer and a line in it may be hand-written.
 - **`quota.lock` holds measured numbers, and raising one is a defended edit.**
-  `chars_max` is the measured corpus plus a tenth — 55000 since 2026-09-08.
+  `chars_max` is the measured corpus plus a tenth — 65000 since 2026-09-09,
+  against a measured 58303. It stood at 61000 for a day with no comment and no
+  commit, which is the edit the ratchet exists to expose.
   `note_chars_max=5000`, **not** the convention's 10000: the longest note here
   is 3223 and the mean 2297, so 10000 would never fire and the rule it enforces
   would be decorative. `pointers_max=25` is where a flat index makes splitting
@@ -133,18 +131,11 @@ green**. Do not quote the rate without both kernel versions.
 
 ## Open
 
-- **The status could be written as the session runs, not at `wrap`.** `wrap`
-  fires where context is largest and the accumulated change is biggest — a turn
-  at 400–500k context costs $0.20–0.25 in cache reads alone, and a wrap spends
-  several of them collecting facts, reconciling the status, writing the index.
-  Selecting facts *when they appear* would leave wrap with checking and
-  committing. It belongs in the plugin (`wrap` / `workstatus` and their
-  conventions), not in a per-project rule, because the plugin already owns both
-  the status format and the moment it is written. The same principle is already
-  in force for rejected options, which are recorded at the moment of refusal
-  because a compaction leaves nothing to recover the reasoning from. Not
-  designed, not scheduled — brought here 2026-09-08 from the store where it was
-  written and could not be seen.
+- **The memory index is full: 25 pointers against `pointers_max=25`.** The next
+  fact that earns a note of its own splits `MEMORY.md` into halves — that is the
+  frozen answer, not a raise. This audit avoided the question rather than
+  settling it: its lesson went into an existing note. Nobody has decided what
+  the halves are.
 - **`translation-check.py` has no gate for the contract half outside the
   suite**, by design, but nothing runs it on a *consumer's* repository either:
   `workstatus.sh` reports it and `status --flow` is the only place it surfaces.
@@ -156,11 +147,11 @@ green**. Do not quote the rate without both kernel versions.
 
 ## What is not true here
 
-No open issues and no open pull requests — checked against `gh` after #58
-merged, not recalled. `main` is at `79872c5`, local is in sync, and every branch
-those three pull requests used is deleted on both sides. The working tree is
-clean apart from an untracked `.claude/` that predates this work. Both memory
-stores are committed and pushed.
+No open issues and no open pull requests before this one — checked against `gh`
+on 2026-09-09, not recalled. `main` was at `95a2f75` (0.21.0) when the audit
+started, local in sync, working tree clean. Both memory stores are committed and
+pushed, including the four notes and the `quota.lock` raise this audit found
+sitting uncommitted.
 
 **The cross-project home is decided** (2026-09-08). `basic-memory` is denied in
 this repository — `.claude/settings.json` carries both a `permissions.deny` rule
@@ -174,11 +165,10 @@ which took the machine-checkable half of the base from five notes to nine. The
 argument and the condition for revisiting are in
 `basic-memory-is-off-in-this-repository`.
 
-`quota.lock` is unchanged this session: no note was written, so the corpus
-stands at 20 notes and 20 pointers against a ceiling of 25. The 15 notes in
-`common/` carry no `metadata.as_of` and `lint` says so as a warning every run —
-that is the field behaving as designed, not something to fix by dating them
-from guesswork.
+The corpus stands at 25 notes and 25 pointers, 58303 characters against a
+ceiling of 65000. The 15 notes in `common/` carry no `metadata.as_of` and `lint`
+says so as a warning every run — that is the field behaving as designed, not
+something to fix by dating them from guesswork.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
 while three issues had been filed minutes earlier, and it once spent a whole
