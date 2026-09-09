@@ -18,6 +18,79 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.21.0 — 2026-09-09
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
+release reaches `shim/run`.
+
+Minor rather than patch because the rites behave differently, even though no
+verb, config key or file layout moved. The prose *is* the product here, and a
+consumer reading "patch" would expect a fix rather than a changed ritual.
+**There is no migration to do**: a memory written the old way is still correct,
+and nothing about a note's shape, its index or its quota changed.
+
+### A note is written when the fact appears, not collected at `wrap`
+
+`wrap` used to do the selecting: at the end of a session it re-read what had
+happened, decided which facts earned a note, and wrote them. That is the single
+most expensive moment to do that thinking. Every turn resends the whole window,
+the window only grows, and closing is where it is largest — so the same
+judgement costs more there than anywhere else it could have been made.
+
+It is also where the reasoning is thinnest. A rejected option carries its
+argument only while the conversation still holds it; what survives a summary is
+the decision, not the argument, so the next session proposes the same option
+again and pays for the same refusal twice.
+
+So selection moved to the moment the fact appears. `agent-memory` now names the
+five moments that produce a note — an option rejected, a measurement landed, a
+number that turned out to mean something else, a tool trap, a frozen decision —
+and says explicitly what is *not* one: finishing a task, making a commit, a
+green suite. Those are in the git log.
+
+`start` carries the trigger, because it is the only rite loaded early enough to
+be read before the first of those moments arrives. `wrap` is loaded at the end,
+and `agent-memory` is loaded when a note is already being written — too late to
+be the thing that prompts one.
+
+`wrap` keeps a selection step, narrowed to what only became clear at the end,
+and it does **not** re-open what the session already wrote. Its closing report
+now covers both halves — what was written during the session and what the rite
+added — because a report listing only the second understates the memory the
+session actually kept.
+
+### Why this needs no new lock
+
+A note file collides with nothing: its name is unique, so two sessions writing
+two notes write two files. Its index pointer is a single anchored line, and an
+insert applies against whatever the index holds at that moment, so two sessions
+inserting different pointers both land. Neither needs the wrap lock.
+
+The whole-file rewrite is the opposite, and it stays in `wrap` under the lock —
+rewriting an index, or either status file, is where a second writer silently
+drops the first one's work. That asymmetry is why the status file did **not**
+move with the notes.
+
+One rule follows from `lint` and is worth stating plainly: the pointer is
+written with the note, never after it. A note no index points at is a hard
+error, not a warning — nobody will find it.
+
+### What this release does not claim
+
+The cost argument above is arithmetic over the turn measurement already
+recorded in `wrap`, not a new measurement. What nobody has counted is how many
+of a wrap's turns go to selecting facts rather than to checking and committing.
+The skills say so where they make the argument.
+
+Nothing in the test suite covers this change. It is prose, and the guards check
+skill frontmatter, config keys and the site's page table — all of which stay
+green whether or not the prose is right. Review was the only check, and the
+design document says so rather than implying a rigour that is not there.
+
+Design and plan are in `docs/specs/2026-09-09-status-written-as-the-session-runs-design.md`
+and `docs/plans/2026-09-09-status-as-the-session-runs-pr1.md`; the latter
+records the hook mechanisms that were checked and not adopted.
+
 ## 0.20.0 — 2026-09-08
 
 **Refresh `.floppy/run`: yes** — the first release since 0.14.0 that says so,
