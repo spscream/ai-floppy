@@ -33,18 +33,33 @@ Neither harness is trusted to hand a skill the plugin root, so do not rely on
 a variable alone. Claude Code sets `CLAUDE_PLUGIN_ROOT` and Cursor sets
 `CURSOR_PLUGIN_ROOT` (measured 2026-08-26), but each only in some contexts, and
 a variable a harness did not set is indistinguishable here from one it did.
-Locate the plugin the same ways `.floppy/run` locates it once installed — the
-two harness variables, then `AI_FLOPPY_HOME` for development, then the newest
-checkout under the plugin cache — and fail loudly, naming the install command,
-if none resolves. This
-duplicates shim/run's search (shim/run:11-26) rather than reading it from
+Locate the plugin **all six ways** `.floppy/run` locates it once installed —
+the two harness variables, then `AI_FLOPPY_HOME` for development, then the
+Claude Code cache, then Cursor's local symlink, then Cursor's cache — and fail
+loudly, naming the install command, if none resolves. All six, not the first
+four: on 2026-09-09 this block carried the Claude cache and stopped, so a
+Cursor user whose `CURSOR_PLUGIN_ROOT` the harness had not set was told
+"plugin not found" for a plugin `.floppy/run` would have resolved through
+`cursor_local` — which on the owner's own machine is the branch that answers,
+because the Cursor cache directory there exists and is empty. This block
+duplicates the `has_scripts` chain in `shim/run` rather than reading it from
 there, because `.floppy/run` does not exist yet in this repository —
 creating it is the first thing the script below does — and that search
 normally lives in the one file this plugin copies into a consumer, which has
-to stay self-contained. Run:
+to stay self-contained. `tests/test-init-bootstrap.sh` extracts this block and
+runs it against each branch, so the two drift apart loudly rather than
+silently. Run:
 
 ```bash
 has_scripts() { [[ -n "${1:-}" ]] && ls "$1"/scripts/*.sh >/dev/null 2>&1; }
+
+# A cache directory that exists but holds no scripts/*.sh is not a candidate,
+# and each cache is read the way its own names allow: Claude Code's last
+# segment is a version, so `sort -V`; Cursor's is a commit SHA, where any
+# lexicographic sort orders by hash value rather than recency, so `ls -dt`.
+claude_cache="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
+cursor_local="$HOME/.cursor/plugins/local/floppy"
+cursor_cache="$(ls -dt "$HOME"/.cursor/plugins/cache/*/floppy/*/ 2>/dev/null | head -n1)"
 
 if   has_scripts "${CLAUDE_PLUGIN_ROOT:-}"; then
   floppy_root="$CLAUDE_PLUGIN_ROOT"
@@ -52,8 +67,12 @@ elif has_scripts "${CURSOR_PLUGIN_ROOT:-}"; then
   floppy_root="$CURSOR_PLUGIN_ROOT"
 elif has_scripts "${AI_FLOPPY_HOME:-}"; then
   floppy_root="$AI_FLOPPY_HOME"
+elif has_scripts "$claude_cache"; then
+  floppy_root="$claude_cache"
+elif has_scripts "$cursor_local"; then
+  floppy_root="$cursor_local"
 else
-  floppy_root="$(ls -d "$HOME"/.claude/plugins/cache/*/floppy/*/ 2>/dev/null | sort -V | tail -n1)"
+  floppy_root="$cursor_cache"
 fi
 
 if ! has_scripts "$floppy_root"; then

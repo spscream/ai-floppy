@@ -146,19 +146,27 @@ invariants with it. Those invariants it does apply, and they found what an
 unchecked corpus holds: of the first fifteen notes, eight carried no
 `metadata.evidence` and one had a `name` that did not match its file.
 
-## What the configuration needs
+## What the configuration needed
 
-| key | state | why |
+| key | shipped | why |
 |---|---|---|
-| `project_key` | exists | names the project in every memory repository |
-| `machine_key` | **new** | `hostname` is unusable as a name: on one of these machines it is `WIN-GVR0V5UPOD7`. The directories are hand-named (`linux-wsl-alexander`) and should stay that way |
-| `workplace_key` | **new** | only needed when one repository serves several workplaces, which is the chosen deployment |
-| `public_repo` | rename of `memory_repo` | today's name says "memory", which is both halves |
-| `private_repo` | rename of `workplace_repo` | today's name says "workplace", which is one of three validity values, not an audience |
+| `project_key` | before this document | names the project in every memory repository |
+| `machine_key` | 0.7.0 | `hostname` is unusable as a name: on one of these machines it is `WIN-GVR0V5UPOD7`. The directories are hand-named (`linux-wsl-alexander`) and should stay that way |
+| `workplace_key` | 0.7.0 | only needed when one repository serves several workplaces, which is the chosen deployment |
+| `public_repo` | 0.7.0, replacing `memory_repo` | the old name said "memory", which is both halves |
+| `private_repo` | 0.7.0, replacing `workplace_repo` | the old name said "workplace", which is one of three validity values, not an audience |
 
-The last two renames matter more than they look. `memory_repo` and
-`workplace_repo` are the pair that made two different questions look like one
-axis, and that is the mistake this document exists to stop.
+Those two renames mattered more than they looked. `memory_repo` and
+`workplace_repo` were the pair that made two different questions look like one
+axis, and that is the mistake this document exists to stop. Their compatibility
+fallbacks were removed in 0.8.0, so a config spelling either old name is now
+read as if the key were absent.
+
+This table was written on 2026-08-25 as a plan, and stood in the future tense
+until 2026-09-09, when an audit found it calling four keys "new" that the
+parser had carried since 0.7.0 — three screens below a header that already said
+"implemented". A design document that keeps its plan in the present tense
+outlives the plan; the header and the table now date themselves.
 
 ## Deliberately not decided here
 

@@ -12,8 +12,10 @@ short name. Only the short name is correct in both applications.
   field `metadata.evidence` with one of these values: `measured`, `read`,
   `decided`, `sourced`. The index has three levels: `MEMORY.md`, then
   `<half>/INDEX.md`, then `<half>/<group>/INDEX.md`. The file `quota.lock`
-  holds the size limits. Each fact belongs to one scope: project, workplace, or
-  machine. A note is written at the moment the fact appears, not collected at
+  holds the size limits. Each fact belongs to one scope: project,
+  cross-project, workplace, or machine. A fact true for more than one project
+  goes to the cross-project scope, `common/`, which the memory links once per
+  audience. A note is written at the moment the fact appears, not collected at
   the end of the session.
 - **`start`** — prepares a new session, before the first edit. The agent reads
   the state file. The agent then finds the half of the memory for this task,
