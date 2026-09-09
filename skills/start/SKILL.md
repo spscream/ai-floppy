@@ -110,3 +110,16 @@ If the current-state file and `run status` disagree — for instance the
 command reports the branch is behind its remote — resolve that first (a
 `git pull --rebase` before anything else) rather than answering against state
 that no longer holds.
+
+## What carries into the session
+
+This rite ends here, but one rule outlives it. From now on a fact worth keeping
+is written **when it appears**, not collected at the end. The moments that
+produce a note are in `agent-memory`; the short form is that an option was
+rejected, a measurement landed, a number turned out to mean something else, a
+tool trap bit, or a decision was frozen.
+
+Nothing is written now — `start` reads. The rule is stated here because this is
+the only place early enough to be read before the first of those moments
+arrives: `wrap` is loaded at the end, and `agent-memory` is loaded when a note
+is already being written, which is too late to be the thing that prompts one.

@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: Conventions for the durable session memory this toolkit keeps — one fact per file, note frontmatter and metadata.evidence, the three-level index tree, the quota.lock ratchet, and which of project/cross-project/workplace/machine scope a fact belongs to. Load this before writing, moving, or reorganizing a memory note, or whenever start/workstatus/wrap need the ground rules — they assume these conventions rather than restate them.
+description: Conventions for the durable session memory this toolkit keeps — one fact per file, the moment a note gets written, note frontmatter and metadata.evidence, the three-level index tree, the quota.lock ratchet, and which of project/cross-project/workplace/machine scope a fact belongs to. Load this before writing, moving, or reorganizing a memory note, or whenever start/workstatus/wrap need the ground rules — they assume these conventions rather than restate them.
 ---
 
 # Agent memory
@@ -132,6 +132,50 @@ before it reaches a note (router → half → note, or router → half → sub-i
 → note), and a fourth hop has never been measured to still get read. A note
 nested deeper than a sub-index can reach is unreachable in practice, whatever
 the file tree says.
+
+## When a note gets written: at the moment, not at the end
+
+A note is written **when the fact appears**, not collected at the end of the
+session. Five moments produce notes:
+
+- an option or a hypothesis is **rejected** — the reason is exact now and
+  reconstructed later;
+- a **measurement lands** — the number, and what it was measured against;
+- a number **turns out to mean something other than it looked like**;
+- a **tool or platform trap** bites;
+- a **decision is frozen** — a choice that constrains later work.
+
+Not moments: finishing a task, making a commit, a green suite. Those are in the
+git log, and a list of what got done is the least valuable thing a memory can
+hold.
+
+Two reasons, different in kind.
+
+**The reasoning is only intact now.** A rejected option carries its argument
+for as long as the conversation holds it. What survives a summary is the
+decision, not the argument — so the next session proposes the same option again
+and pays for the same refusal twice.
+
+**The end of a session is the most expensive place to think.** Every turn
+resends the whole window, the window only grows, and closing is where it is
+largest, so the same judgement costs more there than anywhere else. That is
+arithmetic over the turn measurement in `wrap`, not a measurement of its own:
+what nobody has counted is how many of a wrap's turns go to selecting facts
+rather than to checking and committing.
+
+**What is safe to write mid-session, and what is not.** A note file collides
+with nothing — its name is unique, so two sessions writing two notes write two
+files. Its pointer is a single anchored line, and an insert applies against
+whatever the index holds at that moment, so two sessions inserting different
+pointers both land. Neither needs the lock.
+
+The whole-file rewrite is the opposite, and it stays in `wrap` under the lock:
+rewriting an index, or either status file, is where a second writer silently
+drops the first one's work.
+
+**The pointer is written with the note, never after it.** A note no index
+points at is a hard `lint` error, not a warning — nobody will find it. Write
+both or neither.
 
 ## The `quota.lock` ratchet
 

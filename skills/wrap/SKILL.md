@@ -42,7 +42,19 @@ a silent overwrite: git refuses to merge two rewrites of the current-state
 file and hands back a conflict, on every overlapping wrap. Loud, and yours to
 resolve. Do not read the lock as protection against that case.
 
-## 1. Select what's worth memory
+## 1. Select what is left
+
+Most of this session's facts should already be notes — a fact is written when
+it appears, not collected here; `agent-memory` holds the moments that produce
+one. What is left for this step is whatever became clear only at the end: a
+conclusion about the shape of the whole session, an approach whose rejection
+made sense only in hindsight.
+
+**Do not re-open what the session already wrote.** Those notes stand as
+written. A refinement edits the file that already states the fact, and a note
+that stopped being true is rewritten in place or deleted — both are
+`agent-memory`'s rules, and neither is a review pass run at the single most
+expensive moment of the session.
 
 A candidate earns a note only if it passes all three:
 
@@ -289,7 +301,10 @@ goes in.
 
 Four short parts:
 
-1. **What got recorded** — one line per fact, with its file path.
+1. **What got recorded** — one line per fact, with its file path. Both halves:
+   what was written during the session, and what this rite added. A report that
+   lists only the second understates the session's memory, and part 2 is
+   worthless when part 1 is incomplete.
 2. **What was deliberately not recorded**, and why — so they can object.
 3. **What's left unfinished** — background jobs, anything uncommitted,
    anything waiting on a decision.

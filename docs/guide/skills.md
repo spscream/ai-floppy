@@ -13,7 +13,8 @@ short name. Only the short name is correct in both applications.
   `decided`, `sourced`. The index has three levels: `MEMORY.md`, then
   `<half>/INDEX.md`, then `<half>/<group>/INDEX.md`. The file `quota.lock`
   holds the size limits. Each fact belongs to one scope: project, workplace, or
-  machine.
+  machine. A note is written at the moment the fact appears, not collected at
+  the end of the session.
 - **`start`** — prepares a new session, before the first edit. The agent reads
   the state file. The agent then finds the half of the memory for this task,
   and reads the guidance and the index of that half. If the repository has no
@@ -23,12 +24,13 @@ short name. Only the short name is correct in both applications.
 - **`workstatus`** — reports the state during a session: git state, difference
   from the remote, background jobs, memory configuration, the workplace memory
   repository, and the age of the state file.
-- **`wrap`** — closes a session. The agent takes the lock. The agent selects
-  the facts that are worth a note, updates the state file, and records the
-  unfinished work. The agent then runs `bash .floppy/run check`, which changes
-  nothing and shows the lint result, the file-list check, and the diff. Last,
-  the agent runs `bash .floppy/run commit`, which stages, commits, pushes, and
-  releases the lock.
+- **`wrap`** — closes a session. The agent takes the lock. Most facts are notes
+  already, written when they appeared; here the agent adds only what is left,
+  updates the state file, and records the unfinished work. The agent then runs
+  `bash .floppy/run check`, which changes nothing and shows the lint result,
+  the file-list check, and the diff. Last, the agent runs
+  `bash .floppy/run commit`, which stages, commits, pushes, and releases the
+  lock.
 
 
 ## What each skill says about itself
