@@ -28,6 +28,13 @@ branches, so `init` told a Cursor user "plugin not found" for a plugin
 `.floppy/run` resolves — reproduced with the old block, and the two Cursor
 branches now have cases in `tests/test-init-bootstrap.sh`.
 
+**The memory index is split into three halves** (2026-09-09). `MEMORY.md` is a
+router now — two always-read notes plus one link each to `memory/` (the model,
+the scopes, what the memory earns), `product/` (scripts, shim, tests, site,
+knowledge) and `delivery/` (branches, PRs, workflows). The routing words are in
+`AGENTS.md`, where a consumer's own knowledge belongs; `quota.lock` carries the
+measurement and the reason there are no per-half budgets.
+
 **The cross-project scope is wired** (#55, #56), **the documentation split is
 finished** (#48–#53), and **drift is watched with the Russian hub list derived**
 (#58). All three closed; their frozen consequences are below, and the four
@@ -103,10 +110,15 @@ green**. Do not quote the rate without both kernel versions.
   against a measured 58303. It stood at 61000 for a day with no comment and no
   commit, which is the edit the ratchet exists to expose.
   `note_chars_max=5000`, **not** the convention's 10000: the longest note here
-  is 3223 and the mean 2297, so 10000 would never fire and the rule it enforces
+  is 4248 and the mean 2332, so 10000 would never fire and the rule it enforces
   would be decorative. `pointers_max=25` is where a flat index makes splitting
-  into halves cheaper than reading past it. Raise a number only in the same
-  commit as the notes that need the room.
+  into halves cheaper than reading past it, and on 2026-09-09 it did: the index
+  hit 25 exactly and was **split into `memory/`, `product/` and `delivery/`**
+  rather than raised — the largest index is 11 pointers now. A half that fills
+  splits again into sub-indexes; three levels is the floor of the tree, not a
+  budget. No `half_chars_max` keys: one machine writes all three halves, so a
+  per-half ceiling would fire when the corpus one does. Raise a number only in
+  the same commit as the notes that need the room.
 - **The injected script in `site/_includes/head_custom.html` uses block comments
   and explicit semicolons.** Not style: the page it becomes has no newlines, and
   either omission makes the whole script dead or invalid. Two asserts enforce it.
@@ -131,19 +143,13 @@ green**. Do not quote the rate without both kernel versions.
 
 ## Open
 
-- **The memory index is full: 25 pointers against `pointers_max=25`.** The next
-  fact that earns a note of its own splits `MEMORY.md` into halves — that is the
-  frozen answer, not a raise. This audit avoided the question rather than
-  settling it: its lesson went into an existing note. Nobody has decided what
-  the halves are.
 - **`translation-check.py` has no gate for the contract half outside the
   suite**, by design, but nothing runs it on a *consumer's* repository either:
   `workstatus.sh` reports it and `status --flow` is the only place it surfaces.
 - **Two deviations from #48's spec, recorded rather than fixed.** `quota.lock`'s
-  justification shipped byte-identical instead of condensed, so 22% of the
-  config page is argument — the load-bearing reason survives and is guarded. And
-  the site's positive control is a separate reach guard rather than a planted
-  document, which was measured to be the stronger of the two.
+  justification shipped uncondensed, so 22% of the config page is argument; and
+  the site's positive control is a reach guard rather than a planted document,
+  measured to be the stronger of the two.
 
 ## What is not true here
 

@@ -48,6 +48,31 @@ exists for — while `common/` is wired by `store`/`workplace` and read by `star
 The full argument, with what moved and when to revisit, is in the memory note
 `basic-memory-is-off-in-this-repository`.
 
+## Which half of the memory a task belongs to
+
+`MEMORY.md` is a router: two always-read notes and one link per half. `start`
+opens the half the task belongs to and leaves the other two closed, so the
+routing has to be answerable before reading any of them. It is written here
+because which words point where is this repository's knowledge, not the
+plugin's.
+
+| the task is about | half | words that route to it |
+|---|---|---|
+| notes, scopes, stores, `quota.lock`, the status files, another project's memory, whether any of it pays | `memory/` | note, index, scope, store, `common/`, `NOW.md`, recall, benchmark |
+| `scripts/`, `shim/`, `skills/`, `tests/`, the generated site, `knowledge/` | `product/` | verb, shim, guard, test, suite, bash 3.2, site, search, lint |
+| branches, pull requests, the protected `main`, the workflows that run on them | `delivery/` | branch, push, PR, merge, release, workflow, CI |
+
+Split on 2026-09-09 from one flat index that had reached `pointers_max=25`.
+The frozen rule is that a full index splits and the number stays, so if a half
+fills up it splits again into sub-indexes — three levels is the floor of the
+tree, not a budget to raise.
+
+Two things the table cannot decide, and both go to `memory/`: a fact about the
+memory *of another project* (this repository's product is that memory, so its
+own memory is where the subject is studied), and a fact that is not about this
+project at all — the latter belongs in `common/`, which no index links to and
+`start` reaches by name.
+
 <!-- floppy:agents-section -->
 ## Agent memory
 
