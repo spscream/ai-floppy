@@ -143,6 +143,10 @@ green**. Do not quote the rate without both kernel versions.
 
 ## Open
 
+- **Whether `.floppy/run` should be generated instead of committed** — asked
+  2026-09-09, analysed, not decided. Recommendation: keep the committed copy, a
+  gitignored shim being absent from a fresh clone and from CI. Risks and the
+  reversing condition in `shim-is-committed-rather-than-generated`.
 - **`translation-check.py` has no gate for the contract half outside the
   suite**, by design, but nothing runs it on a *consumer's* repository either:
   `workstatus.sh` reports it and `status --flow` is the only place it surfaces.
@@ -159,17 +163,13 @@ started, local in sync, working tree clean. Both memory stores are committed and
 pushed, including the four notes and the `quota.lock` raise this audit found
 sitting uncommitted.
 
-**The cross-project home is decided** (2026-09-08). `basic-memory` is denied in
-this repository — `.claude/settings.json` carries both a `permissions.deny` rule
-and a `deniedMcpServers` entry, so the server does not even connect here, while
-staying untouched for the projects that use it. Ten notes were carried over
-first: eight into `knowledge/notes/` (five harness, three shell, two practice —
-counting by area, the two practice notes are the git/measurement pair) and one
-into `common/private`; two candidates were dropped as duplicates of notes this
-memory already holds. Four of the new notes carry an executable `recheck_cmd`,
-which took the machine-checkable half of the base from five notes to nine. The
-argument and the condition for revisiting are in
-`basic-memory-is-off-in-this-repository`.
+**The cross-project home is decided** (2026-09-08). `basic-memory` is denied
+here — `.claude/settings.json` carries a `permissions.deny` rule and a
+`deniedMcpServers` entry, so the server does not connect in this repository
+while staying untouched everywhere else. Ten notes were carried over first,
+eight into `knowledge/notes/` and one into `common/private`. The argument, the
+breakdown and the condition for revisiting are in
+`basic-memory-is-off-in-this-repository`, which `MEMORY.md` loads every session.
 
 The corpus stands at 25 notes and 25 pointers, 58303 characters against a
 ceiling of 65000. The 15 notes in `common/` carry no `metadata.as_of` and `lint`
