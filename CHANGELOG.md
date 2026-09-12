@@ -18,6 +18,45 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.22.0 — 2026-09-13
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
+release reaches `shim/run`.
+
+Minor for the same reason 0.21.0 was: no verb, config key or file layout
+moved, but a rite's prose changes how writing a note behaves, and prose is
+the product here. **There is no migration to do** — a memory written the old
+way is still correct.
+
+### A new note pulls a revision of its wikilink neighbours
+
+`agent-memory`'s one-fact-per-file check only looked backwards — does a note
+already cover this ground. It now has a second half: before saving, open the
+notes the new one `[[links]]` to, and where the new fact refines or
+contradicts one of them, fold it in or rewrite that note instead of leaving a
+near-duplicate sibling.
+
+Write time is the cheap moment for that merge — the session still holds the
+whole picture. The motivating measurement is this repository's own quota
+week of 2026-09-05..09: `chars_max` raised three times while an honest
+pruning pass found nothing stale to drop. On a corpus that grows *live*,
+merging at write time is the only pruning there is. The mechanism half of
+the same problem — a consolidation rite proposed against the 96% quota
+warning — is [#69](https://github.com/spscream/ai-floppy/issues/69), not in
+this release.
+
+### `init`'s bootstrap search resolves all six ways again
+
+The fenced block in `skills/init/SKILL.md` — the plugin search `init` runs
+before `.floppy/run` exists — carried only four of the shim's six resolution
+branches: it stopped at the Claude Code cache. A Cursor user whose harness
+had not set `CURSOR_PLUGIN_ROOT` was told "plugin not found" for a plugin
+the shim itself would have resolved through the local symlink. The block now
+duplicates the whole `has_scripts` chain — harness variables,
+`AI_FLOPPY_HOME`, Claude cache (`sort -V`), Cursor local symlink, Cursor
+cache (`ls -dt`) — and `tests/test-init-bootstrap.sh` extracts and runs each
+branch, so the shim and the skill drift apart loudly rather than silently.
+
 ## 0.21.0 — 2026-09-09
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
