@@ -1,9 +1,9 @@
-<!-- floppy:translation of=README.md blob=929e612ef6a05aa4e466dd3cd66b129eab7a1549 on=2026-09-13 -->
+<!-- floppy:translation of=README.md blob=e94b5a27bf14707e73135ab77aa43b93d990b152 on=2026-09-13 -->
 
 # floppy
 
 [![tests](https://github.com/spscream/ai-floppy/actions/workflows/tests.yml/badge.svg)](https://github.com/spscream/ai-floppy/actions/workflows/tests.yml)
-[![version](https://img.shields.io/github/v/tag/spscream/ai-floppy?label=version)](https://github.com/spscream/ai-floppy/blob/main/CHANGELOG.md)
+[![version](https://img.shields.io/github/v/tag/spscream/ai-floppy?label=version)](CHANGELOG.md)
 [![license](https://img.shields.io/github/license/spscream/ai-floppy)](https://github.com/spscream/ai-floppy/blob/main/LICENSE)
 
 *[In English](README.md)*

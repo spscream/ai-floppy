@@ -1,7 +1,7 @@
 # floppy
 
 [![tests](https://github.com/spscream/ai-floppy/actions/workflows/tests.yml/badge.svg)](https://github.com/spscream/ai-floppy/actions/workflows/tests.yml)
-[![version](https://img.shields.io/github/v/tag/spscream/ai-floppy?label=version)](https://github.com/spscream/ai-floppy/blob/main/CHANGELOG.md)
+[![version](https://img.shields.io/github/v/tag/spscream/ai-floppy?label=version)](CHANGELOG.md)
 [![license](https://img.shields.io/github/license/spscream/ai-floppy)](https://github.com/spscream/ai-floppy/blob/main/LICENSE)
 
 *[Русская версия](README.ru.md)*
