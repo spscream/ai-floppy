@@ -57,6 +57,13 @@ only says which of them to open and in what order.
    sub-index within it), not the whole memory tree. Read the one or two notes
    that plainly relate to this task; skip the rest.
 
+   **Log each note you actually open**: `bash .floppy/run heat <slug>`, the
+   slug being the filename without `.md` (several at once is fine). The log
+   is what lets pruning lean on "was this ever read" instead of on dates —
+   the one time usage was counted by hand, fourteen of twenty notes had
+   never been opened, and nothing recorded it. Log real opens only, not the
+   index skim; an inflated log is worse than the under-count it replaces.
+
    **Then, only if the task is not about this project alone, open
    `<memory_dir>/common/`** — the scope for facts about no single project: an
    outside tool that was evaluated, a shell trap, what this machine has

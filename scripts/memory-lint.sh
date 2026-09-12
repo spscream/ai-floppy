@@ -681,6 +681,37 @@ for f in "${all_notes[@]+"${all_notes[@]}"}"; do
   done < <(grep -o '\[\[[^]]*\]\]' "$f" | sed 's/^\[\[//; s/\]\]$//' | sort -u)
 done
 
+# ---------- note heat ----------
+# Reads the machine-local open log the `heat` verb keeps (.floppy/heat.log)
+# and names the notes no session has ever reported opening. A reporter, never
+# a gate, twice over: cold and wrong are different things — a note written for
+# a rare failure is cold until the day it earns its keep — and the log is
+# self-reported, which the 2026-09-09 benchmark measured as an under-count, so
+# absence from it is a hint, not proof. No log, no section: the verb is
+# opt-in, and a lint that nags every consumer into a new file is a lint that
+# gets ignored. The private and common corpora are excluded the way the quota
+# excludes them: this is a report about ONE project's notes.
+HEAT_LOG=".floppy/heat.log"
+if [[ -f "$HEAT_LOG" ]]; then
+  hr "note heat"
+  first_day="$(head -n1 "$HEAT_LOG" | cut -d' ' -f1)"
+  cold_n=0; total_n=0; cold_list=""
+  for f in "${notes[@]+"${notes[@]}"}"; do
+    total_n=$((total_n+1))
+    __slug="$(basename "$f" .md)"
+    if ! grep -q " $__slug\$" "$HEAT_LOG"; then
+      cold_n=$((cold_n+1))
+      # Ten names is a skimmable list; past that the count carries the point.
+      [[ "$cold_n" -le 10 ]] && cold_list="$cold_list${cold_list:+, }$__slug"
+    fi
+  done
+  if [[ "$cold_n" -gt 0 ]]; then
+    __more=""
+    [[ "$cold_n" -gt 10 ]] && __more=" and $((cold_n - 10)) more"
+    warn "$cold_n of $total_n notes never opened since $first_day: $cold_list$__more — candidates to merge or prune by hand, not a deletion order"
+  fi
+fi
+
 # ---------- summary ----------
 printf '\n'
 # The two foreign corpora are named on the clean line, not just counted into

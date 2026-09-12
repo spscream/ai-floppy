@@ -80,7 +80,7 @@ error rather than a fallthrough, for exactly that reason.
   `FLOPPY_*` variables and acts on `FLOPPY_REPO` (the git toplevel, resolved
   once in `scripts/run`, loud failure outside a repository).
 
-Verbs: `env lint link workplace store guard lock status check commit`.
+Verbs: `env lint link workplace store guard heat lock status check commit`.
 `lib-checkout.sh` is shared by `store`/`workplace` and is not a verb.
 
 `skills/init/SKILL.md` **duplicates the shim's plugin search by hand** — `init`

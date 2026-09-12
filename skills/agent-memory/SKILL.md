@@ -232,6 +232,22 @@ needed the extra room, with the reason written into the commit message. A
 ratchet edited on its own, "to make the check pass," defeats the reason the
 file exists.
 
+## The heat log: what pruning decisions stand on
+
+Opening a note is worth one line: `bash .floppy/run heat <slug>` appends a
+dated entry to `.floppy/heat.log` — machine-local, gitignored, outside every
+quota. `lint` reads it back and names the notes no session has ever reported
+opening.
+
+The log exists because pruning otherwise runs on proxies. A date says when a
+note was last *true*; only usage says whether anyone reads it, and the one
+time that was counted by hand, fourteen of twenty notes had never been
+opened. Two honesty rules keep the signal worth having: log notes actually
+read, not the index skim past them; and treat the cold list as candidates
+for the merge-or-prune question, never as a deletion order — the log is
+self-reported and measured to under-count, and a note kept for a rare
+failure is cold right up to the day it pays for itself.
+
 ## Scope: where the fact is true, not whether it is secret
 
 A fact belongs to one of three places, and the test is **where it is true**:
