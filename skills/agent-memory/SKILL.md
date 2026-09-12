@@ -21,6 +21,16 @@ A memory note holds exactly one fact. A refinement of an existing fact edits
 the file that already states it — it does not add a second file next to it.
 Before writing a new note, check whether one already covers the ground.
 
+That check has a second half: **a new note pulls a revision of its
+neighbours**. Before saving, open the notes the new one `[[links]]` to, and
+where the new fact refines or contradicts one of them, fold it into that note
+or rewrite it — do not leave a sibling saying almost the same thing. Now is
+the cheap moment for that merge: the session still holds the whole picture,
+while a near-duplicate written today is consolidation debt that some later
+session pays without it. The corpus that motivated this rule hit its quota
+ceiling three times in one week with nothing stale to prune — on a live
+corpus, merging at write time is the only pruning there is.
+
 ## Note frontmatter
 
 Every note opens with:
