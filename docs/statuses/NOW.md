@@ -54,6 +54,11 @@ green**. Do not quote the rate without both kernel versions.
 
 ## What is frozen
 
+- **`.floppy/run` stays a committed copy, not a generated file** (decided by
+  the owner 2026-09-13, closing the question asked 2026-09-09). The deciding
+  risk: a gitignored shim is absent from a fresh clone and from CI, and only an
+  agent with the plugin installed can restore it. The full trade and the
+  reversing condition are in `shim-is-committed-rather-than-generated`.
 - **`watched_dirs` is `docs/statuses`, and documentation is product**
   (narrowed 2026-09-08). The closing rite may write the status file and nothing
   else; `docs/guide/`, `docs/lessons.md` and `docs/memory-model.md` go through
@@ -143,10 +148,6 @@ green**. Do not quote the rate without both kernel versions.
 
 ## Open
 
-- **Whether `.floppy/run` should be generated instead of committed** — asked
-  2026-09-09, analysed, not decided. Recommendation: keep the committed copy, a
-  gitignored shim being absent from a fresh clone and from CI. Risks and the
-  reversing condition in `shim-is-committed-rather-than-generated`.
 - **`translation-check.py` has no gate for the contract half outside the
   suite**, by design, but nothing runs it on a *consumer's* repository either:
   `workstatus.sh` reports it and `status --flow` is the only place it surfaces.
