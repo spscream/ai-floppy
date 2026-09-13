@@ -1,0 +1,49 @@
+name: release
+
+# Tag and publish a GitHub release when the manifests move. This was a by-hand
+# step after each version bump, and by-hand steps stop happening: the releases
+# page sat at v0.20.0 while the manifests shipped 0.23.0 (noticed 2026-09-13),
+# and between 0.14.0 and 0.16.2 the same by-hand gap ran the other way — five
+# plugin.json bumps with no tag and no marketplace bump (tests/test-release.sh
+# guards that half; this workflow is the tag-and-release half).
+#
+# On every push to main, not on a paths filter: the check below is one `gh
+# release view` and exits quietly when the release exists, and a filter keyed
+# to the manifest would miss any path this repository later renames — the
+# cheap no-op is the self-healing shape, and it also picks up a release a
+# previous push failed to create.
+#
+# The release body is the version's own CHANGELOG section, extracted by
+# scripts/changelog-extract.sh — logic in a script the suite tests on macOS
+# bash 3.2, decision here in the workflow, same split as knowledge.yml. A
+# version bump whose changelog entry is missing fails this job loudly rather
+# than publishing empty notes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: tag and release the shipped version, if not already done
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ver="$(grep -m1 '"version"' .claude-plugin/plugin.json | sed 's/.*: *"//; s/".*//')"
+          [ -n "$ver" ] || { echo "x no version in .claude-plugin/plugin.json" >&2; exit 1; }
+          if gh release view "v$ver" --json name >/dev/null 2>&1; then
+            echo "ok release v$ver already exists — nothing to do"
+            exit 0
+          fi
+          bash scripts/changelog-extract.sh "$ver" > /tmp/notes.md
+          # Creates the tag at this commit when it does not exist yet; a tag
+          # pushed by hand earlier is used as-is (release-without-tag was the
+          # v0.21.0 state this workflow also repairs).
+          gh release create "v$ver" --target "$GITHUB_SHA" --title "v$ver" --notes-file /tmp/notes.md
+          echo "ok released v$ver"
