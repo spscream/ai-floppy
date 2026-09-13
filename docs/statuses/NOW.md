@@ -13,10 +13,8 @@ rite, a proposer-never-gate pass over one half at a time (#69, #70). The
 pre-release review's ten findings all shipped fixed inside the same version;
 the largest moved the log's ignore line from the consumer's `.gitignore`
 (measured: permanently dirty tree on a path `guard` refuses) to
-`.git/info/exclude`. 0.22.0 (same day): the neighbour-revision rule; 0.21.0
-(2026-09-09): a note is written when the fact appears, not at `wrap`.
-**Refresh `.floppy/run`: no** for all three — the shim is untouched since
-0.20.0.
+`.git/info/exclude`. **Refresh `.floppy/run`: no** — the shim is untouched
+since 0.20.0 (0.21.0–0.23.0 included).
 
 **Releases release themselves now** (2026-09-13, #76). Tagging was by hand,
 and the page sat at v0.20.0 while the manifests shipped 0.23.0;
@@ -163,8 +161,8 @@ green**. Do not quote the rate without both kernel versions.
 ## What is not true here
 
 No open issues and no open pull requests — #69 and #70 were filed and closed
-by #73/#74, and #71–#76 all merged on 2026-09-13. `main` is at `d53c3be`
-(the release workflow), local in sync, working tree clean.
+by #73/#74, and #71–#77 all merged on 2026-09-13. `main` is at `23d0c5f`
+(the 0.23.0 wrap), local in sync, working tree clean.
 
 **The cross-project home is decided** (2026-09-08). `basic-memory` is denied
 here — `.claude/settings.json` carries a `permissions.deny` rule and a
@@ -174,13 +172,15 @@ eight into `knowledge/notes/` and one into `common/private`. The argument, the
 breakdown and the condition for revisiting are in
 `basic-memory-is-off-in-this-repository`, which `MEMORY.md` loads every session.
 
-The corpus stands at 31 notes and 34 pointers across 4 indexes, 71649
-characters against a ceiling of 75000 — **351 short of the 96% warning
-band**, so the next note trips it. That is the `consolidate` rite's cue:
-largest half first (`product/`, 14 notes), before any fourth `chars_max`
-raise. The `common/` notes carry no `metadata.as_of` and `lint` warns so
-every run — the field behaving as designed, not something to fix by dating
-them from guesswork.
+The corpus stands at 29 notes and 32 pointers across 4 indexes, 67545
+characters against a ceiling of 75000 — out of the 96% band, ~4.5k of
+headroom. The first `consolidate` pass ran on `product/` (2026-09-13, store
+commit `e9c2f7c`): one merge, one delete with its replacement named, two
+rewrites, one declined merge recorded in
+`served-page-collapses-inline-scripts`; no `quota.lock` number moved. The
+`common/` notes carry no `metadata.as_of` and `lint` warns so every run —
+the field behaving as designed, not something to fix by dating them from
+guesswork.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
 while three issues had been filed minutes earlier, and it once spent a whole
