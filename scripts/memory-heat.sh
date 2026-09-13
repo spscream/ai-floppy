@@ -15,9 +15,11 @@
 # file usage UNDER-counts, so the log is a floor, never a census — a reporter
 # reading it must not treat absence as proof of cold.
 #
-# The log is machine-local working data, not memory: it is gitignored (this
-# script keeps the ignore line present), excluded from quotas, and two
-# machines keep two honest tallies — aggregation is explicitly a non-goal.
+# The log is per-checkout working data, not memory: it is gitignored (this
+# script keeps the ignore line present) and excluded from quotas. Two
+# machines keep two honest tallies, and so do two worktrees sharing one
+# store-hosted memory — aggregation is explicitly a non-goal, which is one
+# more reason the report reading this must call absence a hint, not proof.
 #
 # UTC date, same as metadata.as_of: a local-evening stamp is tomorrow for the
 # CI that reads it, and the memory already paid for that lesson once.
@@ -39,18 +41,37 @@ if [[ $# -eq 0 ]]; then
   exit 2
 fi
 
-# The ignore line rides with the first write rather than waiting for init:
-# the verb arrives by `plugin update` into repositories that ran init long
-# ago, and a log that starts life tracked would churn every commit with reads.
-if ! grep -qxF "$LOG" .gitignore 2>/dev/null; then
-  printf '%s\n' "$LOG" >> .gitignore
-  echo "ok added $LOG to .gitignore"
+# The ignore rides with the first write rather than waiting for init: the
+# verb arrives by `plugin update` into repositories that ran init long ago,
+# and a log that starts life tracked would churn every commit with reads.
+# `git check-ignore`, not a grep of .gitignore: a consumer whose own broader
+# pattern (`*.log`, a `.floppy/` rule) already covers the log gets no
+# redundant line. The pattern ends in `*` so the rotation temp file below is
+# covered by the same line.
+if ! git check-ignore -q "$LOG" 2>/dev/null; then
+  # A .gitignore with no final newline would weld the pattern onto the
+  # consumer's last rule, silently disabling it (review 2026-09-13, measured
+  # on a hand-edited `.env` line). One byte of prevention:
+  if [[ -s .gitignore ]] && [[ -n "$(tail -c1 .gitignore)" ]]; then
+    printf '\n' >> .gitignore
+  fi
+  printf '%s*\n' "$LOG" >> .gitignore
+  echo "ok added $LOG* to .gitignore"
 fi
 
+# Normalize each argument to the bare slug: the caller is an agent that just
+# read `half/note.md` off the filesystem, and a path or a filename logged
+# verbatim is a line no report can ever match — both ends would say ok while
+# the feature quietly degrades to noise.
 stamp="$(date -u +%Y-%m-%d)"
-for slug in "$@"; do
-  printf '%s %s\n' "$stamp" "$slug"
-done >> "$LOG"
+if ! {
+  for slug in "$@"; do
+    printf '%s %s\n' "$stamp" "$(basename "$slug" .md)"
+  done >> "$LOG"
+} 2>/dev/null; then
+  echo "x could not write $LOG — the open goes unrecorded" >&2
+  exit 1
+fi
 
 lines="$(wc -l < "$LOG" | tr -d ' ')"
 if [[ "$lines" -gt "$MAX_LINES" ]]; then

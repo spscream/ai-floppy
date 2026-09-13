@@ -694,21 +694,35 @@ done
 HEAT_LOG=".floppy/heat.log"
 if [[ -f "$HEAT_LOG" ]]; then
   hr "note heat"
-  first_day="$(head -n1 "$HEAT_LOG" | cut -d' ' -f1)"
-  cold_n=0; total_n=0; cold_list=""
-  for f in "${notes[@]+"${notes[@]}"}"; do
-    total_n=$((total_n+1))
-    __slug="$(basename "$f" .md)"
-    if ! grep -q " $__slug\$" "$HEAT_LOG"; then
-      cold_n=$((cold_n+1))
-      # Ten names is a skimmable list; past that the count carries the point.
-      [[ "$cold_n" -le 10 ]] && cold_list="$cold_list${cold_list:+, }$__slug"
+  if [[ ! -s "$HEAT_LOG" ]]; then
+    # A zero-byte log is the obvious way to opt in (`touch`), and without this
+    # branch it would report every note cold "since :" — a confident list
+    # standing on no data at all.
+    warn "the heat log is empty — sessions are not calling the heat verb, so no note can show as hot yet"
+  else
+    # `since` is the first RETAINED line: past 5000 lines rotation keeps only
+    # the newest 4000, so on a long-lived log this understates the window.
+    # The honest direction — a cold claim resting on less history than there
+    # was — and the date is printed so a reader can weigh exactly that.
+    first_day="$(head -n1 "$HEAT_LOG" | cut -d' ' -f1)"
+    cold_n=0; total_n=0; cold_list=""
+    for f in "${notes[@]+"${notes[@]}"}"; do
+      total_n=$((total_n+1))
+      __slug="$(basename "$f" .md)"
+      # awk field equality, not grep: a slug is a filename, and `a.b-note` in
+      # a BRE matches `aXb-note` — the note would show hot on someone else's
+      # line and escape the prune review in silence.
+      if ! awk -v s="$__slug" '$2 == s { found = 1; exit } END { exit !found }' "$HEAT_LOG"; then
+        cold_n=$((cold_n+1))
+        # Ten names is a skimmable list; past that the count carries the point.
+        [[ "$cold_n" -le 10 ]] && cold_list="$cold_list${cold_list:+, }$__slug"
+      fi
+    done
+    if [[ "$cold_n" -gt 0 ]]; then
+      __more=""
+      [[ "$cold_n" -gt 10 ]] && __more=" and $((cold_n - 10)) more"
+      warn "$cold_n of $total_n notes never opened since $first_day: $cold_list$__more — candidates to merge or prune by hand, not a deletion order"
     fi
-  done
-  if [[ "$cold_n" -gt 0 ]]; then
-    __more=""
-    [[ "$cold_n" -gt 10 ]] && __more=" and $((cold_n - 10)) more"
-    warn "$cold_n of $total_n notes never opened since $first_day: $cold_list$__more — candidates to merge or prune by hand, not a deletion order"
   fi
 fi
 
