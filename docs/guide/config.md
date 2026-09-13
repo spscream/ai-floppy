@@ -50,8 +50,12 @@ An example. The configuration of one project is four lines:
 project_key=acme
 public_repo=git@example.com:team/notes-store.git
 private_repo=git@example.com:workplace/agents-memory.git
-agents_memory_dir=$HOME/agents_memory
+agents_memory_dir=/home/you/agents_memory
 ```
+
+Values are literal: the parser expands neither `$HOME` nor `~`, so a path
+key takes the absolute path written out. (Omitting `agents_memory_dir`
+entirely gives the default, which does resolve to your home directory.)
 
 The result on disk is:
 
@@ -91,7 +95,7 @@ you want a wall instead of a stash: point `workplace_memory_dir` at a path of
 this project's own.
 
 ```
-workplace_memory_dir=$HOME/agents_memory/.clones/agents-memory--acme
+workplace_memory_dir=/home/you/agents_memory/.clones/agents-memory--acme
 ```
 
 On a machine that is already wired, the view and the cross-project link still
