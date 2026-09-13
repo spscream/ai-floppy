@@ -18,6 +18,22 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.24.1 — 2026-09-14
+
+**Refresh `.floppy/run`: no.** The shim is untouched.
+
+### A leading `~` or `$HOME` in a path value means the user's home
+
+`cfg_get` returned every value verbatim, and 0.24.0's own recipe nearly
+shipped `workplace_memory_dir=$HOME/...` — git would have cloned into a
+directory literally named `$HOME` under the repository. The parser now
+expands a leading `~/` or `$HOME/` (and the two bare forms) to the user's
+home; nothing else — the config is not a shell, so `~user`, other variables
+and anything mid-value stay literal. Beyond fixing the trap, this lets a
+committed config name a path that is true on every machine and carries no
+username into a public repository. `tests/test-memory-dirs.sh` scenario 11
+pins both spellings and both failure shapes.
+
 ## 0.24.0 — 2026-09-14
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
