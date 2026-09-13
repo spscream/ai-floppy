@@ -7,33 +7,37 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
-**0.21.0 is released** (2026-09-09) — tagged, published, three manifests agree.
-Its subject is the rite, not the code: **a note is written at the moment the
-fact appears, not collected at `wrap`** (#61, #62). Minor rather than patch
-because the ritual behaves differently, though no verb, key or path moved and
-a memory written the old way stays correct. **Refresh `.floppy/run`: no** —
-the shim is untouched. The previous release, 0.20.0 (2026-09-08), is the one
-that said **yes**, the first since 0.14.0, and said why it was a small yes:
-#52 changed the shim's last line to `exec "${BASH:-bash}"`, so an
-un-refreshed copy still works except where somebody names an interpreter.
+**0.23.0 is released** (2026-09-13): the `heat` verb — a machine-local
+note-open log feeding `lint`'s cold-note report — and the `consolidate`
+rite, a proposer-never-gate pass over one half at a time (#69, #70). The
+pre-release review's ten findings all shipped fixed inside the same version;
+the largest moved the log's ignore line from the consumer's `.gitignore`
+(measured: permanently dirty tree on a path `guard` refuses) to
+`.git/info/exclude`. 0.22.0 (same day): the neighbour-revision rule; 0.21.0
+(2026-09-09): a note is written when the fact appears, not at `wrap`.
+**Refresh `.floppy/run`: no** for all three — the shim is untouched since
+0.20.0.
 
-**The documentation was audited against the code** (2026-09-09) — README and
-both language sets, the guide, the skills, `memory-model`, `lessons`, the
-knowledge contract, `CHANGELOG` and the manifests, each claim checked against
-the script that implements it. Six divergences, all now fixed in one pull
-request; what they were and what each cost is in
-`a-check-can-pass-while-testing-something-adjacent`. The largest was not in a document at
-all: `skills/init/SKILL.md` carried **four of the shim's six** plugin-search
-branches, so `init` told a Cursor user "plugin not found" for a plugin
-`.floppy/run` resolves — reproduced with the old block, and the two Cursor
-branches now have cases in `tests/test-init-bootstrap.sh`.
+**Releases release themselves now** (2026-09-13, #76). Tagging was by hand,
+and the page sat at v0.20.0 while the manifests shipped 0.23.0;
+`.github/workflows/release.yml` now tags and publishes on every push to
+`main`, body extracted from `CHANGELOG.md` (a bump without an entry fails
+loudly). v0.21.0/v0.22.0 backfilled by hand; v0.23.0 created by the
+workflow's own first run.
+
+**The documentation was audited against the code** (2026-09-09) — every
+claim checked against the script that implements it; six divergences, fixed
+in one pull request. What they were and what each cost is in
+`a-check-can-pass-while-testing-something-adjacent`; the largest (init's
+plugin search missing two Cursor branches) now has cases in
+`tests/test-init-bootstrap.sh`.
 
 **The memory index is split into three halves** (2026-09-09). `MEMORY.md` is a
 router now — two always-read notes plus one link each to `memory/` (the model,
 the scopes, what the memory earns), `product/` (scripts, shim, tests, site,
-knowledge) and `delivery/` (branches, PRs, workflows). The routing words are in
-`AGENTS.md`, where a consumer's own knowledge belongs; `quota.lock` carries the
-measurement and the reason there are no per-half budgets.
+knowledge) and `delivery/` (branches, PRs, workflows). The routing words are
+in `AGENTS.md`; `quota.lock` carries the measurement and the reason there
+are no per-half budgets.
 
 **The cross-project scope is wired** (#55, #56), **the documentation split is
 finished** (#48–#53), and **drift is watched with the Russian hub list derived**
@@ -158,11 +162,9 @@ green**. Do not quote the rate without both kernel versions.
 
 ## What is not true here
 
-No open issues and no open pull requests before this one — checked against `gh`
-on 2026-09-09, not recalled. `main` was at `95a2f75` (0.21.0) when the audit
-started, local in sync, working tree clean. Both memory stores are committed and
-pushed, including the four notes and the `quota.lock` raise this audit found
-sitting uncommitted.
+No open issues and no open pull requests — #69 and #70 were filed and closed
+by #73/#74, and #71–#76 all merged on 2026-09-13. `main` is at `d53c3be`
+(the release workflow), local in sync, working tree clean.
 
 **The cross-project home is decided** (2026-09-08). `basic-memory` is denied
 here — `.claude/settings.json` carries a `permissions.deny` rule and a
@@ -172,10 +174,13 @@ eight into `knowledge/notes/` and one into `common/private`. The argument, the
 breakdown and the condition for revisiting are in
 `basic-memory-is-off-in-this-repository`, which `MEMORY.md` loads every session.
 
-The corpus stands at 25 notes and 25 pointers, 58303 characters against a
-ceiling of 65000. The 15 notes in `common/` carry no `metadata.as_of` and `lint`
-says so as a warning every run — that is the field behaving as designed, not
-something to fix by dating them from guesswork.
+The corpus stands at 31 notes and 34 pointers across 4 indexes, 71649
+characters against a ceiling of 75000 — **351 short of the 96% warning
+band**, so the next note trips it. That is the `consolidate` rite's cue:
+largest half first (`product/`, 14 notes), before any fourth `chars_max`
+raise. The `common/` notes carry no `metadata.as_of` and `lint` warns so
+every run — the field behaving as designed, not something to fix by dating
+them from guesswork.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
 while three issues had been filed minutes earlier, and it once spent a whole
