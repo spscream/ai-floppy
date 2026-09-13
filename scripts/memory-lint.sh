@@ -607,10 +607,10 @@ if [[ -f "$LOCK" && "${lock_ok:-0}" -eq 1 ]]; then
   }
 
   if [[ "$total_chars" -gt "$chars_max" ]]; then
-    err "$total_chars characters, over the $chars_max in quota.lock — raise chars_max in the same commit and say why, or drop what went stale"
+    err "$total_chars characters, over the $chars_max in quota.lock — run the consolidate rite first; a raise then goes in the same commit as what needed the room, with the reason"
     by_half
   elif [[ "$total_chars" -gt $(( chars_max * WARN_PCT / 100 )) ]]; then
-    warn "$total_chars characters, approaching the $chars_max in quota.lock — drop what went stale now, while this is still the session that grew it"
+    warn "$total_chars characters, approaching the $chars_max in quota.lock — drop what went stale or run the consolidate rite now, while this is still the session that grew it"
     by_half
   fi
 
