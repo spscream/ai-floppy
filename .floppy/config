@@ -19,9 +19,14 @@ project_key=ai_floppy
 # private/projects/ai_floppy beside them.
 private_repo=git@github.com:spscream/agents_memory.git
 # Checkout paths are derived: agents_memory_dir (default /home/amalaev/agents_memory)
-# holds one checkout per repository URL. workplace_memory_dir overrides that
-# for this repository only, and is rarely needed.
-# workplace_memory_dir=/path/to/your/workplace-memory-checkout
+# holds one checkout per repository URL. Since 0.24.0 this project keeps a
+# clone of its own instead of sharing the derived one: a live session of
+# another project (measured 2026-09-13: vps_inventory) held its half-written
+# status file dirty in the shared tree at the moment this project's wrap
+# synced. The value is literal — no $HOME expansion — so it is this machine's
+# absolute path; a new machine runs "bash .floppy/run workplace" once and gets
+# the same layout.
+workplace_memory_dir=/home/amalaev/agents_memory/.clones/agents_memory--ai_floppy
 
 # commit_push controls what "bash .floppy/run commit" does after committing:
 # auto (default) pulls --rebase then pushes, same as always. A repository
