@@ -18,6 +18,57 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.23.0 — 2026-09-13
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
+release reaches `shim/run`.
+
+Minor by the 0.21.0 rule: two rites are new, a verb is new, and the ignore
+mechanism moved — none of it is a fix to a released behaviour, because none
+of it was released before this version. **There is no migration to do**: the
+first `heat` call wires its own ignore line, and a memory written the old
+way is still correct.
+
+### The `heat` verb and lint's cold-note report (#70)
+
+`bash .floppy/run heat <slug>...` appends one `YYYY-MM-DD <slug>` line per
+opened note to `.floppy/heat.log`; the `start` rite instructs sessions to
+call it, and `lint` gains a `note heat` section naming the notes no session
+has ever reported opening — a reporter, never a gate, because the log is a
+self-reported floor (the 2026-09-09 benchmark measured self-report as an
+under-count) and cold-but-correct notes earn their keep by existing. The log
+is per-checkout working data: machine-local, rotated past 5000 lines,
+outside every quota.
+
+The ignore line lives in `.git/info/exclude`, not the consumer's
+`.gitignore`. The first cut edited `.gitignore`, and this repository's own
+review measured the consequence the same day: the tree goes permanently
+dirty on a file `wrap`'s guard refuses to commit. The exclude file is
+machine-local like the log itself, so no repository churn at all.
+
+### The `consolidate` rite (#69)
+
+The quota ratchet knew two answers when a ceiling nears — raise the number
+or prune stale notes — and this repository's own corpus measured both
+running out: three `chars_max` raises in one week with an honest pruning
+pass finding nothing. The new rite is the third answer: read one half whole
+(logging the reads via `heat`), gather evidence per note (`as_of`, the cold
+list, wikilink overlap), and propose merges, rewrites and deletions in a
+numbered list — a proposer, never a gate; every change waits for the
+human's yes, and an empty-handed pass is a valid outcome the next raise
+commit can cite.
+
+### Review fixes that shipped inside the same release
+
+The pre-release review (10 findings, 2026-09-13) landed here rather than in
+a patch after: a stale `FLOPPY_REPO` is now a loud error instead of a log
+written into the wrong repository; a slug with whitespace or a leading dash
+is rejected at write time instead of becoming a permanently-cold line lint
+can never match; a rotation that cannot complete is named instead of
+swallowed; a heat log holding only a newline reads as empty instead of
+reporting every note cold "since :"; and the READMEs and `tests/test-docs.sh`
+count six skills from the directory listing instead of a hand-kept five.
+
 ## 0.22.0 — 2026-09-13
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this

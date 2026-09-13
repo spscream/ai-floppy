@@ -1,4 +1,4 @@
-<!-- floppy:translation of=README.md blob=e94b5a27bf14707e73135ab77aa43b93d990b152 on=2026-09-13 -->
+<!-- floppy:translation of=README.md blob=1293f5a8cb1782a792c17d1bd9387cb81102b7fc on=2026-09-13 -->
 
 # floppy
 
@@ -35,8 +35,8 @@ Cursor, локальный чекаут и что делать, если обн�
 `.floppy/config`, создаёт индекс памяти и файл состояния, и добавляет в ваш
 `AGENTS.md` указатель на соглашения.
 
-Пять скиллов: `init`, `agent-memory`, `start`, `workstatus`, `wrap`.
-Что делает каждый: [Пять скиллов](docs/guide/skills.ru.md).
+Шесть скиллов: `init`, `agent-memory`, `start`, `workstatus`, `wrap`,
+`consolidate`. Что делает каждый: [Шесть скиллов](docs/guide/skills.ru.md).
 
 ## Документация
 
@@ -45,7 +45,7 @@ Cursor, локальный чекаут и что делать, если обн�
 - [Справочник конфигурации](docs/guide/config.ru.md) — каждый ключ
   `.floppy/config`, раскладка чекаутов, память в отдельном репозитории,
   `quota.lock`
-- [Пять скиллов](docs/guide/skills.ru.md)
+- [Шесть скиллов](docs/guide/skills.ru.md)
 - [Модель памяти](docs/memory-model.ru.md) — два пространства имён, две оси
 - [Уроки](docs/lessons.ru.md) — чему этот плагин научился дорогим путём
 - [База знаний](knowledge/README.md) — находки про сам харнесс, верные
