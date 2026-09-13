@@ -382,5 +382,32 @@ assert_eq "migration: and not in the shared one" "1" \
 
 rm -rf "$W10"
 
+# ---------- 11. a leading ~ or $HOME in a path value means the user's home ----------
+# cfg_get returns values verbatim, and 0.24.0's recipe nearly shipped
+# `workplace_memory_dir=$HOME/...` — which would have made git clone a
+# directory literally named '$HOME' under the repository. The two spellings a
+# human writes for "my home" are now expanded (leading ~ and leading $HOME,
+# nothing else — the config is not a shell), so one committed line can be
+# true on two machines and a public repository need not carry a username.
+W11="$(mktemp -d)"; H11="$W11/home"; mkdir -p "$H11"
+mk_remote "$W11/wp.git" workplace
+repo11="$(mk_consumer 'memory_dir=.agent-memory
+agents_memory_dir=~/agents_memory
+project_key=acme
+private_repo='"$W11/wp.git"'
+workplace_memory_dir=$HOME/agents_memory/.clones/wp--own')"
+mkdir -p "$repo11/.agent-memory"
+run_verb "$repo11" "$H11" workplace
+assert_rc "tilde and \$HOME in path values wire up" 0 "$RC"
+assert_eq "the clone lands under the overridden HOME" "0" \
+  "$([[ -d "$H11/agents_memory/.clones/wp--own/.git" ]] && echo 0 || echo 1)"
+assert_eq "the view landed under the tilde-expanded parent" "0" \
+  "$([[ -L "$H11/agents_memory/acme/private" ]] && echo 0 || echo 1)"
+assert_eq "no directory literally named ~ anywhere" "1" \
+  "$([[ -e "$repo11/~" || -e "$H11/~" ]] && echo 0 || echo 1)"
+assert_eq "no directory literally named \$HOME anywhere" "1" \
+  "$([[ -e "$repo11/\$HOME" || -e "$H11/\$HOME" ]] && echo 0 || echo 1)"
+rm -rf "$W11"
+
 rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
 summary

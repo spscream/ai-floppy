@@ -24,6 +24,19 @@ cfg_get() { # key default
   v="${line#*=}"
   v="${v#"${v%%[![:space:]]*}"}"   # leading
   v="${v%"${v##*[![:space:]]}"}"   # trailing
+  # The two spellings a human writes for "my home" mean the user's home; the
+  # config is not a shell and nothing else is expanded (no ~user, no other
+  # variables). Added 2026-09-14, after 0.24.0's own recipe nearly shipped
+  # `workplace_memory_dir=$HOME/...` — the value came back verbatim and git
+  # would have cloned into a directory literally named '$HOME'. Expanding here
+  # also keeps a username out of a committed config: `~/x` is true on every
+  # machine, `/home/someone/x` is true on one.
+  case "$v" in
+    '~')        v="$HOME" ;;
+    '~/'*)      v="$HOME${v#\~}" ;;
+    '$HOME')    v="$HOME" ;;
+    '$HOME/'*)  v="$HOME${v#\$HOME}" ;;
+  esac
   printf '%s' "$v"
 }
 
