@@ -1,4 +1,4 @@
-# The five skills
+# The six skills
 
 
 Claude Code and Cursor show the names differently. Claude Code adds the plugin
@@ -33,6 +33,12 @@ short name. Only the short name is correct in both applications.
   the file-list check, and the diff. Last, the agent runs
   `bash .floppy/run commit`, which stages, commits, pushes, and releases the
   lock.
+- **`consolidate`** — merges and prunes the memory when a size warning fires,
+  or before a limit in `quota.lock` is raised. The agent reads one half of
+  the memory, proposes merges, rewrites, and deletions, each with its reason,
+  and applies only what the human approves. If the memory then fits its
+  limit, the limit stays where it is. An empty result is a valid result: it
+  is what the raise commit then records.
 
 
 ## What each skill says about itself
