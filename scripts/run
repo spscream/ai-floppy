@@ -76,11 +76,14 @@ case "$verb" in
   workplace) name_repo; run_script memory-workplace.sh "$@" ;;
   store)     name_repo; run_script memory-store.sh     "$@" ;;
   guard)     name_repo; run_script wrap-guard.sh       "$@" ;;
+  # heat skips name_repo like lock does: it is called mid-task every time a
+  # note is opened, and a banner per read teaches the caller to stop calling.
+  heat)                 run_script memory-heat.sh      "$@" ;;
   lock)                 run_script wrap-lock.sh        "$@" ;;
   status)    name_repo; run_script workstatus.sh       "$@" ;;
   check)     name_repo; run_script wrap-check.sh       "$@" ;;
   commit)    name_repo; run_script wrap-commit.sh      "$@" ;;
-  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|store|guard|lock|status|check|commit}" ;;
+  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|store|guard|heat|lock|status|check|commit}" ;;
   # Until 0.14.0 this table lived in the consumer's `.floppy/run`, and an
   # unknown verb there was as likely to mean a stale copy as a typo — the two
   # were indistinguishable from inside the file. Measured the first time a verb
@@ -90,7 +93,7 @@ case "$verb" in
   # old for the verb — and a verb added upstream no longer needs anyone to
   # re-copy anything.
   *)         echo "x unknown verb: $verb" >&2
-             echo "  known: env lint link workplace store guard lock status check commit" >&2
+             echo "  known: env lint link workplace store guard heat lock status check commit" >&2
              echo "  If it exists upstream, this machine's plugin is behind: update it, and" >&2
              echo "  remember that \`plugin update\` is a no-op while the version is unchanged." >&2
              echo "  Resolved plugin root: $FLOPPY_ROOT" >&2

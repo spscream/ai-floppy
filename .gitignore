@@ -10,6 +10,12 @@
 _site/
 
 
+# floppy: the note-open log the heat verb keeps — per-checkout working data,
+# never memory. Ignored here in the same PR that shipped the verb, because
+# this repository's wrap may only commit watched paths and a first `heat`
+# call would otherwise leave .gitignore dirtied by a line wrap cannot commit
+.floppy/heat.log*
+
 # memory lives in the store repository, not here
 /.agent-memory
 
