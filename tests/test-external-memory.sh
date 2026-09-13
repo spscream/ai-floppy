@@ -407,6 +407,48 @@ rm -f "$pr/.agent-memory/common/private/unchecked.md"
 outCL2="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"
 assert_contains "the clean line names what else it checked" "in common/" "$outCL2"
 
+# ---------- another project's dirt in the shared clone must not block this one ----------
+# Measured 2026-09-13 on the owner's machine: several projects share one clone
+# of the workplace repository, a live session of ANOTHER project held its
+# status file modified and unstaged there, and this project's wrap died at the
+# sync step — `git pull --rebase` refuses on any dirty file anywhere in the
+# clone, whoever owns it, even with nothing to rebase. The commit itself had
+# landed; only the push was lost, and the other machine saw nothing.
+wpclone="$B/am/.clones/wp"
+mkdir -p "$wpclone/private/projects/other"
+printf 'their note\n' > "$wpclone/private/projects/other/note.md"
+git -C "$wpclone" add private/projects/other/note.md
+git -C "$wpclone" -c user.email=t@t -c user.name=t commit -qm "another project's note"
+git -C "$wpclone" push -q origin main
+printf 'their unfinished edit\n' >> "$wpclone/private/projects/other/note.md"
+
+# check tells the two apart: this project's own files are the ones to name in
+# the file list; another project's are not this session's to commit, and the
+# old single count invited exactly that.
+printf -- '---\nname: mine\ndescription: a fact of this project\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$pr/.agent-memory/private/mine.md"
+outFS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check .agent-memory/private/mine.md 2>&1)"
+assert_contains "check counts only this project's files as committable" \
+  "1 uncommitted change(s)" "$outFS"
+assert_contains "and names the foreign dirt as another project's" \
+  "outside this project" "$outFS"
+
+# commit syncs and pushes past the foreign dirt instead of dying on it...
+outFC="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "a fact of this project" \
+  .agent-memory/private/mine.md 2>&1)"; rcFC=$?
+assert_rc       "commit pushes despite another project's dirty file (rc)" 0 "$rcFC"
+assert_contains "and reports the push" "pushed" "$outFC"
+assert_contains "the note reached the workplace remote" "private/projects/acme/mine.md" \
+  "$(git --git-dir="$wpremote" ls-tree -r --name-only main)"
+# ...and the foreign edit is exactly where its own session left it: unstaged,
+# uncommitted, content intact, nothing of it pushed.
+assert_contains "the foreign edit is still unstaged in the clone" \
+  " M private/projects/other/note.md" "$(git -C "$wpclone" status --porcelain)"
+assert_contains "its content survived the autostash round-trip" \
+  "their unfinished edit" "$(cat "$wpclone/private/projects/other/note.md")"
+assert_eq "and nothing of it was pushed" "their note" \
+  "$(git --git-dir="$wpremote" show main:private/projects/other/note.md)"
+
 rm -rf "$B"
 
 summary

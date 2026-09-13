@@ -18,6 +18,48 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.24.0 — 2026-09-14
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
+release reaches `shim/run`.
+
+Minor by the 0.21.0 rule: no file layout moved and no migration is needed,
+but a rite behaves differently — `commit`'s sync no longer fails on a dirty
+file it does not own, and `check` reads a shared clone differently.
+
+### The sync stashes over dirt it does not own (autostash)
+
+`git pull --rebase` refuses on any unstaged change to a tracked file, even
+with nothing to rebase — and nothing anywhere set the `rebase.autoStash` the
+comments relied on. Measured 2026-09-13 on the owner's machine: several
+projects share one clone of the workplace repository, a live session of one
+project held its status file modified there, and another project's wrap died
+at the sync step — commit landed, push lost, the other machine blind.
+All three sync sites in `commit` now pass `-c rebase.autoStash=true`: the
+workplace clone (foreign projects' dirt), the memory store (a crashed
+session's half-written note), and the project repository itself (product
+code a session deliberately leaves uncommitted). The stash round-trips the
+dirt; nothing of it is committed or pushed.
+
+### `check` counts a shared clone in two piles
+
+The workplace section counted every dirty file in the clone and said "name
+them in your file list and commit closes them too" — an invitation to commit
+another project's half-written work. It now counts this project's own paths
+(its scope and `private/common/`) apart from everything else, and says of
+the rest: another project's session owns them; leave them.
+
+### One project can opt out of the shared clone
+
+The default stays one clone per repository URL. `workplace_memory_dir` —
+which always won over the derived path — is now the documented and tested
+way to give one project a clone of its own when several projects share
+`private_repo` on one machine: isolation of the working tree without moving
+any other project or machine. The recipe, including migrating an
+already-wired machine, is in `docs/guide/config.md` under "When two projects
+should not share one working tree", and `tests/test-memory-dirs.sh` pins
+both halves of it.
+
 ## 0.23.0 — 2026-09-13
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this

@@ -322,5 +322,65 @@ assert_contains "and says what it points at"            "points at" "$OUT"
 
 rm -rf "$W9"
 
+# ---------- 10. one private repository, two projects, one clone of its own ----------
+# The default stays one clone per repository URL. But several projects sharing
+# one clone also share its working tree, and 2026-09-13 measured what that
+# costs: one project's unfinished session held a file dirty there and another
+# project's wrap could not sync past it. `commit` now autostashes over foreign
+# dirt (tests/test-external-memory.sh); a project that wants the tree to
+# itself opts OUT by setting workplace_memory_dir — the explicit key wins over
+# the derived path, giving this project its own clone without moving anybody
+# else's. This scenario pins the recipe docs/guide/config.md gives for it.
+W10="$(mktemp -d)"; H10="$W10/home"; mkdir -p "$H10"
+mk_remote "$W10/wp.git" workplace
+repoA10="$(mk_consumer "memory_dir=.agent-memory
+agents_memory_dir=$H10/agents_memory
+project_key=alpha
+private_repo=$W10/wp.git")"
+mkdir -p "$repoA10/.agent-memory"
+repoB10="$(mk_consumer "memory_dir=.agent-memory
+agents_memory_dir=$H10/agents_memory
+project_key=beta
+private_repo=$W10/wp.git
+workplace_memory_dir=$H10/agents_memory/.clones/wp--beta")"
+mkdir -p "$repoB10/.agent-memory"
+
+run_verb "$repoA10" "$H10" workplace
+assert_rc "shared default: alpha wires up" 0 "$RC"
+run_verb "$repoB10" "$H10" workplace
+assert_rc "opted out: beta wires up too" 0 "$RC"
+
+assert_eq "alpha uses the derived shared clone" "0" \
+  "$([[ -d "$H10/agents_memory/.clones/wp/.git" ]] && echo 0 || echo 1)"
+assert_eq "beta got a clone of its own" "0" \
+  "$([[ -d "$H10/agents_memory/.clones/wp--beta/.git" ]] && echo 0 || echo 1)"
+assert_eq "and it is the right repository" "workplace" \
+  "$(cat "$H10/agents_memory/.clones/wp--beta/WHICH.txt" 2>/dev/null)"
+
+printf 'beta note\n' > "$repoB10/.agent-memory/private/note.md"
+assert_eq "a note through beta's link lands in beta's clone" "0" \
+  "$([[ -f "$H10/agents_memory/.clones/wp--beta/private/projects/beta/note.md" ]] && echo 0 || echo 1)"
+assert_eq "and alpha's working tree never sees it" "1" \
+  "$([[ -e "$H10/agents_memory/.clones/wp/private/projects/beta/note.md" ]] && echo 0 || echo 1)"
+
+# The migration half of the same recipe: alpha was wired into the shared
+# clone, and moving it out is the documented commands, not a guess. The view
+# and the common link both still resolve into the shared clone, and the verbs
+# refuse to repoint wiring that resolves — the rm is the human's deliberate
+# step; rerunning `workplace` rebuilds both against the clone of its own.
+printf 'workplace_memory_dir=%s\n' "$H10/agents_memory/.clones/wp--alpha" >> "$repoA10/.floppy/config"
+rm "$H10/agents_memory/alpha/private" "$repoA10/.agent-memory/common/private"
+run_verb "$repoA10" "$H10" workplace
+assert_rc "migration: rewires against the new clone" 0 "$RC"
+assert_eq "migration: alpha now has a clone of its own" "0" \
+  "$([[ -d "$H10/agents_memory/.clones/wp--alpha/.git" ]] && echo 0 || echo 1)"
+printf 'alpha note\n' > "$repoA10/.agent-memory/private/note2.md"
+assert_eq "migration: a note now lands in the new clone" "0" \
+  "$([[ -f "$H10/agents_memory/.clones/wp--alpha/private/projects/alpha/note2.md" ]] && echo 0 || echo 1)"
+assert_eq "migration: and not in the shared one" "1" \
+  "$([[ -e "$H10/agents_memory/.clones/wp/private/projects/alpha/note2.md" ]] && echo 0 || echo 1)"
+
+rm -rf "$W10"
+
 rm -rf "$W1" "$W2" "$W3" "$W4" "$W5" "$W6"
 summary

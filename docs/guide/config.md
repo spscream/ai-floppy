@@ -21,7 +21,7 @@ does not contain it.
 | `workplace_project_key` | *(the value of `project_key`)* | the same, for `private_repo` |
 | `agents_memory_dir` | `$HOME/agents_memory` | holds one directory for each project, and the clones in `.clones/`. Each repository URL gets one clone. The name of the clone comes from the URL. floppy derives it; you do not set it. Two different repositories thus cannot use one clone directory. A clone from an earlier layout — under the parent directly, or at the parent itself — is used as it is, but only if its `origin` is the configured URL. See the example above |
 | `memory_repo_dir` | *(derived)* | replaces the derived checkout path of `public_repo` on this machine. Set it only if that checkout cannot be below the parent directory |
-| `workplace_memory_dir` | *(derived)* | the same replacement, for `private_repo` |
+| `workplace_memory_dir` | *(derived)* | the same replacement, for `private_repo`. Also the opt-out from the shared clone: several projects with one `private_repo` share one working tree by default, and this key gives one project a clone of its own. See "When two projects should not share one working tree" below |
 | `memory_language` | `en` | the language of the memory notes. No script uses this key. A session reads it from this file. It does not control the language of the answers to a human |
 | `index_chars_max` | `24500` | the maximum number of characters in the memory index. The value comes from the session loader of the agent application. That loader removes text above a limit and does not report the removed section. This is a fact about the application, not about your project. The limits for the corpus are in `quota.lock` |
 | `note_stale_days` | `180` | how long a note's `metadata.as_of` may stand before `lint` names it. It warns and never fails: old and wrong are different things, and only a person who knows the area can tell them apart. Notes with no `as_of` are counted, not listed, so the field can arrive into a corpus that already exists. Lower it if your memory is mostly about a fast-moving dependency. The knowledge base in this repository ages a note after 90 days, but by a different mechanism: `scripts/knowledge-rot-check.py --days`, which never reads this file |
@@ -76,7 +76,38 @@ addresses stay the same if a repository URL changes.
 A second project uses the same two repositories in the same way. It gets its
 own directory `~/agents_memory/<other key>/`, and its own scopes
 `public/projects/<other key>` and `private/projects/<other key>` inside the same
-two clones. There is one clone for each repository, never one for each project.
+two clones. There is one clone for each repository by default, not one for
+each project.
+
+## When two projects should not share one working tree
+
+Projects sharing `private_repo` share its clone — and therefore one git
+working tree. Their scopes never overlap, but the tree state is one: a live
+session of one project holds its half-written status file dirty there at the
+moment another project's wrap syncs. Since 0.24.0 `commit` stashes over the
+foreign dirt and restores it, and `check` counts this project's files apart
+from another project's — the shared default works. Opt out of sharing when
+you want a wall instead of a stash: point `workplace_memory_dir` at a path of
+this project's own.
+
+```
+workplace_memory_dir=$HOME/agents_memory/.clones/agents-memory--acme
+```
+
+On a machine that is already wired, the view and the cross-project link still
+resolve into the shared clone, and the verbs refuse to repoint wiring that
+resolves somewhere real — remove those two links first, then rewire:
+
+```
+git -C ~/agents_memory/.clones/agents-memory push    # flush this project's leftovers first
+rm ~/agents_memory/acme/private
+rm <memory_dir>/common/private
+bash .floppy/run workplace
+```
+
+The cost is one more clone on disk. The remote stays one repository, the
+scopes do not move, and the other projects and the other machine see nothing
+changed.
 
 If `public_repo` and `private_repo` hold the same URL, there is one clone,
 and both scopes are in it, beside each other.
