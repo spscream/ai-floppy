@@ -34,7 +34,7 @@ blob="$repo/blob/main"
 pages='README.md|index.md|Home|1
 docs/guide/install.md|install.md|Install & init|2
 docs/guide/config.md|config.md|Config reference|3
-docs/guide/skills.md|skills.md|The five skills|4
+docs/guide/skills.md|skills.md|The six skills|4
 |knowledge.md|The knowledge base|5
 |behind.md|Behind it|6
 docs/memory-model.md|memory-model.md|The memory model|1|Behind it
@@ -44,7 +44,7 @@ CHANGELOG.md|changelog.md|Changelog|7
 README.ru.md|ru-index.md|floppy по-русски|1|Русский
 docs/guide/install.ru.md|ru-install.md|Установка и init|2|Русский
 docs/guide/config.ru.md|ru-config.md|Справочник конфигурации|3|Русский
-docs/guide/skills.ru.md|ru-skills.md|Пять скиллов|4|Русский
+docs/guide/skills.ru.md|ru-skills.md|Шесть скиллов|4|Русский
 docs/memory-model.ru.md|ru-memory-model.md|Модель памяти|5|Русский
 docs/lessons.ru.md|ru-lessons.md|Уроки|6|Русский'
 
@@ -133,7 +133,7 @@ EOF
 # a generated page with no source row would fall out of test-site.sh's "every
 # document reaches the site" loop.
 skills_block="$(
-  for name in init agent-memory start workstatus wrap; do
+  for name in init agent-memory start workstatus wrap consolidate; do
     f="skills/$name/SKILL.md"
     [[ -f "$f" ]] || { printf 'missing %s\n' "$f" >&2; exit 1; }
     desc="$(awk '/^description: /{sub(/^description: /,""); print; exit}' "$f")"
