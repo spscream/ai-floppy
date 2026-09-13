@@ -194,6 +194,45 @@ assert_contains "pull-after-commit: this session's edit survived"      "line3-fr
 
 rm -rf "$repoA" "$repoB" "$remote2"
 
+# ---------- product dirt left for the human must not block the sync ----------
+# The same trap one repository over. wrap deliberately leaves product code
+# uncommitted — it is not the rite's to commit — and `git pull --rebase`
+# refuses on any unstaged change to a tracked file even when there is nothing
+# to rebase. Measured 2026-09-13 in the shared workplace clone; the project
+# repository has the identical shape whenever a session edited product code
+# before wrapping.
+remote3="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remote3"
+repoC="$(sandbox)"; cp shim/run "$repoC/.floppy/run"
+cat > "$repoC/.floppy/config" <<'EOFC'
+memory_dir=brain
+statuses_now=state/NOW.md
+statuses_now_chars_max=4000
+watched_dirs=state,.floppy
+EOFC
+mkdir -p "$repoC/state" "$repoC/src"
+printf '| Notes | 1 | 2 | up |\n' > "$repoC/state/NOW.md"
+printf 'v1\n' > "$repoC/src/app.txt"
+write_clean_memory "$repoC"
+git -C "$repoC" add -A
+git -C "$repoC" -c user.email=t@t -c user.name=t commit -qm base
+git -C "$repoC" remote add origin "$remote3"
+git -C "$repoC" push -q -u origin main
+
+printf 'half-done product edit\n' >> "$repoC/src/app.txt"
+printf '| Notes | 1 | 3 | up |\n' > "$repoC/state/NOW.md"
+outPD="$(cd "$repoC" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "status update" state/NOW.md 2>&1)"; rcPD=$?
+assert_rc "product dirt: commit still syncs and pushes (rc)" 0 "$rcPD"
+assert_eq "product dirt: local head reaches the remote" \
+  "$(git -C "$repoC" rev-parse HEAD)" "$(git -C "$remote3" rev-parse refs/heads/main)"
+assert_contains "product dirt: the edit is still unstaged afterwards" \
+  " M src/app.txt" "$(git -C "$repoC" status --porcelain)"
+assert_contains "product dirt: its content survived the autostash round-trip" \
+  "half-done product edit" "$(cat "$repoC/src/app.txt")"
+assert_eq "product dirt: nothing of it was pushed" "v1" \
+  "$(git -C "$remote3" show main:src/app.txt)"
+
+rm -rf "$repoC" "$remote3"
+
 # ---------- the lock is released on every exit path, not just three of seven ----------
 # wrap-commit.sh used to call `unlock` only from the pull/push tail: a
 # memory-lint failure, a guard failure, a failed `git add` or a failed

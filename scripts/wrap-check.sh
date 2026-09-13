@@ -129,15 +129,32 @@ if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
   if [[ ! -d "$wp/.git" ]]; then
     echo "  not wired: no $wp — bash .floppy/run workplace"
   else
-    wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
+    # Several projects share this clone, so its dirt is counted in two piles:
+    # this project's own paths — its scope and the common namespace — are what
+    # "name them in your file list" can actually close, and everything else
+    # belongs to another project's session. The old single count made no such
+    # distinction and invited committing files this session never wrote
+    # (measured 2026-09-13: it said "name them in your file list" about
+    # another project's half-written status file).
+    wp_key="${FLOPPY_WORKPLACE_PROJECT_KEY:-}"
+    wp_ours=0; wp_foreign=0
+    while IFS= read -r wp_line; do
+      [[ -z "$wp_line" ]] && continue
+      wp_path="${wp_line#???}"
+      case "$wp_path" in
+        "private/projects/$wp_key/"*|"private/common/"*) wp_ours=$((wp_ours+1)) ;;
+        *) wp_foreign=$((wp_foreign+1)) ;;
+      esac
+    done <<< "$(git -C "$wp" status --porcelain)"
     wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
-    if [[ "$wp_dirty" == "0" && "$wp_ahead" == "0" ]]; then
+    if [[ $wp_ours -eq 0 && $wp_foreign -eq 0 && "$wp_ahead" == "0" ]]; then
       echo "  clean and pushed"
     else
       # "separately" was true until commit learned to close this repository
       # too; leaving it would send the human to do by hand what the next call
       # does for them — and, worse, to commit notes this session never claimed.
-      [[ "$wp_dirty" != "0" ]] && echo "  $wp_dirty uncommitted change(s) in $wp — name them in your file list and commit closes them too"
+      [[ $wp_ours -gt 0 ]] && echo "  $wp_ours uncommitted change(s) in $wp — name them in your file list and commit closes them too"
+      [[ $wp_foreign -gt 0 ]] && echo "  $wp_foreign change(s) outside this project's scope there — another project's session owns them; leave them"
       [[ "$wp_ahead" != "0" && "$wp_ahead" != "?" ]] && echo "  $wp_ahead commit(s) unpushed — the second machine cannot see them"
     fi
   fi

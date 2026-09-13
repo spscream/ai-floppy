@@ -279,8 +279,15 @@ if [[ ${#store_files[@]} -gt 0 ]]; then
   # to replay. A failure here is loud but not fatal — the notes are committed
   # and safe, and stopping the whole rite would leave the session half closed
   # for a network problem.
+  #
+  # rebase.autoStash is passed explicitly because nothing else sets it: git
+  # refuses `pull --rebase` on ANY unstaged change to a tracked file, even
+  # with nothing to rebase, and a crashed session's half-written note would
+  # otherwise block every later wrap at this exact line. The stash round-trips
+  # the dirt; it is never committed. Measured 2026-09-13 in the workplace
+  # clone below — this store has the identical shape.
   if [[ $sync -eq 1 ]]; then
-    if git -C "$store" pull --rebase --quiet && { [[ $push -eq 0 ]] || git -C "$store" push --quiet; }; then
+    if git -C "$store" -c rebase.autoStash=true pull --rebase --quiet && { [[ $push -eq 0 ]] || git -C "$store" push --quiet; }; then
       [[ $push -eq 1 ]] && echo "  pushed" || echo "  --no-push: memory commit stays local"
     else
       store_unpushed=1
@@ -314,8 +321,17 @@ if [[ ${#priv_files[@]} -gt 0 ]]; then
   # a rebase wants local commits to replay. A failure is loud but not fatal —
   # the notes are committed and safe, and a network problem must not leave the
   # session half closed.
+  #
+  # rebase.autoStash, explicitly, and here it is not an edge case: several
+  # projects share this clone, so another project's live session routinely
+  # holds a file modified and unstaged in it, and git refuses `pull --rebase`
+  # on any dirty tracked file whoever owns it — even with nothing to rebase.
+  # Measured 2026-09-13: one project's wrap died at this line on another
+  # project's half-written status file; the commit had landed, only the push
+  # was lost. The stash restores the foreign dirt exactly where its own
+  # session left it.
   if [[ $sync -eq 1 ]]; then
-    if git -C "$priv_store" pull --rebase --quiet && { [[ $push -eq 0 ]] || git -C "$priv_store" push --quiet; }; then
+    if git -C "$priv_store" -c rebase.autoStash=true pull --rebase --quiet && { [[ $push -eq 0 ]] || git -C "$priv_store" push --quiet; }; then
       [[ $push -eq 1 ]] && echo "  pushed" || echo "  --no-push: the private notes stay local"
     else
       priv_unpushed=1
@@ -365,8 +381,12 @@ fi
 git log --oneline -1 | sed 's/^/  /'
 
 # ---------- pull, then push ----------
-# In this order deliberately: see the header. With a commit of our own the pull
-# takes the rebase path and autoStash applies.
+# In this order deliberately: see the header. With a commit of our own the
+# pull takes the rebase path — and rebase.autoStash is passed explicitly,
+# because an earlier version of this comment claimed "autoStash applies" while
+# nothing anywhere set it: the rebase path only stashes when asked. The dirt
+# it round-trips here is the product code a session deliberately leaves
+# uncommitted — wrap must not commit it, and it must not block the sync either.
 hr "sync"
 if [[ $sync -eq 0 ]]; then
   echo "  commit_push=never in .floppy/config: no remote configured, staying local."
@@ -382,7 +402,7 @@ fi
 # the reason it exists.
 if [[ -z "$push_target" ]]; then
   echo "  no upstream yet: nothing to rebase against, this push sets one"
-elif ! git pull --rebase --quiet; then
+elif ! git -c rebase.autoStash=true pull --rebase --quiet; then
   echo "  pull --rebase failed or conflicted. The commit is made and safe locally."
   echo "  Resolve it by hand, then push. Not pushing now."
   exit 1
