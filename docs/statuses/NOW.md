@@ -7,52 +7,55 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
+**0.24.0 and 0.24.1 are released** (2026-09-14, #79 and #81). The measured
+failure behind both: projects sharing one clone of the private store share
+its tree state, and one project's dirty file killed another project's wrap
+at `git pull --rebase`, which refuses on any unstaged change to a tracked
+file. Now all three sync sites in `commit` pull with
+`-c rebase.autoStash=true`; `check` counts a shared clone's dirt in two
+piles (this project's scope vs another's, which it says to leave); and
+`workplace_memory_dir` is the documented, scenario-10-tested opt-out for a
+clone of one's own. 0.24.1 the same day: `cfg_get` expands a leading `~/`
+or `$HOME/` — the 0.24.0 recipe nearly shipped a `$HOME` git would have
+taken literally. **Refresh `.floppy/run`: no** for both.
+
 **0.23.0 is released** (2026-09-13): the `heat` verb — a machine-local
 note-open log feeding `lint`'s cold-note report — and the `consolidate`
 rite, a proposer-never-gate pass over one half at a time (#69, #70). The
-pre-release review's ten findings all shipped fixed inside the same version;
-the largest moved the log's ignore line from the consumer's `.gitignore`
-(measured: permanently dirty tree on a path `guard` refuses) to
-`.git/info/exclude`. **Refresh `.floppy/run`: no** — the shim is untouched
-since 0.20.0 (0.21.0–0.23.0 included).
+pre-release review's ten findings shipped fixed in the same version; the
+largest moved the log's ignore line to `.git/info/exclude`. **Refresh
+`.floppy/run`: no** — the shim is untouched since 0.20.0.
 
-**Releases release themselves now** (2026-09-13, #76). Tagging was by hand,
-and the page sat at v0.20.0 while the manifests shipped 0.23.0;
-`.github/workflows/release.yml` now tags and publishes on every push to
-`main`, body extracted from `CHANGELOG.md` (a bump without an entry fails
-loudly). v0.21.0/v0.22.0 backfilled by hand; v0.23.0 created by the
-workflow's own first run.
+**Releases release themselves now** (2026-09-13, #76). `release.yml` tags
+and publishes on every push to `main`, body extracted from `CHANGELOG.md`
+(a bump without an entry fails loudly). Before it, the releases page sat at
+v0.20.0 while the manifests shipped 0.23.0.
 
-**The documentation was audited against the code** (2026-09-09) — every
-claim checked against the script that implements it; six divergences, fixed
-in one pull request. What they were and what each cost is in
-`a-check-can-pass-while-testing-something-adjacent`; the largest (init's
+**The documentation was audited against the code** (2026-09-09): six
+divergences, fixed in one pull request; what each cost is in
+`a-check-can-pass-while-testing-something-adjacent`, and the largest (init's
 plugin search missing two Cursor branches) now has cases in
 `tests/test-init-bootstrap.sh`.
 
-**The memory index is split into three halves** (2026-09-09). `MEMORY.md` is a
-router now — two always-read notes plus one link each to `memory/` (the model,
-the scopes, what the memory earns), `product/` (scripts, shim, tests, site,
-knowledge) and `delivery/` (branches, PRs, workflows). The routing words are
-in `AGENTS.md`; `quota.lock` carries the measurement and the reason there
-are no per-half budgets.
+**The memory index is split into three halves** (2026-09-09). `MEMORY.md` is
+a router — two always-read notes plus one link each to `memory/`, `product/`
+and `delivery/`. The routing words are in `AGENTS.md`; `quota.lock` carries
+the measurement and the reason there are no per-half budgets.
 
 **The cross-project scope is wired** (#55, #56), **the documentation split is
 finished** (#48–#53), and **drift is watched with the Russian hub list derived**
-(#58). All three closed; their frozen consequences are below, and the four
-guard defects the split exposed are in
-`one-directory-level-broke-four-guards`,
+(#58). Their frozen consequences are below; the guard defects the split
+exposed are in `one-directory-level-broke-four-guards`,
 `a-table-row-with-no-document-is-invisible` and
 `macos-runner-carries-one-bash-and-it-is-3-2`.
 
 **The macOS temp path is measured** (#29/#30, 2026-09-06) and is still live.
-`<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**, not drawn
-per machine: twenty runners returned two components, each tied to a kernel
-version 20 out of 20 — 25.5.0 with `_` (6 runners), 25.6.0 without (14), so the
-same commit passes or fails by which image it lands on. 2100 `mktemp` suffixes
-carried no non-alphanumeric character. The 30% is a rollout mix on one day and
-goes to zero when 25.5.0 retires — **leaving the defect intact and the tests
-green**. Do not quote the rate without both kernel versions.
+`<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**: kernel
+25.5.0 images carry a `_` in it, 25.6.0 images do not (20 of 20 runners), so
+the same commit passes or fails by which image it lands on. The 30% failure
+rate was one day's rollout mix and goes to zero when 25.5.0 retires —
+**leaving the defect intact and the tests green**. Do not quote the rate
+without both kernel versions.
 
 ## What is frozen
 
@@ -68,16 +71,14 @@ green**. Do not quote the rate without both kernel versions.
   only working documents the question did not arise; it does now, and this is
   the answer. `watched_files` is unchanged.
 - **Drift is reported to a person, never gated on a branch** (decided
-  2026-09-08, #58). `translations.yml` runs on a push to `main` and files one
-  issue, updated while the condition holds and **closed automatically** when the
-  checker is clean. It must not move to `pull_request`: gating freshness turns a
-  typo fix in an English document into bilingual work, and teaches whoever is in
-  a hurry to re-stamp without reading — which converts a stale translation into
-  a fresh-looking one and destroys the only signal the record carries. The
-  contract half is a different rule and *is* gated, by the hand-written loop in
-  `tests/test-translations.sh`. The workflow needs a full checkout: the checker
-  resolves the blob sha its marker recorded, and a shallow clone lacks that
-  object, so every translation would report behind on a repository that is fine.
+  2026-09-08, #58). `translations.yml` files one issue on a push to `main`,
+  updates it while the condition holds, **closes it automatically** when clean.
+  It must not move to `pull_request`: gating freshness teaches re-stamping
+  without reading, which turns a stale translation into a fresh-looking one.
+  The contract half *is* gated, in `tests/test-translations.sh`. The workflow
+  needs a full checkout — a shallow clone lacks the blob sha the marker
+  resolves, and every translation would report behind on a repository that is
+  fine.
 - **The suite pins its interpreter in PATH, not at every call site** (#52).
   `tests/run.sh` puts a directory holding one `bash` — a symlink to the
   interpreter it was started with — at the front of PATH, covering ~180 bare
@@ -107,25 +108,27 @@ green**. Do not quote the rate without both kernel versions.
   value would put one machine's path into a file every machine reads. The same
   argument rules out setting `machine_key` here: `machines/WIN-GVR0V5UPOD7/` is
   ugly and correct, because a hand-picked name would rename the *other* machine.
+- **The private store stays one repository per person, and the shared-clone
+  default stays** (decided by the owner 2026-09-14). Isolation is opt-in per
+  project via `workplace_memory_dir`; splitting the store into per-project
+  repositories was rejected — `common/private` still needs a shared
+  repository, so the split keeps the collision and adds fragmentation. The
+  argument is in `private-store-stays-one-repo-per-person`; flipping the
+  derived-clone default is ruled out at `_checkout_dir` in `lib-config.sh`
+  (an upgrade must not move a machine's existing checkout).
 - **The wrap lock does not cover the private scope** — one lock per rite,
   following the memory every wrap writes. It does not cover two machines at all;
   nothing does.
 - **`store` reports the redundant `.gitignore` line rather than removing it.**
   That file belongs to the consumer and a line in it may be hand-written.
 - **`quota.lock` holds measured numbers, and raising one is a defended edit.**
-  `chars_max` is the measured corpus plus a tenth — 65000 since 2026-09-09,
-  against a measured 58303. It stood at 61000 for a day with no comment and no
-  commit, which is the edit the ratchet exists to expose.
-  `note_chars_max=5000`, **not** the convention's 10000: the longest note here
-  is 4248 and the mean 2332, so 10000 would never fire and the rule it enforces
-  would be decorative. `pointers_max=25` is where a flat index makes splitting
-  into halves cheaper than reading past it, and on 2026-09-09 it did: the index
-  hit 25 exactly and was **split into `memory/`, `product/` and `delivery/`**
-  rather than raised — the largest index is 11 pointers now. A half that fills
-  splits again into sub-indexes; three levels is the floor of the tree, not a
-  budget. No `half_chars_max` keys: one machine writes all three halves, so a
-  per-half ceiling would fire when the corpus one does. Raise a number only in
-  the same commit as the notes that need the room.
+  `chars_max=75000`; it once stood raised for a day with no comment and no
+  commit, which is the edit the ratchet exists to expose. `note_chars_max=5000`,
+  not the convention's 10000 — the longest note here is ~4.2k, so 10000 would
+  never fire. `pointers_max=25`: when the flat index hit it (2026-09-09) it was
+  **split into `memory/`, `product/` and `delivery/`** rather than raised. No
+  `half_chars_max` keys — one machine writes all three halves. Raise a number
+  only in the same commit as the notes that need the room.
 - **The injected script in `site/_includes/head_custom.html` uses block comments
   and explicit semicolons.** Not style: the page it becomes has no newlines, and
   either omission makes the whole script dead or invalid. Two asserts enforce it.
@@ -139,14 +142,11 @@ green**. Do not quote the rate without both kernel versions.
   is.** `workstatus.sh` keeps a deliberately *loose* pre-gate whose only job is
   deciding whether to start python — `?`, never a bracket range, so the
   collation trap cannot return through it.
-- **The sibling rule stays hand-written in `tests/test-translations.sh`**, and
+- **The sibling rule stays hand-written in `tests/test-translations.sh`** —
   deriving its expectation from the checker would let a checker bug agree with
-  itself. The same reasoning now shapes the site's Russian hub loop the other
-  way: that list *is* derived from the page table, so a new page is covered on
-  the commit that adds it, and a **literal count** sits beside it as the thing
-  derivation cannot fake. The count earned its place immediately — the table's
-  closing quote is glued to its last row, and the first derivation dropped
-  `ru-lessons` in silence.
+  itself. The site's Russian hub loop *is* derived, from the page table, with a
+  **literal count** beside it as the thing derivation cannot fake — the first
+  derivation dropped `ru-lessons` in silence.
 
 ## Open
 
@@ -160,9 +160,10 @@ green**. Do not quote the rate without both kernel versions.
 
 ## What is not true here
 
-No open issues and no open pull requests — #69 and #70 were filed and closed
-by #73/#74, and #71–#77 all merged on 2026-09-13. `main` is at `23d0c5f`
-(the 0.23.0 wrap), local in sync, working tree clean.
+No open pull requests — #79 and #81 merged 2026-09-14 and released
+themselves as v0.24.0/v0.24.1. `main` is at `02246d4`, local in sync,
+working tree clean. The translation drift issue for `config.ru.md` (its
+source moved twice in 0.24.x) is the reporter doing its job, not a fault.
 
 **The cross-project home is decided** (2026-09-08). `basic-memory` is denied
 here — `.claude/settings.json` carries a `permissions.deny` rule and a
@@ -172,9 +173,9 @@ eight into `knowledge/notes/` and one into `common/private`. The argument, the
 breakdown and the condition for revisiting are in
 `basic-memory-is-off-in-this-repository`, which `MEMORY.md` loads every session.
 
-The corpus stands at 29 notes and 32 pointers across 4 indexes, 67545
-characters against a ceiling of 75000 — out of the 96% band, ~4.5k of
-headroom. The first `consolidate` pass ran on `product/` (2026-09-13, store
+The corpus stands at 30 notes and 33 pointers across 4 indexes, 70133
+characters against a ceiling of 75000 — out of the 96% band, but only ~1.9k
+below where it starts (72000). The first `consolidate` pass ran on `product/` (2026-09-13, store
 commit `e9c2f7c`): one merge, one delete with its replacement named, two
 rewrites, one declined merge recorded in
 `served-page-collapses-inline-scripts`; no `quota.lock` number moved. The
