@@ -235,7 +235,8 @@ file exists.
 ## The heat log: what pruning decisions stand on
 
 Opening a note is worth one line: `bash .floppy/run heat <slug>` appends a
-dated entry to `.floppy/heat.log` — machine-local, gitignored, outside every
+dated entry to `.floppy/heat.log` — machine-local, kept out of git via
+`.git/info/exclude` by the verb itself, outside every
 quota. `lint` reads it back and names the notes no session has ever reported
 opening.
 

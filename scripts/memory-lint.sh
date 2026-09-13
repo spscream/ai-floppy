@@ -694,29 +694,39 @@ done
 HEAT_LOG=".floppy/heat.log"
 if [[ -f "$HEAT_LOG" ]]; then
   hr "note heat"
-  if [[ ! -s "$HEAT_LOG" ]]; then
-    # A zero-byte log is the obvious way to opt in (`touch`), and without this
-    # branch it would report every note cold "since :" — a confident list
-    # standing on no data at all.
+  # `since` is the first RETAINED two-field line: past 5000 lines rotation
+  # keeps only the newest 4000, so on a long-lived log this understates the
+  # window. The honest direction — a cold claim resting on less history than
+  # there was — and the date is printed so a reader can weigh exactly that.
+  first_day="$(awk 'NF >= 2 { print $1; exit }' "$HEAT_LOG")"
+  if [[ -z "$first_day" ]]; then
+    # No usable line at all — a zero-byte `touch` (the obvious way to opt
+    # in) or a stray newline. Without this branch either would report every
+    # note cold "since :" — a confident list standing on no data at all,
+    # and `! -s` alone missed the one-newline case (review 2026-09-13).
     warn "the heat log is empty — sessions are not calling the heat verb, so no note can show as hot yet"
   else
-    # `since` is the first RETAINED line: past 5000 lines rotation keeps only
-    # the newest 4000, so on a long-lived log this understates the window.
-    # The honest direction — a cold claim resting on less history than there
-    # was — and the date is printed so a reader can weigh exactly that.
-    first_day="$(head -n1 "$HEAT_LOG" | cut -d' ' -f1)"
+    # One pass over the log for the opened-slug set, then a containment
+    # check per note — not one awk scan per note, which re-read the whole
+    # log times the corpus size (review 2026-09-13). Exact newline-bounded
+    # match, not grep: a slug is a filename, and `a.b-note` in a BRE
+    # matches `aXb-note` — the note would show hot on someone else's line
+    # and escape the prune review in silence.
+    nl='
+'
+    opened="$(awk 'NF >= 2 { print $2 }' "$HEAT_LOG" | sort -u)"
     cold_n=0; total_n=0; cold_list=""
     for f in "${notes[@]+"${notes[@]}"}"; do
       total_n=$((total_n+1))
       __slug="$(basename "$f" .md)"
-      # awk field equality, not grep: a slug is a filename, and `a.b-note` in
-      # a BRE matches `aXb-note` — the note would show hot on someone else's
-      # line and escape the prune review in silence.
-      if ! awk -v s="$__slug" '$2 == s { found = 1; exit } END { exit !found }' "$HEAT_LOG"; then
-        cold_n=$((cold_n+1))
-        # Ten names is a skimmable list; past that the count carries the point.
-        [[ "$cold_n" -le 10 ]] && cold_list="$cold_list${cold_list:+, }$__slug"
-      fi
+      case "$nl$opened$nl" in
+        *"$nl$__slug$nl"*) : ;;   # hot
+        *)
+          cold_n=$((cold_n+1))
+          # Ten names is a skimmable list; past that the count carries the point.
+          [[ "$cold_n" -le 10 ]] && cold_list="$cold_list${cold_list:+, }$__slug"
+          ;;
+      esac
     done
     if [[ "$cold_n" -gt 0 ]]; then
       __more=""

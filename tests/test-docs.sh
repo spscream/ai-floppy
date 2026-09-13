@@ -41,7 +41,13 @@ assert_contains "install page covers the Cursor equivalent" "Cursor"           "
 assert_contains "README quick start keeps: marketplace add" "plugin marketplace add" "$readme"
 assert_contains "README quick start keeps: plugin install"  "plugin install"        "$readme"
 
-for skill in init agent-memory start workstatus wrap; do
+# The list is the directory listing, not a hand-kept five: the hand-kept
+# list stayed at five when `consolidate` shipped, and this test kept passing
+# while both READMEs undercounted the product (review 2026-09-13, finding 4).
+skill_names=""
+for skill_dir in skills/*/; do
+  skill="$(basename "$skill_dir")"
+  skill_names="$skill_names${skill_names:+|}$skill"
   assert_contains "skills page names skill \`$skill\`" "\`$skill\`" "$skills_doc"
   assert_contains "README names skill \`$skill\`"      "\`$skill\`" "$readme"
 done
@@ -51,7 +57,7 @@ done
 # page — everywhere else the bare name, since that's the only form true in
 # both harnesses. Counted across both files: moving the explanation from one
 # to the other must not be able to produce two copies of it.
-floppy_prefixed_count="$(grep -hoE 'floppy:(init|agent-memory|start|workstatus|wrap)' \
+floppy_prefixed_count="$(grep -hoE "floppy:($skill_names)" \
   README.md docs/guide/skills.md 2>/dev/null | wc -l | tr -d ' ')"
 assert_eq "the floppy: prefix form appears exactly once (the explanation)" "1" "$floppy_prefixed_count"
 

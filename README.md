@@ -34,8 +34,8 @@ Run `init` once in each repository. It writes `.floppy/run` and
 `.floppy/config`, creates the memory index and the state file, and points your
 `AGENTS.md` at the conventions.
 
-Five skills: `init`, `agent-memory`, `start`, `workstatus`, `wrap`.
-What each one does: [The five skills](docs/guide/skills.md).
+Six skills: `init`, `agent-memory`, `start`, `workstatus`, `wrap`,
+`consolidate`. What each one does: [The six skills](docs/guide/skills.md).
 
 ## Documentation
 
@@ -43,7 +43,7 @@ What each one does: [The five skills](docs/guide/skills.md).
   stale copies that cause no error message
 - [Config reference](docs/guide/config.md) — every `.floppy/config` key, the
   checkout layout, memory in a separate repository, `quota.lock`
-- [The five skills](docs/guide/skills.md)
+- [The six skills](docs/guide/skills.md)
 - [The memory model](docs/memory-model.md) — two namespaces, two axes
 - [Lessons](docs/lessons.md) — what this plugin learned the expensive way
 - [The knowledge base](knowledge/README.md) — findings about the harness

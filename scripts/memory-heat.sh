@@ -15,16 +15,22 @@
 # file usage UNDER-counts, so the log is a floor, never a census — a reporter
 # reading it must not treat absence as proof of cold.
 #
-# The log is per-checkout working data, not memory: it is gitignored (this
-# script keeps the ignore line present) and excluded from quotas. Two
-# machines keep two honest tallies, and so do two worktrees sharing one
-# store-hosted memory — aggregation is explicitly a non-goal, which is one
-# more reason the report reading this must call absence a hint, not proof.
+# The log is per-checkout working data, not memory: it is kept out of git and
+# excluded from quotas. Two machines keep two honest tallies, and so do two
+# worktrees sharing one store-hosted memory — aggregation is explicitly a
+# non-goal, which is one more reason the report reading this must call
+# absence a hint, not proof.
 #
 # UTC date, same as metadata.as_of: a local-evening stamp is tomorrow for the
 # CI that reads it, and the memory already paid for that lesson once.
 set -uo pipefail
-cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+# The cd is guarded because this script writes: a stale FLOPPY_REPO landing
+# in `pwd` would append the log into whatever repository the shell happens to
+# sit in, with rc 0 (review 2026-09-13, finding 8).
+cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" || {
+  echo "x FLOPPY_REPO points nowhere: ${FLOPPY_REPO:-}" >&2
+  exit 1
+}
 
 LOG=".floppy/heat.log"
 # Rotation, so the log cannot become its own quota problem: past MAX_LINES
@@ -41,41 +47,78 @@ if [[ $# -eq 0 ]]; then
   exit 2
 fi
 
-# The ignore rides with the first write rather than waiting for init: the
-# verb arrives by `plugin update` into repositories that ran init long ago,
-# and a log that starts life tracked would churn every commit with reads.
-# `git check-ignore`, not a grep of .gitignore: a consumer whose own broader
-# pattern (`*.log`, a `.floppy/` rule) already covers the log gets no
-# redundant line. The pattern ends in `*` so the rotation temp file below is
-# covered by the same line.
-if ! git check-ignore -q "$LOG" 2>/dev/null; then
-  # A .gitignore with no final newline would weld the pattern onto the
-  # consumer's last rule, silently disabling it (review 2026-09-13, measured
-  # on a hand-edited `.env` line). One byte of prevention:
-  if [[ -s .gitignore ]] && [[ -n "$(tail -c1 .gitignore)" ]]; then
-    printf '\n' >> .gitignore
-  fi
-  printf '%s*\n' "$LOG" >> .gitignore
-  echo "ok added $LOG* to .gitignore"
+# The ignore line goes into .git/info/exclude, never the consumer's
+# .gitignore: the first release of this verb edited .gitignore, and the first
+# call left the tree permanently dirty on a file wrap's guard refuses to
+# commit — `bash .floppy/run guard .gitignore` exits 1, so every wrap after
+# the first read "won't commit: .gitignore" forever (review 2026-09-13,
+# finding 1). The exclude file is machine-local like the log itself, which is
+# also why writing it needs no one's review. The check is per-file — the log
+# AND the rotation temp file — because a consumer's own `*.log` covers the
+# first and not the second (finding 9); the pattern ends in `*` so one line
+# covers both.
+if ! git check-ignore -q "$LOG" 2>/dev/null || ! git check-ignore -q "$LOG.tmp" 2>/dev/null; then
+  excl="$(git rev-parse --git-common-dir 2>/dev/null || git rev-parse --git-dir)/info/exclude"
+  mkdir -p "${excl%/*}" 2>/dev/null
+  {
+    # An exclude file with no final newline would weld the pattern onto its
+    # last rule, silently disabling it (measured on a hand-edited .gitignore,
+    # review 2026-09-13). One byte of prevention:
+    if [[ -s "$excl" ]] && [[ -n "$(tail -c1 "$excl")" ]]; then
+      printf '\n' >> "$excl"
+    fi
+    printf '%s*\n' "$LOG" >> "$excl"
+  } 2>/dev/null || echo "! could not write $excl — the log will show as untracked" >&2
 fi
 
 # Normalize each argument to the bare slug: the caller is an agent that just
 # read `half/note.md` off the filesystem, and a path or a filename logged
 # verbatim is a line no report can ever match — both ends would say ok while
-# the feature quietly degrades to noise.
+# the feature quietly degrades to noise. Parameter expansion, not basename:
+# BSD and GNU basename disagree on a leading dash (`--help`), and expansion
+# has no option parsing to disagree about (finding 5).
+#
+# A slug with whitespace is refused for the same both-ends-say-ok reason:
+# lint matches the second field of a line, so `my note` would log fine and
+# read as permanently cold (finding 7). A leading dash is refused as an
+# obvious non-slug. The rejection is loud and the call fails, because the
+# mismatch is at the caller and stays until the caller fixes it.
 stamp="$(date -u +%Y-%m-%d)"
-if ! {
-  for slug in "$@"; do
-    printf '%s %s\n' "$stamp" "$(basename "$slug" .md)"
-  done >> "$LOG"
-} 2>/dev/null; then
-  echo "x could not write $LOG — the open goes unrecorded" >&2
-  exit 1
+payload=""
+logged=0
+rejected=0
+for slug in "$@"; do
+  s="${slug%.md}"
+  s="${s##*/}"
+  case "$s" in
+    ""|-*|*[[:space:]]*)
+      echo "x '$slug' is not a note slug — skipped (a slug is the filename without .md, one word)" >&2
+      rejected=1
+      continue
+      ;;
+  esac
+  payload="$payload$stamp $s
+"
+  logged=$((logged+1))
+done
+
+if [[ "$logged" -gt 0 ]]; then
+  if ! printf '%s' "$payload" >> "$LOG" 2>/dev/null; then
+    echo "x could not write $LOG — the open goes unrecorded" >&2
+    exit 1
+  fi
 fi
 
-lines="$(wc -l < "$LOG" | tr -d ' ')"
-if [[ "$lines" -gt "$MAX_LINES" ]]; then
-  tail -n "$KEEP_LINES" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+lines="$(wc -l < "$LOG" 2>/dev/null | tr -d ' ')"
+if [[ "${lines:-0}" -gt "$MAX_LINES" ]]; then
+  # A trim that cannot complete is named, not swallowed: silent here means
+  # the log grows past its cap forever and nobody learns why (finding 6).
+  # The append above already landed, so this is a warning, not a failure.
+  if ! { tail -n "$KEEP_LINES" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; } 2>/dev/null; then
+    echo "! could not rotate $LOG — it stays whole and keeps growing until this is fixed" >&2
+  fi
 fi
 
-echo "ok heat: logged $# note(s)"
+[[ "$logged" -gt 0 ]] && echo "ok heat: logged $logged note(s)"
+[[ "$rejected" -eq 0 ]] || exit 1
+exit 0
