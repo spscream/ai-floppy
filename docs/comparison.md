@@ -6,9 +6,11 @@ what the measurements say about quota limits and the note-saturation ceiling.
 
 Reference point: floppy's own benchmark (83 questions, 2026-09-09). External
 data: a web survey from 2026-09-13, sources at the bottom. Adoption statuses
-checked against the code of 0.24.1 (2026-09-14). The raw catalogue of other
-systems, kept with the knowledge base's own verification contract, is
-[knowledge/LINKS.md](https://github.com/spscream/ai-floppy/blob/main/knowledge/LINKS.md).
+checked against the code of 0.24.1 (2026-09-14). An earlier survey of
+*adjacent* practice — subagent memory, team sync, the git-as-brain pattern,
+with a short section on three of the backends below — is
+[knowledge/LINKS.md](https://github.com/spscream/ai-floppy/blob/main/knowledge/LINKS.md);
+it carries its own hand-written verification table, dated 2026-09-05.
 
 ## The verdict, short
 
@@ -26,8 +28,8 @@ that automatic capture without selection does not work.
 
 **The consolidation gap is closed since 0.22.0–0.23.0.** In the first version
 of this survey it was the one class of mechanism floppy lacked entirely; now
-all three exist: merge-at-write (a `wrap` rule, 0.22.0), the `consolidate`
-rite and the heat log of note reads (0.23.0). The first consolidate pass ran
+all three exist: merge-at-write (an `agent-memory` rule, 0.22.0), the
+`consolidate` rite and the heat log of note reads (0.23.0). The first consolidate pass ran
 on 2026-09-13: −4.1k characters without raising a quota.
 
 **The saturation ceiling is real and measured** (context rot, memory
