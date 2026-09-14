@@ -46,6 +46,9 @@ Six skills: `init`, `agent-memory`, `start`, `workstatus`, `wrap`,
 - [The six skills](docs/guide/skills.md)
 - [The memory model](docs/memory-model.md) — two namespaces, two axes
 - [Lessons](docs/lessons.md) — what this plugin learned the expensive way
+- [Among memory systems](docs/comparison.md) — floppy against eight other
+  memory systems: what they do well, what was taken, what is deliberately
+  not taken
 - [The knowledge base](knowledge/README.md) — findings about the harness
   itself, true whether or not you use floppy
 

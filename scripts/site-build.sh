@@ -39,6 +39,7 @@ docs/guide/skills.md|skills.md|The six skills|4
 |behind.md|Behind it|6
 docs/memory-model.md|memory-model.md|The memory model|1|Behind it
 docs/lessons.md|lessons.md|Lessons|2|Behind it
+docs/comparison.md|comparison.md|Among memory systems|3|Behind it
 CHANGELOG.md|changelog.md|Changelog|7
 |ru.md|Русский|8
 README.ru.md|ru-index.md|floppy по-русски|1|Русский
@@ -46,7 +47,8 @@ docs/guide/install.ru.md|ru-install.md|Установка и init|2|Русски
 docs/guide/config.ru.md|ru-config.md|Справочник конфигурации|3|Русский
 docs/guide/skills.ru.md|ru-skills.md|Шесть скиллов|4|Русский
 docs/memory-model.ru.md|ru-memory-model.md|Модель памяти|5|Русский
-docs/lessons.ru.md|ru-lessons.md|Уроки|6|Русский'
+docs/lessons.ru.md|ru-lessons.md|Уроки|6|Русский
+docs/comparison.ru.md|ru-comparison.md|Среди систем памяти|7|Русский'
 
 # ---------- link rewriting ----------
 # Built from the table, so a page added above is linkable from every other page
