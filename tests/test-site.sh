@@ -286,7 +286,7 @@ assert_contains "the build directory is ignored" ".site/" "$(cat .gitignore)"
 behind="$(cat "$out/behind.md" 2>/dev/null || true)"
 assert_contains "the Behind it hub exists"     "title: Behind it"   "$behind"
 assert_contains "and declares itself a parent" "has_children: true" "$behind"
-for page in memory-model lessons; do
+for page in memory-model lessons comparison; do
   assert_contains "the hub links to $page"  "$page.html" "$behind"
   assert_contains "$page names its parent"  "parent: Behind it" \
     "$(cat "$out/$page.md" 2>/dev/null || true)"
@@ -297,7 +297,7 @@ done
 # a page added to the table joins its hub silently and no assertion moves.
 # A literal count closes it in the only direction a hand-written list cannot,
 # and it is a literal, not a recomputation of the table.
-assert_eq "the Behind it hub lists exactly its two children" "2" \
+assert_eq "the Behind it hub lists exactly its three children" "3" \
   "$(printf '%s\n' "$behind" | grep -c '^- \[')"
 
 # ---------- the Russian pages sit under one navigation group ----------
@@ -331,7 +331,7 @@ done < <(sed -n "/^pages='/,/'\$/p" scripts/site-build.sh | sed "s/^pages='//; s
 
 # Asserted before the loop, because a loop over an empty list passes every
 # assertion it does not make. This is the failure mode a green report hides.
-assert_eq "the page table yields six Russian pages" "6" "${#ru_pages[@]}"
+assert_eq "the page table yields seven Russian pages" "7" "${#ru_pages[@]}"
 
 for ru_page in "${ru_pages[@]}"; do
   assert_contains "the hub links to $ru_page"        "$ru_page.html" "$hub"
@@ -342,7 +342,7 @@ done
 # The same probe index.md gets, and for the same reason: a code identifier
 # survives translation, so it proves the whole README came through rather than
 # a truncated prefix of it.
-assert_eq "the Russian hub lists exactly its six children" "6" \
+assert_eq "the Russian hub lists exactly its seven children" "7" \
   "$(printf '%s\n' "$hub" | grep -c '^- \[')"
 
 assert_contains "the Russian index carries the whole README" "## Документация" \

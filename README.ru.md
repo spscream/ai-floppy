@@ -1,4 +1,4 @@
-<!-- floppy:translation of=README.md blob=1293f5a8cb1782a792c17d1bd9387cb81102b7fc on=2026-09-13 -->
+<!-- floppy:translation of=README.md blob=f340e81c0de8c34f01651a8b4b8f9b91e25dd7ad on=2026-09-14 -->
 
 # floppy
 
@@ -48,6 +48,8 @@ Cursor, локальный чекаут и что делать, если обн�
 - [Шесть скиллов](docs/guide/skills.ru.md)
 - [Модель памяти](docs/memory-model.ru.md) — два пространства имён, две оси
 - [Уроки](docs/lessons.ru.md) — чему этот плагин научился дорогим путём
+- [Среди систем памяти](docs/comparison.ru.md) — floppy против восьми других
+  систем памяти: что у них сильно, что взято, что сознательно не взято
 - [База знаний](knowledge/README.md) — находки про сам харнесс, верные
   независимо от того, пользуетесь вы floppy или нет
 
