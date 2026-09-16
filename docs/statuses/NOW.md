@@ -7,35 +7,42 @@ in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
+**The memory's effect is re-measured, on the consumer repositories this time**
+(2026-09-14). 196 questions from 41 recorded sessions of effectssdk and
+agents_harness, methodology identical to the 09-09 run. effectssdk: C 34.9% →
+M 62.8%, **+27.9pp at p=1.0e-7**; agents_harness: +11.9pp; arm M lands at
+62.7–66.3% in all three measurements — the ceiling is capture, what varies is
+how much the repository says about itself without the memory (effectssdk
+squashed its history and is 47% repo-silent). Two 09-09 conclusions are
+revised — the confirmed slice lifts too, and the corpus carries answers, not
+just NOW.md (43 files cited). The note is
+`the-lift-scales-with-what-the-repo-does-not-say` in `memory/`; full tables in
+the claude.ai artifact «Перезамер памяти floppy».
+
+**The comparison page is published** (#83, 2026-09-14): `docs/comparison.md`
+and its Russian sibling under the "Behind it" hub — eight systems, each with
+what floppy already has, what was taken in which version, and what is not
+being taken; sourced from the survey artifact, verified against 0.24.1.
+
 **0.24.0 and 0.24.1 are released** (2026-09-14, #79 and #81). The measured
-failure behind both: projects sharing one clone of the private store share
-its tree state, and one project's dirty file killed another project's wrap
-at `git pull --rebase`, which refuses on any unstaged change to a tracked
-file. Now all three sync sites in `commit` pull with
-`-c rebase.autoStash=true`; `check` counts a shared clone's dirt in two
-piles (this project's scope vs another's, which it says to leave); and
-`workplace_memory_dir` is the documented, scenario-10-tested opt-out for a
-clone of one's own. 0.24.1 the same day: `cfg_get` expands a leading `~/`
-or `$HOME/` — the 0.24.0 recipe nearly shipped a `$HOME` git would have
-taken literally. **Refresh `.floppy/run`: no** for both.
+failure: projects sharing one clone of the private store share its tree
+state, and one project's dirty file killed another's wrap at
+`git pull --rebase`. Now all three sync sites pull with
+`-c rebase.autoStash=true`, `check` counts a shared clone's dirt in two
+piles (this project's scope vs another's, which it says to leave), and
+`workplace_memory_dir` is the tested opt-out for a clone of one's own.
+0.24.1: `cfg_get` expands a leading `~/` or `$HOME/`. **Refresh
+`.floppy/run`: no** for both.
 
-**0.23.0 is released** (2026-09-13): the `heat` verb — a machine-local
-note-open log feeding `lint`'s cold-note report — and the `consolidate`
-rite, a proposer-never-gate pass over one half at a time (#69, #70). The
-pre-release review's ten findings shipped fixed in the same version; the
-largest moved the log's ignore line to `.git/info/exclude`. **Refresh
-`.floppy/run`: no** — the shim is untouched since 0.20.0.
-
-**Releases release themselves now** (2026-09-13, #76). `release.yml` tags
-and publishes on every push to `main`, body extracted from `CHANGELOG.md`
-(a bump without an entry fails loudly). Before it, the releases page sat at
-v0.20.0 while the manifests shipped 0.23.0.
+**0.23.0 shipped `heat` and the `consolidate` rite** (2026-09-13, #69, #70),
+the pre-release review's ten findings fixed in the same version. **Releases
+release themselves** since #76: `release.yml` tags and publishes on every
+push to `main`, body from `CHANGELOG.md` — a bump without an entry fails
+loudly.
 
 **The documentation was audited against the code** (2026-09-09): six
-divergences, fixed in one pull request; what each cost is in
-`a-check-can-pass-while-testing-something-adjacent`, and the largest (init's
-plugin search missing two Cursor branches) now has cases in
-`tests/test-init-bootstrap.sh`.
+divergences fixed in one pull request; what each cost is in
+`a-check-can-pass-while-testing-something-adjacent`.
 
 **The memory index is split into three halves** (2026-09-09). `MEMORY.md` is
 a router — two always-read notes plus one link each to `memory/`, `product/`
@@ -49,13 +56,12 @@ exposed are in `one-directory-level-broke-four-guards`,
 `a-table-row-with-no-document-is-invisible` and
 `macos-runner-carries-one-bash-and-it-is-3-2`.
 
-**The macOS temp path is measured** (#29/#30, 2026-09-06) and is still live.
-`<b>` in `/var/folders/<a>/<b>/T/` is **fixed by the runner image**: kernel
-25.5.0 images carry a `_` in it, 25.6.0 images do not (20 of 20 runners), so
-the same commit passes or fails by which image it lands on. The 30% failure
-rate was one day's rollout mix and goes to zero when 25.5.0 retires —
-**leaving the defect intact and the tests green**. Do not quote the rate
-without both kernel versions.
+**The macOS temp path defect is still live** (#29/#30, 2026-09-06): whether
+`/var/folders/<a>/<b>/T/` carries a `_` is **fixed by the runner image**
+(kernel 25.5.0 yes, 25.6.0 no; 20 of 20 runners), so the same commit passes
+or fails by image — and the rate goes to zero when 25.5.0 retires, leaving
+the defect intact and the tests green. Do not quote the 30% rate without
+both kernel versions.
 
 ## What is frozen
 
@@ -70,15 +76,12 @@ without both kernel versions.
   review like `skills/`, `scripts/`, `shim/` and `tests/`. While `docs/` held
   only working documents the question did not arise; it does now, and this is
   the answer. `watched_files` is unchanged.
-- **Drift is reported to a person, never gated on a branch** (decided
-  2026-09-08, #58). `translations.yml` files one issue on a push to `main`,
-  updates it while the condition holds, **closes it automatically** when clean.
-  It must not move to `pull_request`: gating freshness teaches re-stamping
-  without reading, which turns a stale translation into a fresh-looking one.
-  The contract half *is* gated, in `tests/test-translations.sh`. The workflow
-  needs a full checkout — a shallow clone lacks the blob sha the marker
-  resolves, and every translation would report behind on a repository that is
-  fine.
+- **Drift is reported to a person, never gated on a branch** (2026-09-08,
+  #58). `translations.yml` files one issue, updates it while the condition
+  holds, closes it when clean — proven end-to-end by #80. It must not move to
+  `pull_request`: gating freshness teaches re-stamping without reading. The
+  contract half *is* gated in `tests/test-translations.sh`; the workflow needs
+  a full checkout (a shallow clone lacks the marker's blob sha).
 - **The suite pins its interpreter in PATH, not at every call site** (#52).
   `tests/run.sh` puts a directory holding one `bash` — a symlink to the
   interpreter it was started with — at the front of PATH, covering ~180 bare
@@ -97,13 +100,11 @@ without both kernel versions.
 - **`commit` does not create a branch of its own** (#17). On a protected branch
   it commits, attempts the push, and prints the recipe. Moving someone off the
   branch they were on is a guess, and these scripts decline to guess.
-- **`metadata.as_of` is optional and `lint` never fails on age** (#32). Undated
-  notes are counted, not named; an aged note is named and the run still passes.
-  Both reasons are load-bearing: a check that reddens an existing corpus on
-  plugin-update day gets switched off, taking the four earning checks with it;
-  and a gate on age teaches people to bump the date without re-checking. A
-  future date more than one day out is still a hard failure — that day of slack
-  is the measured UTC+3 evening, not politeness.
+- **`metadata.as_of` is optional and `lint` never fails on age** (#32): a
+  check that reddens a corpus on plugin-update day gets switched off, and a
+  gate on age teaches date-bumping without re-checking. A future date more
+  than one day out is still a hard failure — the slack is the measured UTC+3
+  evening.
 - **`statuses_personal` is derived, not written live by `init`** — a literal
   value would put one machine's path into a file every machine reads. The same
   argument rules out setting `machine_key` here: `machines/WIN-GVR0V5UPOD7/` is
@@ -121,23 +122,19 @@ without both kernel versions.
   nothing does.
 - **`store` reports the redundant `.gitignore` line rather than removing it.**
   That file belongs to the consumer and a line in it may be hand-written.
-- **`quota.lock` holds measured numbers, and raising one is a defended edit.**
-  `chars_max=75000`; it once stood raised for a day with no comment and no
-  commit, which is the edit the ratchet exists to expose. `note_chars_max=5000`,
-  not the convention's 10000 — the longest note here is ~4.2k, so 10000 would
-  never fire. `pointers_max=25`: when the flat index hit it (2026-09-09) it was
-  **split into `memory/`, `product/` and `delivery/`** rather than raised. No
-  `half_chars_max` keys — one machine writes all three halves. Raise a number
-  only in the same commit as the notes that need the room.
+- **`quota.lock` holds measured numbers, and raising one is a defended edit**
+  — in the same commit as the notes that need the room. `chars_max=75000`
+  (it once stood raised for a day with no comment, the edit the ratchet
+  exists to expose), `note_chars_max=5000`, `pointers_max=25` — when the flat
+  index hit that, it was split, not raised. No `half_chars_max`: one machine
+  writes all three halves.
 - **The injected script in `site/_includes/head_custom.html` uses block comments
   and explicit semicolons.** Not style: the page it becomes has no newlines, and
   either omission makes the whole script dead or invalid. Two asserts enforce it.
-- **The vendored search plugins are MPL-1.1, and their notice lives with the
-  code** (decided 2026-09-06 by the owner). `lunr-languages@1.14.0` is MPL-1.1,
-  not MIT. The three files are vendored verbatim with a `NOTICE.md` and the
-  licence beside them; the site footer carries nothing, because MPL asks for
-  headers and available source, and a footer line would be a second place to
-  keep in step. `site/` only — the plugin is MIT.
+- **The vendored search plugins are MPL-1.1** (`lunr-languages@1.14.0`;
+  decided 2026-09-06). Vendored verbatim with `NOTICE.md` and the licence
+  beside them; the site footer carries nothing — MPL asks for headers and
+  available source. `site/` only, the plugin itself is MIT.
 - **`translation-check.py --list` is the only expression of what a translation
   is.** `workstatus.sh` keeps a deliberately *loose* pre-gate whose only job is
   deciding whether to start python — `?`, never a bracket range, so the
@@ -157,25 +154,29 @@ without both kernel versions.
   justification shipped uncondensed, so 22% of the config page is argument; and
   the site's positive control is a reach guard rather than a planted document,
   measured to be the stronger of the two.
+- **The README Documentation lists are unpinned** (measured 2026-09-13):
+  deleting both rows leaves `test-docs` at 49 passed and `test-site` at 103 —
+  only the translation reporter would notice. Recorded so the hole is chosen,
+  not unknown; pin it or accept it in a reviewed change.
+- **The corpus is in the 96% band** — the re-measurement note pushed it to
+  72216 of 75000. The next `consolidate` pass is due; `memory/` is the half
+  that grew, and `lint` names 15 cold notes as merge candidates.
 
 ## What is not true here
 
-No open pull requests — #79 and #81 merged 2026-09-14 and released
-themselves as v0.24.0/v0.24.1. `main` is at `02246d4`, local in sync,
-working tree clean. The translation drift issue for `config.ru.md` (its
-source moved twice in 0.24.x) is the reporter doing its job, not a fault.
+No open pull requests — #83 (comparison page) and #84 (`config.ru.md`
+catch-up) merged 2026-09-14. The translation drift issue #80 **closed
+itself** once the checker ran clean on `main`: the reporter loop worked
+end-to-end for the first time — file, update while behind, auto-close.
 
-**The cross-project home is decided** (2026-09-08). `basic-memory` is denied
-here — `.claude/settings.json` carries a `permissions.deny` rule and a
-`deniedMcpServers` entry, so the server does not connect in this repository
-while staying untouched everywhere else. Ten notes were carried over first,
-eight into `knowledge/notes/` and one into `common/private`. The argument, the
-breakdown and the condition for revisiting are in
-`basic-memory-is-off-in-this-repository`, which `MEMORY.md` loads every session.
+**The cross-project home is decided** (2026-09-08): `basic-memory` is denied
+here via `.claude/settings.json`, untouched everywhere else. The argument and
+the revisit condition are in `basic-memory-is-off-in-this-repository`, which
+`MEMORY.md` loads every session.
 
-The corpus stands at 30 notes and 33 pointers across 4 indexes, 70133
-characters against a ceiling of 75000 — out of the 96% band, but only ~1.9k
-below where it starts (72000). The first `consolidate` pass ran on `product/` (2026-09-13, store
+The corpus stands at 31 notes and 34 pointers across 4 indexes, 72216
+characters against a ceiling of 75000 — inside the 96% band since the
+re-measurement note landed (see Open). The first `consolidate` pass ran on `product/` (2026-09-13, store
 commit `e9c2f7c`): one merge, one delete with its replacement named, two
 rewrites, one declined merge recorded in
 `served-page-collapses-inline-scripts`; no `quota.lock` number moved. The
