@@ -2,7 +2,7 @@
 name: <kebab-case-slug-matching-the-filename>
 description: <one line stating the finding itself, not its topic — this is what the router shows>
 area: <harness | memory | shell | practice>
-verified_on: <YYYY-MM-DD>
+verified_on: <YYYY-MM-DD, UTC — the day the evidence was gathered>
 verified_against: <tool and version, OS, model — whatever the claim actually depends on>
 recheck: <an executable command, or a two-line procedure naming the page and the sentence>
 invalidated_by: <the change that would make this false — optional, but write it if you can name it>

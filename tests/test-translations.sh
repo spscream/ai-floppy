@@ -198,7 +198,10 @@ while IFS= read -r f; do
   # hand-written marker, and asking the tool under test would end that.
   "$py" -c 'import datetime,sys; datetime.date.fromisoformat(sys.argv[1])' "$on" 2>/dev/null
   assert_rc "$f records a real calendar date" "0" "$?"
-  tomorrow="$("$py" -c 'import datetime as d; print((d.date.today()+d.timedelta(days=1)).isoformat())')"
+  # UTC on both sides, like the checker: read off the local clock this bound
+  # drifts a day per zone, so east of Greenwich it quietly stopped being the
+  # bound the checker enforces.
+  tomorrow="$("$py" -c 'import datetime as d; print((d.datetime.now(d.timezone.utc).date()+d.timedelta(days=1)).isoformat())')"
   assert_eq "$f is not stamped more than a day in the future" "0" \
     "$([[ "$on" > "$tomorrow" ]] && echo 1 || echo 0)"
 done < <("$py" scripts/translation-check.py --list)

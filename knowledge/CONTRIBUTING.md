@@ -36,6 +36,11 @@ invalidated_by: "Anthropic ships the tengu_heron_brook flag with a non-empty val
 ---
 ```
 
+`verified_on` is a **UTC** day — the day the evidence was gathered, read off the same
+clock the CI runners use. Writing the local date instead is how an evening east of
+Greenwich dates a note "tomorrow": the checkers accept one day of slack for exactly
+that, and a second day is treated as the typo it usually is.
+
 `verified_against` is not decoration. "True in Claude Code" is a claim nobody can falsify;
 "true in 2.1.232 on Linux" is a claim the next reader can test in thirty seconds.
 
