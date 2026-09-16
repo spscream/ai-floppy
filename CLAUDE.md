@@ -108,7 +108,10 @@ asserts that every `cfg_get` call in `lib-config.sh` appears there.
 
 Here, `memory_dir` is a **symlink into a store repository**, and the private
 scope under it is a symlink again — this repository is public and its documents
-are published.
+are published. Both `.agent-memory/private` and
+`.agent-memory/common/private` are those symlinks, gitignored and personal:
+nothing under either belongs in the site, the knowledge corpus or a pull
+request.
 
 ## Constraints that tests enforce
 
