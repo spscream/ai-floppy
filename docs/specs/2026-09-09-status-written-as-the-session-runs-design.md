@@ -260,3 +260,61 @@ purpose.
 A patch bump across the three manifests, with a `CHANGELOG.md` entry whose
 **"Refresh `.floppy/run`?"** answer is **no** — the shim is untouched. Timing is
 the owner's call and is deliberately not folded into this work.
+
+## 2026-09-17: the first revisit condition is measured, and it does not fire
+
+Added on top of the text above rather than into it — the design stands as
+written, and this section says what a later measurement did to it.
+
+The section *What this design depends on* named the `start` dependency as the
+weakest joint, and *Hooks: checked, and not used* deferred a `SessionStart`
+hook against exactly that, "**Revisit if capture is observed to fail in
+sessions that skipped `start`** — not before, because the cost is certain and
+the failure is not."
+
+**Measured** 2026-09-17 over the Claude Code transcripts of the five
+repositories carrying floppy (`~/.claude/projects/<slug>/*.jsonl`): 131
+sessions, 68 of them calling `wrap`. A note is counted once, at the first
+write of its file, and classified *during* or *at wrap* by its timestamp
+against the rite; indexes and status files are excluded. Scripts and method:
+`~/projects/paned-agents/measure-capture/`.
+
+- **The convention works.** Notes written during the session rather than at
+  `wrap`: **39% before 2026-09-09** (110 of 281) → **51% after** (21 of 41).
+  The "after" sample is 41 notes — an indication, not a proof.
+- **The dependency does not show as a failure.** Sessions that skipped `start`
+  captured **more**, not less: 57% against 44% after the convention, 64%
+  against 36% before it.
+
+So the condition for revisiting the hook is not met, and the deferral changes
+its footing: **it now rests on a measurement rather than on the asymmetry
+between a certain cost and an uncertain failure.** The hook stays deferred.
+
+Two things this does *not* say, and the section would be misread without them:
+
+- **It is not a clean contrast.** Skipping `start` correlates with the kind of
+  session — short, or continuing something already open — so what is shown is
+  the absence of the predicted failure, not evidence that `start` is
+  irrelevant. The design's own argument for planting the trigger there is
+  untouched.
+- **The second revisit condition is still open.** "Revisit if capture turns
+  out to be skipped for mechanical friction rather than for judgement" was not
+  measured; nothing here distinguishes the two.
+
+One hypothesis was tested and decided nothing: the convention was expected to
+die at a compaction boundary. Only 8 of the 68 `wrap` sessions compacted, and
+in five of them the compaction fell *after* the rite. On the remaining three
+the capture rate rises across the boundary rather than falling (1.5 → 3.0
+notes per 100 turns). The sample is too small to support either direction.
+
+**What this measurement did surface** is elsewhere, and it is a finding about
+`wrap` rather than about this design: the project current-state file is being
+patched rather than rewritten — **1.6 edits per `wrap` run before 2026-09-09,
+4.1 after** (3.2 → 5.1 counting only the runs that touched it at all) —
+against the rule in `skills/wrap/SKILL.md` §5 that says to rewrite it once.
+The first pair is the one to quote here: it shares its denominator with the
+2.6 measured at the top of this document, which divided by all 35 runs. The
+levels still do not compare — that 2.6 counted turns, these count write
+events — so only the direction inside one method carries. That is carried in the memory note
+`the-status-file-is-patched-not-rewritten` and in `docs/statuses/NOW.md`, not
+here.
