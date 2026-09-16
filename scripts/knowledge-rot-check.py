@@ -27,6 +27,16 @@ NOTES = os.path.join(ROOT, "knowledge", "notes")
 REQUIRED = ("name", "description", "area", "verified_on", "verified_against", "recheck")
 NOTE_CHARS_MAX = 10000
 AREAS = ("harness", "memory", "shell", "practice")
+# Dates are UTC days, and a date one day ahead is accepted. A note written in the
+# evening at UTC+3 is legitimately "tomorrow" to a UTC runner, and no zone is
+# further than a day from UTC. Measured 2026-09-05: that off-by-one turned both CI
+# legs red on the knowledge base, and it healed itself after UTC midnight — which
+# everyone reads as flakiness. The fix went into memory-lint.sh and
+# translation-check.py and missed this file, so on 2026-09-16 the same evening,
+# the same base and the same self-healing red came back, again naming the base
+# rather than the note. Slack removes the false red; a date a month out is still a
+# typo worth catching.
+FUTURE_SLACK_DAYS = 1
 # The optional machine-checkable half, run by scripts/knowledge-recheck.py.
 KNOWN_PLATFORMS = ("linux", "macos", "windows")
 
@@ -83,7 +93,7 @@ def collect():
 
 
 def audit(notes, days):
-    today = dt.date.today()
+    today = dt.datetime.now(dt.timezone.utc).date()
     stale, broken = [], []
 
     for note in notes:
@@ -134,7 +144,7 @@ def audit(notes, days):
             problems.append(f"`verified_on` is not an ISO date: {raw!r}")
         else:
             age = (today - verified).days
-            if age < 0:
+            if -age > FUTURE_SLACK_DAYS:
                 problems.append(f"`verified_on` is in the future ({raw})")
             elif age >= days:
                 stale.append(

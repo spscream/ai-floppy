@@ -2,7 +2,7 @@
 name: opus5-subagent-prompt-line
 description: The "do not use the Agent tool" line is a built-in default of the Opus 5 prompt bundle, not anything in your config
 area: harness
-verified_on: 2026-09-17
+verified_on: 2026-09-16
 verified_against: "Claude Code 2.1.267 (native binary), Linux 6.18 (WSL2), model claude-opus-5"
 recheck: "grep -ac 'tool, workflows, or deep-research unless the user' \"$(command -v claude)\""
 invalidated_by: "The model loses the opus_5_prompt_bundle capability, Anthropic ships tengu_fennel_godwit true or tengu_slate_bittern false, or a non-empty tengu_heron_brook already carries the same sentence"
@@ -107,7 +107,7 @@ the `cachedGrowthBookFeatures` map in `~/.claude.json` for keys containing `bitt
 case.
 
 If the count is zero, read the phrasing out of the binary before concluding the line is
-gone — that is how this note's own check failed on 2026-09-17, while the behaviour it
+gone — that is how this note's own check failed on 2026-09-16, while the behaviour it
 describes had not changed at all:
 
 ```bash

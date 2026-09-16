@@ -47,6 +47,26 @@ assert_contains "rot-check catches a non-ISO date"                  "not an ISO 
 assert_contains "rot-check catches recheck_cmd with no expect"      "nothing to compare" "$out"
 rm -f "$probe"
 
+# ---------- 2a. the zone slack, in both directions ----------
+# Both dates are computed in UTC, the same clock the checker reads. Measured
+# 2026-09-05 and again on 2026-09-16: a note dated by an evening at UTC+3 is
+# "tomorrow" to the runners, both CI legs went red, and the red healed itself at
+# UTC midnight. One day is accepted for that reason; two is a typo, and a checker
+# that cannot tell them apart is the bug this pair of assertions holds shut.
+utc_day() { $py -c 'import datetime as d,sys; print((d.datetime.now(d.timezone.utc).date()+d.timedelta(days=int(sys.argv[1]))).isoformat())' "$1"; }
+for offset in 1 2; do
+  printf -- '---\nname: zz-probe-broken\ndescription: a date ahead of the runner\narea: practice\nverified_on: %s\nverified_against: this test\nrecheck: n/a\n---\n\nbody\n' \
+    "$(utc_day "$offset")" > "$probe"
+  ahead="$($py scripts/knowledge-rot-check.py 2>&1)"
+  case "$offset" in
+    1) assert_eq "rot-check accepts tomorrow in UTC: the writer is just east of it" \
+         "0" "$(printf '%s' "$ahead" | grep -c 'in the future')" ;;
+    2) assert_eq "rot-check still catches a date two days out" \
+         "1" "$(printf '%s' "$ahead" | grep -c 'in the future')" ;;
+  esac
+done
+rm -f "$probe"
+
 # ---------- 3. positive control: a failing check goes red ----------
 probe2=knowledge/notes/practice/zz-probe-failing.md
 printf -- '---\nname: zz-probe-failing\ndescription: a check that must fail\narea: practice\nverified_on: 2026-09-05\nverified_against: this test\nrecheck: n/a\nrecheck_cmd: echo actual\nexpect: something-else\n---\n\nbody\n' > "$probe2"

@@ -44,8 +44,15 @@ BLOB = re.compile(r"^[0-9a-f]{40}$")
 SOURCE_ROOTS = ("README.md", "docs")
 
 # An evening at UTC+3 is already tomorrow for the runners. One day of slack, and
-# the same rule the memory linter freezes for `metadata.as_of`.
+# the same rule the memory linter freezes for `metadata.as_of`. The clock is UTC
+# on both sides — stamped and compared — so the slack absorbs the writer's zone
+# and nothing else; reading it off the local clock made the two sides disagree by
+# a day on every machine east of Greenwich.
 FUTURE_SLACK_DAYS = 1
+
+
+def utc_today():
+    return dt.datetime.now(dt.timezone.utc).date()
 
 
 def blob_sha(data):
@@ -122,7 +129,7 @@ def sibling_source(rel):
 
 
 def audit(root):
-    today = dt.date.today()
+    today = utc_today()
     broken, behind = [], []
     translated_sources = set()
 
@@ -197,7 +204,7 @@ def stamp(root, rel):
     previous = parse_marker(raw.decode("utf-8", "replace"))
     current = blob_sha(read_bytes(source_path))
     line = "<!-- floppy:translation of=%s blob=%s on=%s -->" % (
-        source, current, dt.date.today().isoformat()
+        source, current, utc_today().isoformat()
     )
     # Bytes all the way through, deliberately. Decoding the body with
     # errors="replace" and writing the result back would silently rewrite every
