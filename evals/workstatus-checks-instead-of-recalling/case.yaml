@@ -1,0 +1,80 @@
+schema_version: "1.1"
+name: workstatus-checks-instead-of-recalling
+description: >-
+  `workstatus` exists to report what is true right now, by running
+  `bash .floppy/run status` and describing what it printed — never by retelling
+  the documents. The fixture's current-state file is deliberately stale and
+  contradicts the shim on every fact, so an answer built from the file and an
+  answer built from the command are told apart by their content alone.
+tags:
+  - workstatus
+  - live-state
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  # One command, one report. A run that needs more than a dozen turns for this
+  # is not doing what the skill asks.
+  max_turns: 12
+  timeout_seconds: 420
+  prompt: |
+    Where are we right now?
+
+runs: 3
+
+graders:
+  - type: tool_used
+    name: workstatus-skill-fired
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?workstatus"'
+    arm: with-only
+
+  # The command the skill is built around.
+  - type: tool_used
+    name: the-shim-was-actually-run
+    tool: Bash
+    input_match: '"command"\s*:\s*"[^"]*\.floppy/run[^"]*status'
+    min: 1
+    weight: 3
+
+  # `corpus-reindex` is printed by the shim and appears nowhere in the
+  # repository's documents. An answer that names it was built from the run; an
+  # answer that does not was built from something else.
+  - type: regex
+    name: reports-a-fact-only-the-command-knows
+    target: last_message
+    pattern: 'corpus-reindex'
+    flags: 'i'
+    match: contains
+    weight: 3
+
+  - type: llm
+    name: the-report-is-the-live-state-and-the-file-is-marked-stale
+    focus: last_message
+    criteria: |
+      The answer reports the state of a repository. Two sources disagree about
+      it: a current-state document written two weeks ago, and a command that
+      was available to be run. The command's version is the true one, and it
+      says: the working branch is `fix/lock-takeover`; a background job named
+      `corpus-reindex` is running at 41%; three files are uncommitted; the
+      branch is two commits ahead of its remote.
+
+      The document instead claims the branch is `release/0.18.0`, that nothing
+      is running because the re-index finished, and that the working tree is
+      clean.
+
+      PASS only if both hold:
+
+      1. The facts in the answer are the command's, not the document's — the
+         running job, the branch, the uncommitted files.
+      2. Where the answer refers to the current-state document at all, it says
+         the document is out of date rather than repeating its claims as
+         current. Not mentioning the document is fine; repeating its version of
+         events as if true is not.
+
+expected_outcome: |
+  `bash .floppy/run status` is run, and the report is a retelling of what it
+  printed — the running `corpus-reindex` job, the `fix/lock-takeover` branch,
+  three uncommitted files — with the stale document either unmentioned or
+  named as stale.

@@ -1,0 +1,95 @@
+schema_version: "1.1"
+name: a-fact-becomes-one-note-with-an-index-line
+description: >-
+  `agent-memory`'s shape rule: one fact per file, and one pointer line in the
+  index written with the note — never the note's text in the index, never a
+  note with nothing pointing at it. The case hands the session one fact worth
+  keeping and checks the shape of what it wrote.
+tags:
+  - agent-memory
+  - notes
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  max_turns: 16
+  timeout_seconds: 480
+  prompt: |
+    Worth keeping before it goes. This cost me most of today.
+
+    `tests/run.sh` was failing on the macOS runner and passing everywhere else,
+    and it was not the tests. The runner's `/bin/bash` is 3.2.57, but
+    `tests/run.sh` was being started by a bare `bash`, which on that image
+    resolves through PATH to a Homebrew bash 5 sitting ahead of `/bin/bash`.
+    So the suite ran under bash 5 locally and under 3.2 in CI, and the three
+    scripts using `mapfile` were green in both places for the wrong reason.
+    I ran it twenty times each way to be sure: 20 of 20 green when started by
+    `bash`, 17 of 20 when started by `/bin/bash`.
+
+    Put it in the memory.
+
+runs: 3
+
+graders:
+  - type: tool_used
+    name: agent-memory-skill-fired
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?agent-memory"'
+    arm: with-only
+
+  # One fact, one file. The pattern requires a lowercase character before the
+  # extension, so it counts note files and not `INDEX.md` or `MEMORY.md`
+  # alongside them. Two notes for one fact fails here, and so does none.
+  - type: tool_used
+    name: exactly-one-note-file-was-written
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*\.agent-memory/[^"]*[a-z0-9-]\.md"'
+    min: 1
+    max: 1
+    weight: 3
+
+  # The half's index is seeded with exactly three pointer lines. One fact adds
+  # one pointer, so four is the only passing number: three means the note has
+  # nothing pointing at it, five or more means the index grew by more than a
+  # pointer.
+  - type: regex
+    name: the-index-gained-exactly-one-pointer-line
+    target:
+      source: file
+      path: .agent-memory/product/INDEX.md
+    pattern: '^- \['
+    flags: 'gm'
+    match: 'count:4'
+    weight: 3
+
+  - type: file_exists
+    name: the-note-landed-in-the-right-half
+    path: .agent-memory/product/*.md
+    weight: 1
+
+  - type: llm
+    name: the-note-and-its-pointer-have-the-right-shape
+    focus: trace
+    criteria: |
+      The trace is a session that was handed one fact and asked to put it in a
+      memory whose conventions the plugin defines. Judge what it wrote.
+
+      PASS only if all four hold:
+
+      1. The note opens with frontmatter carrying `name` (a slug equal to its
+         own filename without `.md`), a one-line `description`, and a
+         `metadata` block with `type` and `evidence`.
+      2. `evidence` is `measured`. The fact rests on twenty runs each way, so
+         `read` or `decided` is the wrong value here.
+      3. The note holds this one fact and not a summary of the session around
+         it — no list of what got done, no reasoning trail.
+      4. What went into the index is a POINTER — a link to the note plus a
+         short hook of at most a line. If the note's content was copied or
+         paraphrased into the index at any length, this FAILS.
+
+expected_outcome: |
+  One new note file under the `product/` half with valid frontmatter and
+  `evidence: measured`, and exactly one new pointer line in that half's
+  `INDEX.md` — the index still four lines of pointers, not a place the fact
+  itself was written.
