@@ -231,7 +231,13 @@ Three habits are what the numbers point at:
   `status` are independent; so are several notes that are all ready to write.
   Parallel calls in one block cost one turn, sequential ones cost one each.
 - **rewrite the current-state file once, don't patch it.** Measured 2.6 edit
-  turns per run on that one file. Decide every change it needs, then write it.
+  turns per run on that one file, and 2.7 when re-measured a week later across
+  five repositories — the rule has never held. What it costs: a turn here has a
+  median price of 32k base-equivalent tokens, almost all of it re-reading the
+  context rather than writing the text. So two patching turns cost 64k where one
+  full rewrite costs 49k, the file's entire content in its output included; at
+  the p90 of six turns the gap is 143k. Patching looks cheaper per call and is
+  not. Decide every change it needs, then write it.
 
 And what the numbers refuse to support: **there is nothing to cut in the
 narration.** Turns that call no tool at all are 5.6% of the total, and every
