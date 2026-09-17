@@ -41,10 +41,22 @@ $ echo $?
 ```
 
 Both `eval` and `eval init` exit 1 with that line and do nothing else, so the
-cases were hand-written rather than generated, and their first run will also be
-their first validation. Treat every grader below as untested against the
-runner. Nothing in `tests/run.sh` covers this directory either — a schema
-mistake here is invisible until someone with the command enabled runs it.
+cases were hand-written rather than generated.
+
+**The decision is to leave them unrun** (2026-09-17). The enablement comes from
+an Anthropic contact and the CLI's own text forbids guessing its name; asking
+for it buys nothing until there is work that needs the runner. These cases wait
+for early access to widen.
+
+Their *shape* has been checked without the runner, and that is all that has
+been checked. Claude Code carries the schema it validates `case.yaml` against
+inside its own binary, so all three were validated against it directly:
+`schema_version` is compared on the major only, every grader object is strict,
+and `arm` accepts `with-only` or `both` and nothing else. What no such check
+can reach is whether an `input_match` fires on a real trace — treat every
+grader below as untested in that sense. Nothing in `tests/run.sh` covers this
+directory either, deliberately: a guard here would assert a schema this
+repository cannot execute.
 
 ## Running them
 
