@@ -1,9 +1,8 @@
 # Current state
 
-What `start` reads in full, rewritten in place rather than appended to — see
-`agent-memory` for how that differs from a dated journal. Since 0.18.0 this is
-the **project's** half only; one person's thread of work belongs in
-`statuses_personal`, in the private scope.
+What `start` reads in full, rewritten in place rather than appended to. Since
+0.18.0 this is the **project's** half only; a person's thread of work belongs
+in `statuses_personal`, in the private scope.
 
 ## Where things stand
 
@@ -16,9 +15,7 @@ skipped `start` captured **more**, not less (57% vs 44%), so the design's
 self-named weakest joint does not show as a failure: **the `SessionStart` hook
 stays deferred on evidence now, not on caution**, and the dated answer closes
 `docs/specs/2026-09-09-status-written-as-the-session-runs-design.md`. Caveats
-there too — skipping `start` correlates with the kind of session, and the
-compact-boundary hypothesis decided nothing. Note:
-`capture-works-and-does-not-hang-on-start`; method in
+in the note — `capture-works-and-does-not-hang-on-start`; method in
 `~/projects/paned-agents/measure-capture/`.
 
 **The memory's effect is re-measured on the consumer repositories**
@@ -28,35 +25,46 @@ method identical to 09-09). effectssdk **+27.9pp at p=1.0e-7** (C 34.9% → M
 — the ceiling is capture, and what varies is how much the repository says
 about itself unaided (effectssdk is 47% repo-silent). Two 09-09 conclusions
 revised: the confirmed slice lifts too, and the corpus carries answers, not
-just NOW.md (43 files cited). Note:
-`the-lift-scales-with-what-the-repo-does-not-say`; tables in the artifact
-«Перезамер памяти floppy».
+just NOW.md. Note: `the-lift-scales-with-what-the-repo-does-not-say`; tables in
+the artifact «Перезамер памяти floppy».
 
-**0.24.0 and 0.24.1 are released** (2026-09-14, #79, #81). The measured
-failure: projects sharing one clone of the private store share its tree state,
-and one project's dirty file killed another's wrap at `git pull --rebase`. All
-three sync sites now pull with `-c rebase.autoStash=true`, `check` counts a
-shared clone's dirt in two piles (this project's scope vs another's, left
-alone), `workplace_memory_dir` is the tested opt-out, and 0.24.1 expands a
-leading `~/` or `$HOME/` in `cfg_get`. **Refresh `.floppy/run`: no.**
+**0.25.0 and 0.25.1 are released** (2026-09-18, #92 and #93). 0.25.0 shipped a
+backlog of ten commits that had reached no consumer — the manifests sat at
+0.24.1 since 09-14, so `plugin update` had nothing to copy. In it: `wrap`'s
+skill a tenth shorter, its ~750 words of measurement moved to
+`skills/wrap/measurements.md` and read only when a rule is questioned; the
+rewrite-once rule given a price (a median 32k base-equivalent tokens per
+patching turn); the UTC slack for `knowledge-rot-check.py`.
 
-**Shipped and still standing**: the comparison page (#83, eight systems
-verified against 0.24.1), `heat` and `consolidate` in 0.23.0 (#69, #70), the
-2026-09-09 documentation audit and the three-half index split, the
+0.25.1 is a defect reported from a consumer checkout. With `public_repo` and
+`private_repo` naming **one** repository — the only layout open to a project
+whose own checkout may hold no notes — every file in the private scope came
+back from `guard` as *"not changed: wrong path, or the edit was lost"*, the
+message for a typo. Coverage of a scope is decided by **containment, not by
+repository identity**: the memory scan reaches what lies under the memory
+scope, and a sibling prefix does not. With the fix: one repository is one
+commit rather than two carrying one message; an unscanned scope says so
+instead of wearing the typo message; and a bash condition in a note is no
+longer read as a `[[link]]` — a hard error that took `check` and the commit
+with it. Verified on the reporting checkout. **Refresh `.floppy/run`: no**,
+for either release.
+
+**Shipped and still standing**: 0.24.0/0.24.1 (#79, #81 — autostash at all
+three sync sites, `check`'s two-pile count of a shared clone,
+`workplace_memory_dir` as the tested opt-out, `~`/`$HOME` expanded in
+`cfg_get`), the comparison page (#83, eight systems verified against 0.24.1),
+`heat` and `consolidate` in 0.23.0 (#69, #70), the three-half index split, the
 cross-project scope (#55, #56), the documentation split (#48–#53) and drift
-watching (#58). **Releases release themselves** since #76 — `release.yml` tags
-and publishes on every push to `main`, body from `CHANGELOG.md`, a bump with
-no entry failing loudly. The guard defects the split exposed are in
-`one-directory-level-broke-four-guards`,
-`a-table-row-with-no-document-is-invisible` and
-`macos-runner-carries-one-bash-and-it-is-3-2`; the audit's cost is in
-`a-check-can-pass-while-testing-something-adjacent`.
+watching (#58). **Releases release
+themselves** since #76 — `release.yml` tags and publishes on every push to
+`main`, body from `CHANGELOG.md`, a bump with no entry failing loudly. The
+guard defects the split exposed have notes of their own in `product/`.
 
 **The macOS temp path defect is still live** (#29/#30, 2026-09-06): whether
 `/var/folders/<a>/<b>/T/` carries a `_` is **fixed by the runner image**
 (kernel 25.5.0 yes, 25.6.0 no; 20 of 20 runners), so the same commit passes or
 fails by image — and the rate goes to zero when 25.5.0 retires, leaving the
-defect intact and the tests green. Never quote the 30% without both kernels.
+defect intact and the tests green.
 
 ## What is frozen
 
@@ -68,16 +76,16 @@ defect intact and the tests green. Never quote the 30% without both kernels.
   else; `docs/guide/`, `docs/lessons.md` and `docs/memory-model.md` go through
   review like `skills/`, `scripts/`, `shim/` and `tests/`.
 - **Drift is reported to a person, never gated on a branch** (2026-09-08,
-  #58). `translations.yml` files one issue, updates it while the condition
-  holds, closes it when clean — proven end-to-end by #80. It must not move to
-  `pull_request`: gating freshness teaches re-stamping without reading. The
-  contract half *is* gated in `tests/test-translations.sh`; that workflow needs
-  a full checkout — a shallow clone lacks the marker's blob sha.
+  #58). `translations.yml` files one issue, updates it, closes it when clean —
+  proven end-to-end by #80. It must not move to `pull_request`: gating
+  freshness teaches re-stamping without reading. The contract half *is* gated
+  in `tests/test-translations.sh`; that workflow needs a full checkout — a
+  shallow clone lacks the marker's blob sha.
 - **The suite pins its interpreter in PATH, not at every call site** (#52).
-  `tests/run.sh` fronts PATH with a directory holding one `bash` — a symlink to
-  the interpreter it was started with — covering ~180 bare `bash` call sites at
-  once. Do not "fix" those one by one; the two dispatcher execs already carry
-  `"${BASH:-bash}"` because they run outside the suite too.
+  `tests/run.sh` fronts PATH with one `bash` — a symlink to the interpreter it
+  was started with — covering ~180 bare call sites at once. Do not "fix" those
+  one by one; the two dispatcher execs carry `"${BASH:-bash}"` already, because
+  they run outside the suite too.
 - **`common/` gets no view under `agents_memory_dir`, unlike every other
   scope** (#55): the symmetric shape assumes one store per namespace and the
   public one has many. Read `one-common-view-collides-across-stores` before
@@ -87,42 +95,39 @@ defect intact and the tests green. Never quote the 30% without both kernels.
   a bypass exempts both. **`strict` is off** for required checks — on a
   repository this quiet it would cost a rebase per pull request.
 - **`commit` does not create a branch of its own** (#17). On a protected branch
-  it commits, attempts the push, prints the recipe. Moving someone off the
-  branch they were on is a guess, and these scripts decline to guess.
+  it commits, attempts the push, prints the recipe: moving someone off the
+  branch they were on is a guess.
 - **`metadata.as_of` is optional and `lint` never fails on age** (#32): a check
   that reddens a corpus on plugin-update day gets switched off, and a gate on
-  age teaches date-bumping without re-checking. A future date over a day out is
-  still a hard failure — the slack is the measured UTC+3 evening.
+  age teaches date-bumping without re-checking. A future date over a day out
+  stays a hard failure — the slack is the measured UTC+3 evening.
 - **`statuses_personal` is derived, not written live by `init`** — a literal
-  value would put one machine's path into a file every machine reads. The same
-  argument rules out setting `machine_key` here: `machines/WIN-GVR0V5UPOD7/` is
-  ugly and correct, because a hand-picked name renames the *other* machine.
+  value would put one machine's path into a file every machine reads. Same
+  argument against setting `machine_key`: a hand-picked name renames the
+  *other* machine.
 - **The private store stays one repository per person, and the shared-clone
   default stays** (owner, 2026-09-14). Isolation is opt-in per project via
   `workplace_memory_dir`; per-project repositories were rejected in
   `private-store-stays-one-repo-per-person`. Flipping the derived-clone default
-  is ruled out at `_checkout_dir` in `lib-config.sh`: an upgrade must not move
-  a machine's existing checkout.
+  is ruled out at `_checkout_dir`: an upgrade must not move an existing
+  checkout.
 - **The wrap lock does not cover the private scope** — one lock per rite,
-  following the memory every wrap writes. It does not cover two machines;
-  nothing does.
-- **`store` reports the redundant `.gitignore` line rather than removing it** —
+  following the memory. It does not cover two machines; nothing does.
+- **`store` reports the redundant `.gitignore` line rather than removing it**:
   that file belongs to the consumer and a line in it may be hand-written.
 - **`quota.lock` holds measured numbers, and raising one is a defended edit** —
   in the same commit as the notes that need the room. `chars_max=75000` (it
   once stood raised for a day with no comment, the edit the ratchet exists to
   expose), `note_chars_max=5000`, `pointers_max=25` — when the flat index hit
-  that it was split, not raised. No `half_chars_max`: one machine writes all
-  three halves. Same shape for this file: `statuses_now_chars_max=12000` is
-  condensed against, not raised.
+  that it was split, not raised. Same shape for this file:
+  `statuses_now_chars_max=12000` is condensed against, not raised.
 - **The injected script in `site/_includes/head_custom.html` uses block
   comments and explicit semicolons.** Not style: the page it becomes has no
   newlines, and either omission makes the script dead or invalid. Two asserts
   enforce it.
 - **The vendored search plugins are MPL-1.1** (`lunr-languages@1.14.0`;
   2026-09-06), verbatim with `NOTICE.md` and the licence beside them; the site
-  footer carries nothing — MPL asks for headers and available source. `site/`
-  only, the plugin itself is MIT.
+  footer carries nothing — MPL asks for headers and available source.
 - **`translation-check.py --list` is the only expression of what a translation
   is.** `workstatus.sh` keeps a deliberately *loose* pre-gate whose only job is
   deciding whether to start python — `?`, never a bracket range, so the
@@ -135,39 +140,39 @@ defect intact and the tests green. Never quote the 30% without both kernels.
 
 ## Open
 
+- **The corpus is AT its ceiling** — 74995 of 75000, with `memory/` the half
+  that grew twice (23809). `consolidate` on that half is overdue, and until it
+  runs **no note can be written**: this session had one to write and could not.
+  `lint` names the cold candidates; `product/` was done 2026-09-13.
 - **This file is patched, not rewritten, and the rule against that is already
   written** (measured 2026-09-17). Edits per `wrap` run: **1.6 before
-  2026-09-09 → 4.1 after** (92 over 58 runs, then 41 over 10; over just the
-  runs that touched it, 3.2 → 5.1). `skills/wrap/SKILL.md` **§5** says word for
-  word *"rewrite the current-state file once, don't patch it"*, off a 2.6-edit
-  measurement over the same denominator — a written rule that is not obeyed,
-  with the trend running away from it. Levels still do not compare (2.6 counted
-  turns in one project, this counts write events in five); the direction does. It is patching's expensive instance: this file is the
-  memory's most-read artefact, 17 of 21 citations, patched at the session's
-  most expensive turn — and it stood at 11745 of its 12000 cap before these
-  entries, condensed to hold them with nothing dropped
-  (`the-status-file-is-patched-not-rewritten`). A stronger rule, a check or
+  2026-09-09 → 4.1 after**; `skills/wrap/SKILL.md` §5 says word for word
+  *"rewrite the current-state file once, don't patch it"*. A written rule that
+  is not obeyed, with the trend running away from it, on the memory's most-read
+  artefact at the session's most expensive turn. Numbers, denominators and the
+  caveat that the levels do not compare are in
+  `the-status-file-is-patched-not-rewritten`. A stronger rule, a check or
   dropping it is the owner's call.
+- **The one-repository layout is fixed and tested but not documented.**
+  `docs/guide/config.md` gives no recipe for `public_repo == private_repo`,
+  so the layout a consumer reached for unaided is still discoverable only from
+  `CHANGELOG.md`. Deliberately out of 0.25.1's scope, not forgotten.
 - **`translation-check.py` has no gate for the contract half outside the
   suite**, by design, but nothing runs it on a *consumer's* repository either:
   `workstatus.sh` reports it, and `status --flow` is where it surfaces.
-- **Two deviations from #48's spec, recorded rather than fixed:**
-  `quota.lock`'s justification shipped uncondensed (22% of the config page is
-  argument), and the site's positive control is a reach guard rather than a
-  planted document, measured the stronger of the two.
+- **Two deviations from #48's spec, recorded not fixed:** `quota.lock`'s
+  justification shipped uncondensed, and the site's positive control is a reach
+  guard, not a planted document.
 - **The README Documentation lists are unpinned** (measured 2026-09-13):
-  deleting both rows leaves `test-docs` at 49 passed and `test-site` at 103,
-  only the translation reporter noticing. Recorded so the hole is chosen, not
-  unknown; pin or accept it in a reviewed change.
-- **The corpus is at its ceiling** — the two 09-17 notes put it at 74996 of
-  75000. The next `consolidate` pass is not due but overdue; `memory/` is the
-  half that grew twice, and `lint` names 17 cold notes as merge candidates.
+  deleting both rows leaves both docs gates green, only the translation
+  reporter noticing. Recorded so the hole is chosen; pin or accept it in a
+  reviewed change.
 
 ## What is not true here
 
-No open pull requests — #83 and #84 merged 2026-09-14. The translation drift
-issue #80 **closed itself** once the checker ran clean on `main`: the reporter
-loop worked end-to-end for the first time — file, update, auto-close.
+No open pull requests — #92 and #93 merged 2026-09-18, #83 and #84 on 09-14.
+The translation drift issue #80 **closed itself** once the checker ran clean on
+`main`: the reporter loop worked end-to-end for the first time.
 
 **The cross-project home is decided** (2026-09-08): `basic-memory` is denied
 here via `.claude/settings.json`, untouched everywhere else — argument and
@@ -176,13 +181,12 @@ loads every session.
 
 The corpus stands at 33 notes and 36 pointers across 4 indexes. The first
 `consolidate` pass ran on `product/` (2026-09-13, store commit `e9c2f7c`): one
-merge, one delete with its replacement named, two rewrites, one declined merge
-in `served-page-collapses-inline-scripts`; no `quota.lock` number moved. The
-`common/` notes carry no `metadata.as_of` and `lint` warns every run — the
-field behaving as designed, not something to fix by guessing dates.
+merge, one delete, two rewrites, one declined merge; no `quota.lock` number
+moved. The `common/` notes carry no `metadata.as_of` and `lint` warns every
+run — the field behaving as designed, not something to fix by guessing dates.
 
 **A caution this file earned twice.** It once closed with "nothing is open"
-while three issues had been filed minutes earlier, and it once described a
-state four merges out of date because the wrap that would have fixed it sat in
-an unmerged pull request. A current-state file carries no sign of its own age —
-which is why `start` checks `run status` instead of trusting it.
+minutes after three issues were filed, and once described a state four merges
+old because the wrap that would have fixed it sat in an unmerged pull request.
+A current-state file carries no sign of its own age — which is why `start`
+checks `run status` instead of trusting it.
