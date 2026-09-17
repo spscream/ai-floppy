@@ -18,6 +18,55 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.25.0 — 2026-09-18
+
+**Refresh `.floppy/run`: no.** The shim is untouched — no commit in this
+release reaches `shim/run`.
+
+Minor by the 0.21.0 rule: no file layout moved and no migration is needed, but
+a rite reads differently — `wrap`'s skill is a tenth shorter and the evidence
+behind its rules now sits beside it rather than inside it.
+
+### `wrap` stops carrying its evidence through the hot path
+
+Section 5 held about 750 words of measurement: the 48-run turn study, the
+quadratic-cost arithmetic, the superseded explanation of the fold. All of it
+is load-bearing when a rule is questioned and dead weight when the rite is
+merely run — and the rite is run every session. It moves to
+`skills/wrap/measurements.md` next to the skill, referenced by name rather
+than `@`-imported, so it is read when a rule is being changed and not before.
+The rules themselves stay inline with their numbers. 3082 → 2744 words.
+
+### The rewrite-once rule gets a price, because the bare count never argued
+
+The rule carried "2.6 edit turns per run on that one file" and no consequence.
+A count alone argues for nothing, and this one has never held: re-measured
+across five repositories a week later it is 2.7, the same before the
+mid-session capture convention as after. What was missing is what a turn there
+costs — a median 32k base-equivalent tokens, almost all of it re-reading the
+context rather than writing the text. That is what makes patching the
+expensive option even though each call looks small: two patching turns cost
+64k where one full rewrite costs 49k with the whole file in its output, and at
+the p90 of six turns the gap is 143k.
+
+### `knowledge-rot-check.py` gets the timezone slack the other two linters had
+
+Both CI legs went red on `verified_on` is in the future: the date was written
+at UTC+3 in the evening while the runners were still on the previous UTC day.
+The same off-by-one was measured on 2026-09-05 and fixed then in
+`memory-lint.sh` and `translation-check.py` — this third linter was missed.
+
+In the same pass, the knowledge note on the Opus 5 delegation line was
+re-verified against Claude Code 2.1.267. Its recheck grepped the binary for a
+whole 2.1.232 literal, which the release reworded, so the gate failed while
+the behaviour was unchanged; it now greps the sentence's middle, which is what
+survives a rewording.
+
+### The field survey becomes a page of the site
+
+`docs/comparison.md` and its Russian translation — floppy among eight memory
+systems — join the page table in `scripts/site-build.sh`.
+
 ## 0.24.1 — 2026-09-14
 
 **Refresh `.floppy/run`: no.** The shim is untouched.
