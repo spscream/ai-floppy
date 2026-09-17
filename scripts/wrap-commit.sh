@@ -249,6 +249,19 @@ if [[ ${#cs_files[@]} -gt 0 ]]; then
   store_files+=("${cs_files[@]}")
 fi
 
+# One repository holding both scopes — public_repo == private_repo, the two at
+# different prefixes inside it — is wired by `store` and `workplace` without
+# complaint, and the scopes stay separate through every derivation and every
+# path translation above, which is right: they are different scopes. They
+# merge HERE, where the unit stops being a scope and becomes a repository.
+# Measured 2026-09-18 before this fold: two commits carrying the same message,
+# two pull/push round-trips into one clone, and a report whose "memory store"
+# and "workplace memory" sections named the same path.
+if [[ -n "$priv_store" && "$priv_store" == "$store" && ${#priv_files[@]} -gt 0 ]]; then
+  store_files+=("${priv_files[@]}")
+  priv_files=()
+fi
+
 store_unpushed=0
 if [[ ${#store_files[@]} -gt 0 ]]; then
   hr "memory store"

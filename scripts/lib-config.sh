@@ -202,12 +202,32 @@ _priv="$FLOPPY_MEMORY_REAL/$FLOPPY_MEMORY_PRIVATE_DIR"
 if [[ -d "$_priv" ]]; then
   FLOPPY_PRIVATE_REAL="$(cd "$_priv" && pwd -P)"
   _priv_top="$(git -C "$FLOPPY_PRIVATE_REAL" rev-parse --show-toplevel 2>/dev/null || true)"
-  # Only a DIFFERENT repository counts. A plain private/ directory inside the
-  # committed memory is this repository's own business, already covered by
-  # every gate here, and giving it a second one would double-report it.
-  if [[ -n "$_priv_top" && "$_priv_top" != "$_repo_real" && "$_priv_top" != "$FLOPPY_MEMORY_STORE" ]]; then
-    FLOPPY_PRIVATE_STORE="$_priv_top"
-  fi
+  # Only a scope no other scan already reaches, and what decides that is
+  # CONTAINMENT, not repository identity. The memory scan asks its store about
+  # everything under FLOPPY_MEMORY_REAL, so a private scope physically inside
+  # that directory is covered and a second store would double-report it.
+  #
+  # Identity was the test until 2026-09-18, and it is wrong wherever ONE
+  # repository holds both scopes: public_repo == private_repo, with
+  # public/projects/<key> beside private/projects/<key> — a layout `store` and
+  # `workplace` wire without complaint, and the only one available to a project
+  # whose own checkout may hold neither scope. There the private scope sits at
+  # a different prefix in the same store, the identity test blanked it, nothing
+  # scanned it, and `guard` answered "not changed: wrong path, or the edit was
+  # lost" for all fifteen files while `git status` in the store listed every
+  # one of them. Reported from a consumer checkout, reproduced here before the
+  # fix and pinned by tests/test-external-memory.sh.
+  #
+  # _derive_common below has always used containment and says so in its own
+  # comment: common/shared normally resolves into the memory's own store.
+  case "$FLOPPY_PRIVATE_REAL" in
+    "$FLOPPY_MEMORY_REAL"/*) : ;;   # inside the memory scope: already scanned
+    *)
+      if [[ -n "$_priv_top" && "$_priv_top" != "$_repo_real" ]]; then
+        FLOPPY_PRIVATE_STORE="$_priv_top"
+      fi
+      ;;
+  esac
 fi
 export FLOPPY_PRIVATE_REAL FLOPPY_PRIVATE_STORE
 
