@@ -192,7 +192,18 @@ for f in "${claimed[@]}"; do
     err "$f — outside ${WATCHED[*]}: /wrap commits memory, docs and the session procedure, leave product code to the human"
     continue
   fi
-  in_set "$f" "$changed_set" || err "$f — not changed: wrong path, or the edit was lost"
+  if ! in_set "$f" "$changed_set"; then
+    # "not changed" is the message for a typo, and it is a lie whenever a scope
+    # was never scanned at all: scan_scope returns silently on an empty store,
+    # so every file in that scope comes back wearing the wrong name. Measured
+    # 2026-09-18, and it cost the reader several iterations of checking their
+    # own paths before they ran `env` — which is the one place the truth was.
+    if [[ "$f" == "$mem_dir/$priv_dir"/* && -n "$priv_real" && -z "$priv_store" ]]; then
+      err "$f — the private scope was never scanned: it resolves to $priv_real, which no store covers. Your path is fine; the wiring is not (bash .floppy/run env, FLOPPY_PRIVATE_STORE)"
+    else
+      err "$f — not changed: wrong path, or the edit was lost"
+    fi
+  fi
 done
 
 # ---------- memory that nothing will ever commit ----------

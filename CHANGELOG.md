@@ -18,6 +18,56 @@ One column matters more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.25.1 — 2026-09-18
+
+**Refresh `.floppy/run`: no.** The shim is untouched.
+
+### One repository may hold both scopes, and the gates now know it
+
+A project that cannot commit notes next to its code — a fork kept for
+upstream pull requests, a checkout the team does not own — can point
+`public_repo` and `private_repo` at the same repository: the scopes do not
+collide, because they sit at `public/projects/<key>` and
+`private/projects/<key>` inside it. `store`, `workplace` and `link` all wire
+that layout and all report success.
+
+The checks did not cover it. `FLOPPY_PRIVATE_STORE` was derived by asking
+whether the private scope's repository *differs* from the memory store, which
+here it does not, so the variable was blanked, `wrap-guard`'s scope scan
+returned on its first line, and each of fifteen changed files came back as
+`not changed: wrong path, or the edit was lost` — the message for a typo. The
+reader spent several iterations checking their own paths before running `env`,
+which was the one place the truth was. Reported from a consumer checkout and
+reproduced here.
+
+What decides coverage is containment, not repository identity: the memory scan
+reaches what lies *under* the memory scope, and a sibling prefix is not under
+it. The neighbouring derivation for `common/` had always used containment and
+says so in its own comment.
+
+Two consequences travel with the fix:
+
+- **One repository is one commit.** With both scopes in one clone, `commit`
+  would otherwise write two commits carrying the same message, push twice into
+  it, and print two sections naming the same path. The scopes stay separate
+  everywhere they are derived and translated; they merge where the unit stops
+  being a scope and becomes a repository.
+- **An unscanned scope says so.** The scan returns silently on an empty store,
+  so any future blanking would again wear the message for a typo. A file in a
+  private scope that no store covers is now told that, with the path it
+  resolves to and where to look.
+
+### A bash condition in a note is not a `[[link]]`
+
+The link scan took everything between `[[` and `]]`, so `[[ -n "$x" ]]` in a
+note — inline or inside a fenced block — was read as a slug and resolved to
+nothing. A hard error, so it took `check` and the commit with it, and the only
+way out was to reword prose about shell code. A slug never contains
+whitespace; a bash condition always does, and that is the whole discriminator.
+All 41 links in the corpus that found this are slug-shaped, and a misspelled
+slug is still a slug: the positive control in `tests/test-memory-lint.sh` pins
+that a dangling `[[slug]]` still fails.
+
 ## 0.25.0 — 2026-09-18
 
 **Refresh `.floppy/run`: no.** The shim is untouched — no commit in this

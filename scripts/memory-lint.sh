@@ -673,12 +673,20 @@ done
 
 # ---------- [[slug]] links ----------
 hr "[[slug]] links"
+# A slug never contains whitespace — it is a filename without .md — and a
+# bash condition always does: `[[ -n "$x" ]]` in a note, inline or inside a
+# fenced block, was read as a link and failed the run. Measured 2026-09-18:
+# a hard error, so it took `check` and the commit with it, and the author's
+# only way out was to reword prose about shell code. Dropping the
+# whitespace candidates costs nothing this corpus uses — all 41 links in it
+# are slug-shaped — and keeps every real typo caught, since a typo in a
+# slug is still a slug.
 for f in "${all_notes[@]+"${all_notes[@]}"}"; do
   rel="${f#"$MEM"/}"
   while IFS= read -r slug; do
     [[ -z "$slug" ]] && continue
     [[ -n "$(slug_file "$slug")" ]] || err "$rel: link [[$slug]] resolves to nothing"
-  done < <(grep -o '\[\[[^]]*\]\]' "$f" | sed 's/^\[\[//; s/\]\]$//' | sort -u)
+  done < <(grep -o '\[\[[^]]*\]\]' "$f" | sed 's/^\[\[//; s/\]\]$//' | grep -v '[[:space:]]' | sort -u)
 done
 
 # ---------- note heat ----------

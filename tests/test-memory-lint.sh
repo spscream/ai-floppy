@@ -40,6 +40,57 @@ out2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc2=$
 assert_rc       "orphan note fails the run"  1 "$rc2"
 assert_contains "orphan note is named"       "orphan.md" "$out2"
 
+# ---------- a bash condition in a note is not a [[link]] ----------
+# The link scan took everything between [[ and ]], so `[[ -n "$x" ]]` — inline
+# or inside a fenced block — was read as a slug and resolved to nothing. A HARD
+# error, so it took `check` and the commit with it, and the only way out was to
+# reword prose about shell code. Reported and reproduced 2026-09-18.
+#
+# A slug never contains whitespace: it is a filename without .md. A bash
+# condition always does. That is the whole discriminator, and the positive
+# control below is what keeps it from becoming "ignore anything difficult" —
+# a misspelled slug is still a slug and must still fail.
+cat > "$repo/brain/half/a-note.md" <<'EOF'
+---
+name: a-note
+description: a note
+metadata:
+  type: project
+  evidence: read
+---
+Inline: `[[ -n "$ss_store" ]]` returns early.
+
+```bash
+if [[ -z "$store" ]]; then echo none; fi
+```
+EOF
+rm -f "$repo/brain/half/orphan.md"
+outB="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcB=$?
+assert_rc       "a note quoting a bash condition passes" 0 "$rcB"
+case "$outB" in
+  *"resolves to nothing"*) fail "and the condition is not read as a link" "no such line" "$outB" ;;
+  *)                       ok   "and the condition is not read as a link" ;;
+esac
+
+# positive control: a real link that resolves nowhere must still be caught
+printf 'And a link to [[no-such-note]].\n' >> "$repo/brain/half/a-note.md"
+outC="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcC=$?
+assert_rc       "a dangling [[slug]] still fails the run" 1 "$rcC"
+assert_contains "and is named"  "[[no-such-note]]" "$outC"
+
+# The sections below share this memory, so the note goes back to a plain body:
+# leaving the dangling link here would redden them and name the wrong cause.
+cat > "$repo/brain/half/a-note.md" <<'EOF'
+---
+name: a-note
+description: a note
+metadata:
+  type: project
+  evidence: read
+---
+Body.
+EOF
+
 # ---------- the cross-project scope is a corpus, not this project's ----------
 # common/ holds notes that belong to every project wiring the store and to none
 # of them in particular. Its notes get the per-note invariants — they had never

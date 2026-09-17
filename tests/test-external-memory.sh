@@ -310,6 +310,110 @@ assert_eq       "the project file is committed here" "both at once" \
 assert_eq       "and the private note is NOT in this repository" "" \
   "$(git -C "$pr" ls-tree -r --name-only HEAD | grep private || true)"
 
+# ---------- the THIRD shape: ONE repository holds both scopes ----------
+# Reported from a consumer checkout on 2026-09-18. A project whose own
+# repository may hold no notes at all — a fork kept for upstream PRs — points
+# public_repo and private_repo at the SAME repository; the scopes still do not
+# collide, because they sit at public/projects/<key> and private/projects/<key>
+# inside it. `store`, `workplace` and `link` all wire that and all report
+# success.
+#
+# Only the checks did not cover it. FLOPPY_PRIVATE_STORE was derived by asking
+# whether the private scope's repository DIFFERS from the memory store, which
+# here it does not, so the variable was blanked, wrap-guard's scan_scope
+# returned on its first line, and each of fifteen changed files came back as
+# "not changed: wrong path, or the edit was lost" — the message for a typo,
+# pointing the reader at their own paths for several iterations. What decides
+# coverage is containment, not repository identity: the memory scan reaches
+# what lies UNDER the memory scope, and a sibling prefix is not under it.
+T="$(cd "$(mktemp -d)" && pwd -P)"
+bothremote="$T/both.git"; git init -q --bare -b main "$bothremote"
+git clone -q "$bothremote" "$T/seed" 2>/dev/null
+mkdir -p "$T/seed/public/projects/acme" "$T/seed/private/projects/acme"
+seed_memory "$T/seed/public/projects/acme"
+printf -- '---\nname: seed\ndescription: seed\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$T/seed/private/projects/acme/seed.md"
+git -C "$T/seed" add -A
+git -C "$T/seed" -c user.email=t@t -c user.name=t commit -qm seed
+git -C "$T/seed" push -q origin main
+
+tr1="$T/repo"; mkdir -p "$tr1/.floppy" "$tr1/docs/statuses" "$T/am"
+git -C "$tr1" init -q -b main .
+cp shim/run "$tr1/.floppy/run"
+printf 'project_key=acme\npublic_repo=%s\nprivate_repo=%s\nagents_memory_dir=%s\nstatuses_now=docs/statuses/NOW.md\ncommit_push=auto\n' \
+  "$bothremote" "$bothremote" "$T/am" > "$tr1/.floppy/config"
+printf '| Notes | 1 | 2 | up |\n' > "$tr1/docs/statuses/NOW.md"
+printf '/.agent-memory\n' > "$tr1/.gitignore"
+git -C "$tr1" add -A
+git -C "$tr1" -c user.email=t@t -c user.name=t commit -qm base
+git init -q --bare -b main "$T/code.git"
+git -C "$tr1" remote add origin "$T/code.git"; git -C "$tr1" push -q -u origin main
+
+run_in "$tr1" store
+run_in "$tr1" workplace
+assert_eq "one URL, one clone: the memory is wired" "link" \
+  "$([[ -L "$tr1/.agent-memory" ]] && echo link || echo no)"
+assert_eq "and the private scope inside it too" "link" \
+  "$([[ -L "$tr1/.agent-memory/private" ]] && echo link || echo no)"
+
+run_in "$tr1" env
+stT="$(printf '%s\n' "$OUT" | sed -n 's/^FLOPPY_MEMORY_STORE=//p')"
+psT="$(printf '%s\n' "$OUT" | sed -n 's/^FLOPPY_PRIVATE_STORE=//p')"
+assert_eq "the private scope names the store it really lives in" "$stT" "$psT"
+
+printf -- '---\nname: one-repo-fact\ndescription: a private fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$tr1/.agent-memory/private/one-repo-fact.md"
+run_in "$tr1" guard .agent-memory/private/one-repo-fact.md
+assert_rc "guard sees a note in the private scope (rc)" 0 "$RC"
+case "$OUT" in
+  *"not changed: wrong path"*) fail "and does not call it unchanged" "no such line" "$OUT" ;;
+  *)                           ok   "and does not call it unchanged" ;;
+esac
+
+# One repository is one commit. The scopes stay separate everywhere they are
+# derived and translated; they merge where the unit stops being a scope and
+# becomes a repository.
+printf -- '---\nname: public-fact\ndescription: a public fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$tr1/.agent-memory/half/public-fact.md"
+printf '# Half\n- [A note](a-note.md) — pointer\n- [Public fact](public-fact.md) — pointer\n' \
+  > "$tr1/.agent-memory/half/INDEX.md"
+clone1="$T/am/.clones/both"
+before="$(git -C "$clone1" rev-list --count HEAD 2>/dev/null)"
+run_in "$tr1" commit -m "both scopes at once" \
+  .agent-memory/private/one-repo-fact.md .agent-memory/half/public-fact.md .agent-memory/half/INDEX.md
+assert_rc "a commit spanning both scopes succeeds (rc)" 0 "$RC"
+after="$(git -C "$clone1" rev-list --count HEAD 2>/dev/null)"
+assert_eq "and it is ONE commit, not one per scope" "1" "$((after - before))"
+case "$OUT" in
+  *"workplace memory"*) fail "and one section, not two naming one repository" "no such section" "$OUT" ;;
+  *)                    ok   "and one section, not two naming one repository" ;;
+esac
+remote_tree="$(git --git-dir="$bothremote" ls-tree -r --name-only main)"
+assert_contains "the private note reached the remote" "private/projects/acme/one-repo-fact.md" "$remote_tree"
+assert_contains "and the public one too" "public/projects/acme/half/public-fact.md" "$remote_tree"
+
+# ---------- a private scope in no repository at all is named as such ----------
+# scan_scope returns silently when its store is empty, so before 2026-09-18
+# every file in an unscanned scope wore the message for a typo. The half-wired
+# shape reaches that honestly: the link exists and points where no git covers.
+tr2="$T/repo2"; mkdir -p "$tr2/.floppy" "$tr2/docs/statuses" "$T/loose"
+git -C "$tr2" init -q -b main .
+cp shim/run "$tr2/.floppy/run"
+printf 'project_key=acme\nstatuses_now=docs/statuses/NOW.md\n' > "$tr2/.floppy/config"
+mkdir -p "$tr2/.agent-memory"
+seed_memory "$tr2/.agent-memory"
+printf '| Notes | 1 | 2 | up |\n' > "$tr2/docs/statuses/NOW.md"
+printf '/.agent-memory/private\n' > "$tr2/.gitignore"
+ln -s "$T/loose" "$tr2/.agent-memory/private"
+git -C "$tr2" add -A
+git -C "$tr2" -c user.email=t@t -c user.name=t commit -qm base
+printf 'note\n' > "$tr2/.agent-memory/private/orphan.md"
+run_in "$tr2" guard .agent-memory/private/orphan.md
+assert_rc       "an unscanned private scope still fails (rc)" 1 "$RC"
+assert_contains "and says the scope was not scanned, not that the edit was lost" \
+  "never scanned" "$OUT"
+assert_contains "and names the path it resolves to" "$T/loose" "$OUT"
+
 # ---------- the personal status goes where the config says, not where a test says ----------
 # #19 split the status in two. The personal half is only worth having if the
 # rite actually carries it: the path is read back from the shim's own resolved
