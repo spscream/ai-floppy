@@ -1,0 +1,101 @@
+schema_version: "1.1"
+name: wrap-rewrites-the-status-file
+description: >-
+  The one rule in this plugin that is known to be ignored. `wrap` §5: rewrite
+  the current-state file once, do not patch it — measured at 2.6 and again at
+  2.7 edit turns per run, and never obeyed. The case passes when the file is
+  produced by a single Write and no Edit at all.
+tags:
+  - wrap
+  - status-file
+  - turns
+
+context:
+  # Builds a small consumer repository in the run's working directory: a
+  # current-state file with four sections, and a stand-in `.floppy/run` so the
+  # rite's lock/check/commit calls succeed without the real plugin on PATH.
+  # Requires `--scaffold`.
+  scaffold_script: scaffold.sh
+
+execution:
+  # The rite reads two files, writes one, and makes two shim calls. Twenty
+  # turns is loose enough for a session that reads more than it needs and
+  # tight enough that a patching loop runs out rather than finishing.
+  max_turns: 20
+  timeout_seconds: 600
+  prompt: |
+    We are closing this session. Update the project's current-state file,
+    `docs/statuses/NOW.md`, so that the next session starts from what is true
+    now rather than from last week.
+
+    Four things changed today and all four belong in that file:
+
+    - The lock takeover warning shipped. `lock acquire` now prints the previous
+      holder's phrase when it takes over an aged lock, and it went out as
+      0.19.0 this afternoon.
+    - The macOS temp-path failure is back. The file records it as fixed; it is
+      not. Two runners out of twenty hit it again this morning.
+    - Wrap now costs a median 71k base-equivalent tokens per run, measured over
+      34 runs. The file records 58k over 21 runs.
+    - The open question about whether the private scope should be published is
+      answered: it stays unpublished. It is no longer an open question.
+
+    Leave the rest of the repository alone.
+
+runs: 3
+
+graders:
+  # Indicator, not score: under `--ablation with-without` this says the skill
+  # fired at all in the with-plugin arm, which the baseline arm cannot do.
+  - type: tool_used
+    name: wrap-skill-fired
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?wrap"'
+    arm: with-only
+
+  # The rule itself, in two halves: the file is written whole, exactly once…
+  - type: tool_used
+    name: status-file-written-once
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*docs/statuses/NOW\.md"'
+    min: 1
+    max: 1
+    weight: 3
+
+  # …and never patched. This is the half that has never held in practice.
+  - type: tool_used
+    name: status-file-never-patched
+    tool: Edit
+    input_match: '"file_path"\s*:\s*"[^"]*docs/statuses/NOW\.md"'
+    min: 0
+    max: 0
+    weight: 3
+
+  # A single Write that loses half the file is not the behaviour the rule asks
+  # for, so the content is graded too — including the rule that a metric which
+  # got worse stays in, marked, rather than being quietly replaced.
+  - type: llm
+    name: every-change-landed-and-nothing-else-was-lost
+    focus:
+      source: file
+      path: docs/statuses/NOW.md
+    criteria: |
+      The file is the project's current-state file after a session that had
+      four changes to record. PASS only if all five hold:
+
+      1. The 0.19.0 lock-takeover release is there, described as shipped.
+      2. The macOS temp-path failure is recorded as still live — not fixed —
+         with the two-of-twenty observation. The old "fixed" claim must be
+         gone, not sitting next to the new one.
+      3. The wrap cost reads 71k over 34 runs, AND the move from the earlier
+         58k is visible as a worsening. A file that silently replaces 58k with
+         71k and says nothing about the change FAILS this point: a regression
+         that disappears is the failure mode the rule exists for.
+      4. The publication question is recorded as answered — the private scope
+         stays unpublished — and is no longer listed as an open question.
+      5. The material the four changes do not touch is still present. A rewrite
+         that drops unrelated sections FAILS.
+
+expected_outcome: |
+  One `Write` of docs/statuses/NOW.md carrying the whole file, no `Edit` of it
+  at all, and the four changes landed with the cost regression left visible.
