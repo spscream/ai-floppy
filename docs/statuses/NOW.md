@@ -68,9 +68,14 @@ defect intact and the tests green.
 
 ## What is frozen
 
-- **`.floppy/run` stays a committed copy, not a generated file** (owner,
-  2026-09-13): a gitignored shim is absent from a fresh clone and from CI. Full
-  trade and reversing condition in `shim-is-committed-rather-than-generated`.
+- **A runner in the consumer's repository is either committed or absent —
+  never gitignored** (owner, 2026-09-13; carried out 2026-09-25): a gitignored
+  shim is absent from a fresh clone, from CI and from every new worktree. The
+  committed copy went the other way in 0.26.0: the skills call
+  `<plugin>/scripts/run`, `init` writes `.floppy/config` alone, and `shim/run`
+  still ships for the repositories that already carry a copy. The note
+  `shim-is-committed-rather-than-generated` states the older half of this and
+  needs the second half written into it.
 - **`watched_dirs` is `docs/statuses`, and documentation is product**
   (narrowed 2026-09-08). The closing rite writes the status file and nothing
   else; `docs/guide/`, `docs/lessons.md` and `docs/memory-model.md` go through

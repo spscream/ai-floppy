@@ -1,9 +1,9 @@
 # Config reference
 
 
-The file contains one `key=value` line for each setting. The shim file
-(`.floppy/run`) reads it, and exports each value as a `FLOPPY_*` variable for
-the scripts.
+The file contains one `key=value` line for each setting. The dispatcher
+(`<plugin>/scripts/run`) reads it, and exports each value as a `FLOPPY_*`
+variable for the scripts.
 
 All keys are optional. The table shows the value that each key has if the file
 does not contain it.
@@ -12,8 +12,8 @@ does not contain it.
 |---|---|---|
 | `memory_dir` | `.agent-memory` | the directory of the memory of this repository |
 | `memory_private_dir` | `private` | the name of the private scope in the memory: facts about this project that the code repository must not carry, such as somebody else's checkout or an access note. The workplace repository holds them, so **other machines do read them**. Facts about one machine go to `machines/<name>/` of that repository instead. Only the name is a setting; the rule is not — committed memory must not link into this scope, and the check uses this key. The same rule covers `common/`, whose name is fixed rather than configurable: it is written into the store paths themselves, and a name settable in one of the two places would be a name that drifts |
-| `public_repo` | *(not set)* | the git URL of the repository that holds this project's **public** memory when the code repository cannot. Set `project_key` also. Then run `bash .floppy/run store` one time for each machine and each worktree |
-| `private_repo` | *(not set)* | the git URL of the repository that holds this project's **private** memory: facts the team must not get. `bash .floppy/run workplace` wires it |
+| `public_repo` | *(not set)* | the git URL of the repository that holds this project's **public** memory when the code repository cannot. Set `project_key` also. Then run the `store` command one time for each machine and each worktree |
+| `private_repo` | *(not set)* | the git URL of the repository that holds this project's **private** memory: facts the team must not get. The `workplace` command wires it |
 | `machine_key` | *(not set)* | the name of this machine in the memory repositories, chosen by you. `hostname` is not used: on one of the author's machines it is `WIN-GVR0V5UPOD7`. Only needed for a note that is true on one machine |
 | `workplace_key` | *(not set)* | the name of this workplace, when one private repository serves several of them. Only needed for a note that is true at one workplace |
 | `project_key` | *(not set)* | the name of this project in every memory repository it uses, and the name of its directory in `agents_memory_dir`. The scopes are `public/projects/<key>` (in `public_repo`) and `private/projects/<key>` (in `private_repo`) |
@@ -107,7 +107,7 @@ resolves somewhere real — remove those two links first, then rewire:
 git -C ~/agents_memory/.clones/agents-memory push    # flush this project's leftovers first
 rm ~/agents_memory/acme/private
 rm <memory_dir>/common/private
-bash .floppy/run workplace
+bash <plugin>/scripts/run workplace
 ```
 
 The cost is one more clone on disk. The remote stays one repository, the
@@ -181,8 +181,8 @@ Some repositories cannot hold agent notes with the code. Examples are a
 customer checkout that you do not own, and a policy that keeps the two apart.
 
 In that condition, the memory goes into a store repository. Your code
-repository keeps two files only: `.floppy/run` and `.floppy/config`. Together
-they are approximately 110 lines. A review of them takes one minute.
+repository keeps one file: `.floppy/config`. It is a short list of settings. A
+review of it takes one minute.
 
 To set this up during `init`, use the flags:
 
@@ -194,12 +194,12 @@ To set it up later, put `public_repo` and `project_key` in `.floppy/config`.
 Then run:
 
 ```
-bash .floppy/run store    # clone or pull, link, ignore, and verify a write
-bash .floppy/run link     # then the memory directory of the agent application
+bash <plugin>/scripts/run store  # clone or pull, link, ignore, verify a write
+bash <plugin>/scripts/run link   # then the agent application's memory directory
 ```
 
 `store` runs one time for each machine and each worktree. It is idempotent. To
-see the result without a change, run `bash .floppy/run store --check`.
+see the result without a change, run `store --check`.
 
 If a directory is in the position of the symbolic link, `store` stops. It does
 not delete the directory. Those notes can be the only copies.
@@ -301,6 +301,6 @@ do" are different reports — and one warning is created by adoption itself:
 `pointers_max` is seeded at the longest index found, which leaves that index at
 100% of its own ceiling from the first run.
 
-While the file is absent, `bash .floppy/run lint` gives a warning. It does not
+While the file is absent, the `lint` command gives a warning. It does not
 fail.
 

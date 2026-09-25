@@ -77,7 +77,10 @@ project at all — the latter belongs in `common/`, which no index links to and
 ## Agent memory
 
 This repository uses the `floppy` plugin for its session ritual and its
-durable memory. The entry point is `.floppy/run` — see `agent-memory`
+durable memory. Its verbs are run from the plugin, not from here:
+`bash <plugin>/scripts/run <verb>`, where `<plugin>` is two directories above
+the base directory the harness states when it loads a floppy skill
+(`Base directory for this skill: <plugin>/skills/start`). See `agent-memory`
 for what a note looks like and how the memory is laid out, and
 `start` / `workstatus` / `wrap` for the three rites
 built on top of it. Settings live in `.floppy/config`; the memory itself is

@@ -46,27 +46,38 @@ keep it.
 ### Running the plugin's own verbs against this checkout
 
 ```bash
-AI_FLOPPY_HOME=$(pwd) bash .floppy/run status
+bash scripts/run status
 ```
 
-Without `AI_FLOPPY_HOME`, `.floppy/run` resolves the **installed plugin cache**,
-not this working tree — so a script you just fixed will be reported as still
-broken. `AI_FLOPPY_HOME` pointing somewhere without `scripts/*.sh` is a hard
-error rather than a fallthrough, for exactly that reason.
+The dispatcher roots itself in its own path (0.26.0), so the copy that answers
+is always the one you called — this checkout, not the installed plugin cache.
+That was the point of the change: `AI_FLOPPY_HOME` existed because a run could
+otherwise land in a different copy of the same repository and report a script
+you had just fixed as still broken. `shim/run` still honours the variable, for
+the consumers who still call through a copy.
 
 ## Architecture
 
-### Three layers, and why the seam is where it is
+### Two layers, and where the third one went
 
 ```
-.floppy/run (consumer repo)  →  scripts/run (plugin)  →  scripts/<verb>.sh
-   shim/run, copied            dispatcher + lib-config.sh      the work
+<plugin>/scripts/run  →  scripts/<verb>.sh
+  dispatcher + lib-config.sh     the work
 ```
 
-- **`shim/run`** is the *only* file the plugin puts into a consumer repository
-  (as `.floppy/run`). It is a copy carried by the consumer's git, and no
-  `plugin update` ever touches it — so it does exactly one thing that cannot
-  live in the plugin: **find the plugin**. Resolution order is
+Since 0.26.0 there is no layer in the consumer's repository. A skill is handed
+its own base directory when the harness loads it (`Base directory for this
+skill: <plugin>/skills/<name>`, measured 2026-09-22), so the caller knows where
+the plugin is and calls `<plugin>/scripts/run` directly; `scripts/run` derives
+`FLOPPY_ROOT` from `${BASH_SOURCE[0]}`. `init` writes `.floppy/config` and no
+code. What the consumer carries is data.
+
+- **`shim/run`** is what that layer used to be, copied into a consumer as
+  `.floppy/run` by every `init` before 0.26.0. It still ships, for the
+  repositories that already carry a copy — and it is deliberately left
+  byte-identical, because it `cmp`s itself against the plugin's copy and any
+  edit here would tell every one of those repositories that their copy is
+  stale. It does one thing: **find the plugin**. Resolution order is
   `CLAUDE_PLUGIN_ROOT` → `CURSOR_PLUGIN_ROOT` → `AI_FLOPPY_HOME` → Claude cache
   (`sort -V`, version-named) → Cursor local symlink → Cursor cache (`ls -dt`,
   SHA-named, so mtime not lexical order). A candidate counts only if it holds
@@ -83,9 +94,12 @@ error rather than a fallthrough, for exactly that reason.
 Verbs: `env lint link workplace store guard heat lock status check commit`.
 `lib-checkout.sh` is shared by `store`/`workplace` and is not a verb.
 
-`skills/init/SKILL.md` **duplicates the shim's plugin search by hand** — `init`
-runs before `.floppy/run` exists. `tests/test-init-bootstrap.sh` extracts that
-fenced block and executes it, so keep the two in sync.
+`skills/init/SKILL.md` carried a hand copy of that search until 0.26.0, because
+`init` ran before `.floppy/run` existed; the harness states the base directory
+instead, so the copy and the test that executed it
+(`tests/test-init-bootstrap.sh`) are both gone. What replaced them is in
+`tests/test-skills.sh`: no `SKILL.md` may name `.floppy/run`, and a skill using
+the `<plugin>` placeholder has to say where it comes from.
 
 ### The wrap rite
 
@@ -121,7 +135,10 @@ request.
   `.claude-plugin/marketplace.json`, `.cursor-plugin/plugin.json`, plus a
   `CHANGELOG.md` entry for that version. The *marketplace* manifest is what
   `plugin update` compares — five releases once shipped nothing because only
-  `plugin.json` moved. Every changelog entry answers **"Refresh `.floppy/run`?"**.
+  `plugin.json` moved. Every changelog entry up to 0.26.0 answers **"Refresh
+  `.floppy/run`?"**; the question retires with the copy, and
+  `tests/test-changelog.sh` still requires the word "Refresh" in the entry for
+  the shipped version.
 - **The documentation site is generated, never hand-written.** Pages come from
   `README*.md`, `docs/*.md`, `skills/*/SKILL.md`, `knowledge/` and
   `CHANGELOG.md`. Adding a file to `docs/*.md` **or `docs/guide/*.md`** means
@@ -132,7 +149,7 @@ request.
   (`docs/plans/`, `docs/specs/`) neither needs a row nor gets one, and is not
   published. Say the globs, not "under `docs/`": the loose phrasing described a
   rule wider than the guard, which is how a wrong rule survives a green suite.
-- **`wrap` here may only commit `docs/statuses`, `AGENTS.md`, `.floppy/run`,
+- **`wrap` here may only commit `docs/statuses`, `AGENTS.md`,
   `.floppy/config`** (`watched_dirs`/`watched_files`). `skills/`, `scripts/`,
   `shim/` and `tests/` are the product and belong in reviewed commits — a
   `knowledge/` note from this repository needs a deliberate PR.
