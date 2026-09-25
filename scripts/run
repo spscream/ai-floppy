@@ -1,25 +1,56 @@
 #!/usr/bin/env bash
 # The dispatcher: one verb in, one script out. Lives in the PLUGIN and is
-# reached by `.floppy/run`, the stub this plugin copies into a consumer
-# repository, which does nothing but locate the plugin and exec this file.
+# called directly:
 #
-# Why the split (0.14.0). The stub is a COPY, carried by the consumer's git and
-# untouched by `plugin update`, so everything inside it goes stale silently and
-# has to be re-copied by hand. Measured over the first 24 commits that touched
-# it: at least 7 changed only the config parser or this verb table — that is,
-# a third of the refreshes it ever demanded of every consumer bought them
-# nothing they could not have had for free. Both of those parts now live here,
-# where an update delivers them. What CANNOT move is finding the plugin in the
-# first place, which is the whole of what the stub still does.
+#   bash <plugin>/scripts/run <verb>
 #
-# The direction of the staleness therefore reverses, and improves. A NEW VERB
-# no longer needs a fresh stub: it appears here, and every repository that has
-# ever run `init` can call it. What a fresh stub is still needed for is a
-# change to how the plugin is located — and that failure is loud (`plugin not
-# found`), never silent.
+# Every skill this plugin ships is handed its own absolute base directory when
+# the harness loads it (measured 2026-09-22: "Base directory for this skill:
+# <plugin>/skills/<name>"), so the caller already knows where the plugin is,
+# and this file is two directories above that.
+#
+# Why there is no copy in the consumer repository (0.26.0). Until then the call
+# went through `.floppy/run`, a COPY of shim/run carried by the consumer's git
+# and untouched by `plugin update`, whose whole job was to find the plugin. It
+# went stale silently: measured over the first 24 commits that touched it, at
+# least 7 changed only the config parser or this verb table, so a third of the
+# refreshes it demanded of every consumer bought them nothing. The verb table
+# and the parser moved here in 0.14.0; 0.26.0 removed the copy itself, because
+# a caller that is TOLD where the plugin is needs no file in the repository to
+# compute it.
+#
+# `shim/run` still ships, for the consumers who already carry a copy and for a
+# call with no stated root to work from. Nothing here depends on it.
 #
 # Runs on macOS bash 3.2: no mapfile, no declare -A, no GNU-only flags.
 set -uo pipefail
+
+# ---------- where the plugin is: this file's own directory, one level up ----
+# The file whose location is wanted is the file being executed, so there is
+# nothing to search for and no variable to require. Measured 2026-09-22: with
+# FLOPPY_ROOT unset, a bare `bash <plugin>/scripts/run status` died at this
+# file's first use of it — `FLOPPY_ROOT: unbound variable`, a raw bash error —
+# which is why the call used to have to go through the consumer's copy.
+#
+# Derived unconditionally, not merely when unset: a FLOPPY_ROOT naming some
+# OTHER copy of the plugin would send every verb into that copy's scripts while
+# this one dispatches, which is the "a script that had just been fixed was
+# reported as still broken" failure shim/run's own header records. The path a
+# call was made through is the truth about which copy is running.
+FLOPPY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+export FLOPPY_ROOT
+
+# How a message spells a floppy command. Every hint a verb prints names this
+# dispatcher by its absolute path, because the consumer's repository no longer
+# holds a short relative name for it — and an absolute path is pasteable from
+# whatever directory the reader happens to be standing in. Quoted only when it
+# has to be: quotes in every hint are noise, and an unquoted path with a space
+# in it is a broken command.
+case "$FLOPPY_ROOT" in
+  *[[:space:]]*) FLOPPY_RUN="bash \"$FLOPPY_ROOT/scripts/run\"" ;;
+  *)             FLOPPY_RUN="bash $FLOPPY_ROOT/scripts/run" ;;
+esac
+export FLOPPY_RUN
 
 # Loud on purpose: every verb below trusts FLOPPY_REPO as the root all its
 # paths are relative to. A silent `|| pwd` fallback here would mean a run
@@ -62,7 +93,7 @@ run_script() { # script-name, then its args
   fi
   # $BASH, not a bare `bash`: whoever chose an interpreter for this dispatcher
   # chose it for the verb too. A bare `bash` re-resolves through PATH, where a
-  # Homebrew bash 5 sits ahead of /bin/bash on macOS — so `/bin/bash .floppy/run
+  # Homebrew bash 5 sits ahead of /bin/bash on macOS — so `/bin/bash scripts/run
   # status` ran memory-lint.sh and workstatus.sh on 5.x, and CI's macos-bash-3-2
   # job tested 3.2 for the test files and nothing else (measured 2026-09-08).
   exec "${BASH:-bash}" "$s" "$@"
@@ -83,8 +114,8 @@ case "$verb" in
   status)    name_repo; run_script workstatus.sh       "$@" ;;
   check)     name_repo; run_script wrap-check.sh       "$@" ;;
   commit)    name_repo; run_script wrap-commit.sh      "$@" ;;
-  ""|help)   echo "usage: bash .floppy/run {env|lint|link|workplace|store|guard|heat|lock|status|check|commit}" ;;
-  # Until 0.14.0 this table lived in the consumer's `.floppy/run`, and an
+  ""|help)   echo "usage: $FLOPPY_RUN {env|lint|link|workplace|store|guard|heat|lock|status|check|commit}" ;;
+  # Until 0.14.0 this table lived in the consumer's copy of the shim, and an
   # unknown verb there was as likely to mean a stale copy as a typo — the two
   # were indistinguishable from inside the file. Measured the first time a verb
   # was added after extraction (`parity`, 2026-08-25): the plugin was current,
