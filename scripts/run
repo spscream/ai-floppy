@@ -89,7 +89,28 @@ done
 unset _arg
 
 # One parser for the whole plugin, in the plugin.
-. "$FLOPPY_ROOT/scripts/lib-config.sh"
+#
+# Guarded the way run_script guards its verb, and for the same reason: `.` on a
+# file that is not there prints one raw line — "No such file or directory" —
+# and, with `set -u` but no `-e`, the dispatcher carries on with no config at
+# all. Measured 2026-09-25 (review of PR #95, finding 5): through a symlink
+# pointing at THIS FILE rather than at the checkout, ${BASH_SOURCE[0]} is the
+# link, FLOPPY_ROOT came out as the link's grandparent, and `env` printed that
+# invented root as though it were a plugin and exited 0. The root is derived
+# from the path the call came through, so it is only ever as good as that path,
+# and this is the first line that can tell.
+cfg_lib="$FLOPPY_ROOT/scripts/lib-config.sh"
+if [[ ! -f "$cfg_lib" ]]; then
+  echo "x the plugin root this call resolves to has no scripts/lib-config.sh" >&2
+  echo "  Resolved plugin root: $FLOPPY_ROOT" >&2
+  echo "  That root is this file's own directory, one level up, so either the" >&2
+  echo "  install is incomplete — reinstall the plugin, and remember that" >&2
+  echo "  \`plugin update\` is a no-op while the version string is unchanged — or" >&2
+  echo "  the call came through a link to this file alone, which carries none of" >&2
+  echo "  the plugin with it. Call the plugin's own scripts/run by path." >&2
+  exit 1
+fi
+. "$cfg_lib"
 
 # Every verb below acts on FLOPPY_REPO, resolved above, and several projects
 # can be open in the same harness at once (Cursor especially) with no other
