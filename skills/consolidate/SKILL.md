@@ -44,6 +44,11 @@ directory when it loads it — `Base directory for this skill:
 directories above that. Write that absolute path wherever a command says
 `<plugin>`.
 
+If that line is not there — a harness that does not print it — do not guess a
+cache path. `$CLAUDE_PLUGIN_ROOT` and `$CURSOR_PLUGIN_ROOT` are worth trying
+first, and a checkout the human can name is worth asking for; a guess whose
+failure mode is running the wrong copy of the plugin is worse than stopping.
+
 1. **Pick one half.** The one `lint` warned about, or the largest in its
    by-half breakdown. One half is a bounded read and a bounded diff; "the
    whole memory" is how a consolidation session becomes the bloat it was

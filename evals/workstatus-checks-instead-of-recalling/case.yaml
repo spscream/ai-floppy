@@ -37,6 +37,12 @@ graders:
   # carried until then and what this fixture's stand-in still answers to).
   # Grading the spelling rather than the act is what made this grader red on a
   # change that was about nothing else; either path is the command being run.
+  #
+  # Widening it does NOT make the case passable again. The model now runs the
+  # real dispatcher, which never reaches the stand-in this scaffold writes to
+  # .floppy/run, so the invented fact the other graders look for is not
+  # printed. The fixture work that would fix it is named in evals/README.md;
+  # these cases are unrun by decision (2026-09-17) and nothing turned red.
   - type: tool_used
     name: the-dispatcher-was-actually-run
     tool: Bash

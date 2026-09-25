@@ -132,8 +132,9 @@ Run `init` one time in each repository.
 
 `init` then does all of these steps:
 
-- writes `.floppy/config`. This is the only file that the plugin puts in
-  `.floppy/`: your repository carries data, not code.
+- writes `.floppy/config`. It is the only file `init` puts there, and the
+  only one you commit; `heat` later writes a `.floppy/heat.log` that
+  `.gitignore` covers. Your repository carries data, not code.
 - creates the memory index `<memory_dir>/MEMORY.md`.
 - creates the state file `docs/statuses/NOW.md`.
 - adds the private memory scope to `.gitignore`. That path becomes a symlink

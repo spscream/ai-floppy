@@ -98,8 +98,13 @@ Verbs: `env lint link workplace store guard heat lock status check commit`.
 `init` ran before `.floppy/run` existed; the harness states the base directory
 instead, so the copy and the test that executed it
 (`tests/test-init-bootstrap.sh`) are both gone. What replaced them is in
-`tests/test-skills.sh`: no `SKILL.md` may name `.floppy/run`, and a skill using
-the `<plugin>` placeholder has to say where it comes from.
+`tests/test-skills.sh`: no `SKILL.md` may name `.floppy/run`, a skill using the
+`<plugin>` placeholder has to say where it comes from and how far above the
+base directory the plugin sits, and every `<plugin>/…` path it names is
+resolved against this checkout — which is as close to executing prose as the
+guard gets. `tests/test-dispatcher.sh` holds the other half: that `scripts/run`
+roots itself, ignores an inherited `FLOPPY_ROOT`, survives an exported
+`CDPATH`, and hands the verbs a hint that can be pasted back.
 
 ### The wrap rite
 

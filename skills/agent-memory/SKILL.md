@@ -22,6 +22,11 @@ directory when it loads it — `Base directory for this skill:
 directories above that. Write that absolute path wherever a command says
 `<plugin>`.
 
+If that line is not there — a harness that does not print it — do not guess a
+cache path. `$CLAUDE_PLUGIN_ROOT` and `$CURSOR_PLUGIN_ROOT` are worth trying
+first, and a checkout the human can name is worth asking for; a guess whose
+failure mode is running the wrong copy of the plugin is worse than stopping.
+
 ## One fact per file
 
 A memory note holds exactly one fact. A refinement of an existing fact edits

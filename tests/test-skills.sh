@@ -54,17 +54,44 @@ assert_eq "no skill names the consumer's .floppy/run" "" "$run_hits"
 # Newlines folded to spaces before the match: the quoted line is prose and
 # wraps at the file's margin, so the phrase is regularly split across two
 # lines and a plain grep for it finds nothing.
+#
+# Three things are asserted of a skill that uses the placeholder, because two
+# of them were measured as mutations the suite did not notice (2026-09-25):
+# `<plugin>/run` instead of `<plugin>/scripts/run`, and "one directory above"
+# instead of "two", each of which sends the agent at a path that does not
+# exist while every test stays green. Resolving the placeholder against this
+# checkout is as close to executing the instruction as prose allows.
 for f in "${skills[@]}"; do
   case "$(cat "$f")" in
-    *'<plugin>'*)
-      if tr '\n' ' ' < "$f" | grep -q 'Base directory for this skill'; then
-        ok "$f: says where <plugin> comes from"
-      else
-        fail "$f: says where <plugin> comes from" \
-          "the base-directory line the harness prints" "no such line"
-      fi
-      ;;
+    *'<plugin>'*) ;;
+    *) continue ;;
   esac
+  folded="$(tr '\n' ' ' < "$f")"
+
+  case "$folded" in
+    *'Base directory for this skill'*)
+      ok "$f: says where <plugin> comes from" ;;
+    *)
+      fail "$f: says where <plugin> comes from" \
+        "the base-directory line the harness prints" "no such line" ;;
+  esac
+
+  case "$folded" in
+    *'two directories above'*|*'two directories up'*)
+      ok "$f: says how far above the base directory the plugin is" ;;
+    *)
+      fail "$f: says how far above the base directory the plugin is" \
+        "two directories" "$(printf '%s' "$folded" | grep -o '[a-z]* director[a-z]* \(above\|up\)' | head -n1)" ;;
+  esac
+
+  missing=""
+  while IFS= read -r ref; do
+    [[ -n "$ref" ]] || continue
+    rel="${ref#<plugin>/}"
+    rel="${rel%.}"
+    [[ -e "$rel" ]] || missing="$missing $ref"
+  done < <(grep -o '<plugin>/[A-Za-z0-9_./-]*' "$f" | sort -u)
+  assert_eq "$f: every <plugin>/… path it names exists in the plugin" "" "$missing"
 done
 
 summary

@@ -40,8 +40,8 @@ the plugin directory is two levels above that (measured in Claude Code on
 2026-09-22, on this plugin and one other). So the skills now call
 `bash <plugin>/scripts/run <verb>` directly, and `scripts/run` derives
 `FLOPPY_ROOT` from its own `${BASH_SOURCE[0]}` instead of being handed it. A
-direct call needs no variable: `bash <plugin>/scripts/run status` works with an
-empty environment.
+direct call needs no floppy variable at all: `bash <plugin>/scripts/run status`
+runs with nothing set but `HOME`, which the config parser has always read.
 
 What follows from that:
 
@@ -51,8 +51,11 @@ What follows from that:
 - **`skills/init/SKILL.md` drops its hand copy of the plugin search** — 33
   lines that existed because `init` ran before `.floppy/run` existed. The test
   that executed that fenced block (`tests/test-init-bootstrap.sh`) goes with
-  it; `tests/test-skills.sh` now asserts instead that no skill names
-  `.floppy/run` and that a skill using `<plugin>` says where it comes from.
+  it. Prose cannot be executed, so `tests/test-skills.sh` resolves it instead:
+  no skill names `.floppy/run`, a skill using `<plugin>` says where it comes
+  from and how far above the base directory it sits, and every `<plugin>/…`
+  path a skill names has to exist in this checkout. The last two were added
+  after a review showed `<plugin>/run` and "one directory above" passing.
 - **`shim/run` still ships, byte for byte.** It is what a pre-0.26.0 consumer
   calls, and it `cmp`s itself against the plugin's copy — so any edit here
   would tell every one of those repositories that their copy is stale. It is
