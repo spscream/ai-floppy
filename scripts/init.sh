@@ -350,11 +350,14 @@ durable memory. Its verbs are run from the plugin, not from this repository:
 \`bash <plugin>/scripts/run <verb>\`, where \`<plugin>\` is two directories
 above the base directory the harness states when it loads a floppy skill
 (\`Base directory for this skill: <plugin>/skills/start\`). Nothing here has
-to be kept in step with the plugin — \`.floppy/\` holds \`config\` and
-nothing else. See \`agent-memory\` for what a note looks like and how the
-memory is laid out, and \`start\` / \`workstatus\` / \`wrap\` for the
-three rites built on top of it. Settings live in \`.floppy/config\`; the
-memory itself is under \`$mem_dir\`.
+to be kept in step with the plugin: \`.floppy/\` holds no code. What it holds
+is \`config\`, the one file committed out of it, and — once \`heat\` has been
+called — \`heat.log\`, which is machine-local and kept out of git through
+\`.git/info/exclude\`, never through this repository's \`.gitignore\`. See
+\`agent-memory\` for what a note looks like and how the memory is laid out,
+and \`start\` / \`workstatus\` / \`wrap\` for the three rites built on top of
+it. Settings live in \`.floppy/config\`; the memory itself is under
+\`$mem_dir\`.
 EOF
   echo "ok AGENTS.md: floppy section added"
 fi
