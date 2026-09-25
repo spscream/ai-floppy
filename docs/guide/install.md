@@ -133,8 +133,11 @@ Run `init` one time in each repository.
 `init` then does all of these steps:
 
 - writes `.floppy/config`. It is the only file `init` puts there, and the
-  only one you commit; `heat` later writes a `.floppy/heat.log` that
-  `.gitignore` covers. Your repository carries data, not code.
+  only one you commit; `heat` later writes a `.floppy/heat.log` beside it and
+  ignores it in `.git/info/exclude`, never in your `.gitignore`. The log is
+  machine-local, and so is the rule that hides it: an ignore line committed
+  for it would leave every clone's tree dirty on a file `wrap` refuses to
+  commit. Your repository carries data, not code.
 - creates the memory index `MEMORY.md` — in `<memory_dir>` of this repository
   when the memory lives here, and in the store's scope for this project when
   `.floppy/config` names a store. From 0.27.0 nothing of that name is created
