@@ -34,7 +34,7 @@ EOFM
 # A bare repository stands in for the remote. Never a real one: this script
 # pushes, and a test that reaches a real remote is a test that publishes.
 remote="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remote"
-repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
+repo="$(sandbox)"
 cat > "$repo/.floppy/config" <<'EOF2'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -75,7 +75,7 @@ remote_before="$(git -C "$remote" rev-parse refs/heads/main)"
 # repository where everything is otherwise in order.
 printf 'edit\n' >> "$repo/state/NOW.md"
 before="$(git -C "$repo" rev-parse HEAD)"
-out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check state/NOW.md 2>&1)"; rc1=$?
+out="$(cd "$repo" && bash "$ROOT/scripts/run" check state/NOW.md 2>&1)"; rc1=$?
 after="$(git -C "$repo" rev-parse HEAD)"
 assert_rc       "check succeeds"               0         "$rc1"
 assert_eq       "check does not commit"        "$before" "$after"
@@ -84,8 +84,8 @@ assert_eq       "check does not push"          "$remote_before" "$(git -C "$remo
 assert_contains "check reports the file list"  "NOW.md"  "$out"
 
 # IMPORTANT 4: no private_repo in this repo's config — wrap-check.sh must
-# skip the "workplace memory" section entirely rather than nudge "bash
-# .floppy/run workplace", which then dead-ends on a missing project key.
+# skip the "workplace memory" section entirely rather than nudge the
+# `workplace` verb, which then dead-ends on a missing project key.
 case "$out" in
   *"-- workplace memory"*) fail "check: no workplace section without private_repo" "section absent" "$out" ;;
   *)                       ok   "check: no workplace section without private_repo" ;;
@@ -93,7 +93,7 @@ esac
 
 # check refuses a file outside the watched paths, and refuses loudly
 printf 'x\n' > "$repo/stray.txt"
-out2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check stray.txt 2>&1)"; rc2=$?
+out2="$(cd "$repo" && bash "$ROOT/scripts/run" check stray.txt 2>&1)"; rc2=$?
 assert_rc       "check refuses an unwatched file" 1 "$rc2"
 
 # commit refuses too, when the guard rejects the file list: nothing staged,
@@ -103,7 +103,7 @@ assert_rc       "check refuses an unwatched file" 1 "$rc2"
 # sibling script must fail loudly here rather than let the commit through
 # ungated.
 before_gate="$(git -C "$repo" rev-parse HEAD)"
-out_gate="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should not land" stray.txt 2>&1)"; rc_gate=$?
+out_gate="$(cd "$repo" && bash "$ROOT/scripts/run" commit -m "should not land" stray.txt 2>&1)"; rc_gate=$?
 after_gate="$(git -C "$repo" rev-parse HEAD)"
 assert_rc "commit refuses a file the guard rejects (rc)" 1 "$rc_gate"
 assert_eq "gate failure: nothing committed" "$before_gate" "$after_gate"
@@ -115,7 +115,7 @@ rm -f "$repo/stray.txt"
 # "moved past base" checks matter as much as the equality: without them this
 # assertion would pass just as well if the command failed outright and left
 # both sides sitting at the unchanged base commit.
-out3="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "note update" state/NOW.md 2>&1)"; rc3=$?
+out3="$(cd "$repo" && bash "$ROOT/scripts/run" commit -m "note update" state/NOW.md 2>&1)"; rc3=$?
 after_commit="$(git -C "$repo" rev-parse HEAD)"
 assert_rc "commit succeeds"                 0 "$rc3"
 case "$after_commit" in
@@ -138,7 +138,7 @@ rm -rf "$repo" "$remote"
 # first, and this session's edit is still sitting uncommitted when `commit`
 # runs.
 remote2="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remote2"
-repoA="$(sandbox)"; cp shim/run "$repoA/.floppy/run"
+repoA="$(sandbox)"
 cat > "$repoA/.floppy/config" <<'EOF3'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -184,7 +184,7 @@ git -C "$repoB" push -q origin main
 # own yet, exactly the shape the trap needs.
 printf 'line1\nline2\nline3-from-this-session\n' > "$repoA/state/NOW.md"
 
-out4="$(cd "$repoA" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "this session's edit" state/NOW.md 2>&1)"; rc4=$?
+out4="$(cd "$repoA" && bash "$ROOT/scripts/run" commit -m "this session's edit" state/NOW.md 2>&1)"; rc4=$?
 assert_rc "pull-after-commit: commit succeeds despite the remote having diverged" 0 "$rc4"
 assert_eq "pull-after-commit: local head reaches the remote" \
   "$(git -C "$repoA" rev-parse HEAD)" "$(git -C "$remote2" rev-parse refs/heads/main)"
@@ -202,7 +202,7 @@ rm -rf "$repoA" "$repoB" "$remote2"
 # repository has the identical shape whenever a session edited product code
 # before wrapping.
 remote3="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remote3"
-repoC="$(sandbox)"; cp shim/run "$repoC/.floppy/run"
+repoC="$(sandbox)"
 cat > "$repoC/.floppy/config" <<'EOFC'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -220,7 +220,7 @@ git -C "$repoC" push -q -u origin main
 
 printf 'half-done product edit\n' >> "$repoC/src/app.txt"
 printf '| Notes | 1 | 3 | up |\n' > "$repoC/state/NOW.md"
-outPD="$(cd "$repoC" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "status update" state/NOW.md 2>&1)"; rcPD=$?
+outPD="$(cd "$repoC" && bash "$ROOT/scripts/run" commit -m "status update" state/NOW.md 2>&1)"; rcPD=$?
 assert_rc "product dirt: commit still syncs and pushes (rc)" 0 "$rcPD"
 assert_eq "product dirt: local head reaches the remote" \
   "$(git -C "$repoC" rev-parse HEAD)" "$(git -C "$remote3" rev-parse refs/heads/main)"
@@ -243,7 +243,7 @@ rm -rf "$repoC" "$remote3"
 # leak into a real 30-minute block on every failed gate. Assert on the actual
 # `lock status` text, not just on exit code: a test that only checks rc would
 # not have caught this.
-repoL="$(sandbox)"; cp shim/run "$repoL/.floppy/run"
+repoL="$(sandbox)"
 cat > "$repoL/.floppy/config" <<'EOFLa'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -257,31 +257,31 @@ git -C "$repoL" add -A
 git -C "$repoL" -c user.email=t@t -c user.name=t commit -qm base
 
 # 1. guard-red path: an unwatched file makes wrap-guard.sh fail.
-acqL1="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock acquire "guard-red-test" 2>&1)"
+acqL1="$(cd "$repoL" && bash "$ROOT/scripts/run" lock acquire "guard-red-test" 2>&1)"
 assert_contains "lock-release setup: lock acquired before guard-red run" "ok lock acquired" "$acqL1"
 
 printf 'x\n' > "$repoL/stray.txt"
-outL1="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should fail" stray.txt 2>&1)"; rcL1=$?
+outL1="$(cd "$repoL" && bash "$ROOT/scripts/run" commit -m "should fail" stray.txt 2>&1)"; rcL1=$?
 assert_rc "guard-red commit fails" 1 "$rcL1"
-statusL1="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 2>&1)"
+statusL1="$(cd "$repoL" && bash "$ROOT/scripts/run" lock status 2>&1)"
 assert_contains "guard-red path: lock is free afterwards" "free" "$statusL1"
 rm -f "$repoL/stray.txt"
 
 # 2. memory-lint-red path: an index pointer to a note that no longer exists.
 rm -f "$repoL/brain/half/a-note.md"
-acqL2="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock acquire "lint-red-test" 2>&1)"
+acqL2="$(cd "$repoL" && bash "$ROOT/scripts/run" lock acquire "lint-red-test" 2>&1)"
 assert_contains "lock-release setup: lock acquired before lint-red run" "ok lock acquired" "$acqL2"
 
-outL2="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should fail" state/NOW.md 2>&1)"; rcL2=$?
+outL2="$(cd "$repoL" && bash "$ROOT/scripts/run" commit -m "should fail" state/NOW.md 2>&1)"; rcL2=$?
 assert_rc "memory-lint-red commit fails" 1 "$rcL2"
-statusL2="$(cd "$repoL" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 2>&1)"
+statusL2="$(cd "$repoL" && bash "$ROOT/scripts/run" lock status 2>&1)"
 assert_contains "memory-lint-red path: lock is free afterwards" "free" "$statusL2"
 
 rm -rf "$repoL"
 
 # 3. the success path still releases exactly once, and still tells the human.
 remoteL="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remoteL"
-repoL2="$(sandbox)"; cp shim/run "$repoL2/.floppy/run"
+repoL2="$(sandbox)"
 cat > "$repoL2/.floppy/config" <<'EOFLb'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -297,14 +297,14 @@ git -C "$repoL2" remote add origin "$remoteL"
 git -C "$repoL2" push -q -u origin main
 
 printf 'edit\n' >> "$repoL2/state/NOW.md"
-acqL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock acquire "success-test" 2>&1)"
+acqL3="$(cd "$repoL2" && bash "$ROOT/scripts/run" lock acquire "success-test" 2>&1)"
 assert_contains "lock-release setup: lock acquired before success run" "ok lock acquired" "$acqL3"
 
-outL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "ok" state/NOW.md 2>&1)"; rcL3=$?
+outL3="$(cd "$repoL2" && bash "$ROOT/scripts/run" commit -m "ok" state/NOW.md 2>&1)"; rcL3=$?
 assert_rc "success path commit succeeds" 0 "$rcL3"
 n_reports="$(printf '%s\n' "$outL3" | grep -c 'ok lock released')"
 assert_eq "success path reports the release exactly once" "1" "$n_reports"
-statusL3="$(cd "$repoL2" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status 2>&1)"
+statusL3="$(cd "$repoL2" && bash "$ROOT/scripts/run" lock status 2>&1)"
 assert_contains "success path: lock is free afterwards" "free" "$statusL3"
 
 rm -rf "$repoL2" "$remoteL"
@@ -320,7 +320,7 @@ cp -R "$ROOT"/. "$fake_plugin"/ 2>/dev/null
 rm -rf "$fake_plugin/.git"
 rm -f "$fake_plugin/scripts/wrap-guard.sh"
 
-repoG="$(sandbox)"; cp shim/run "$repoG/.floppy/run"
+repoG="$(sandbox)"
 cat > "$repoG/.floppy/config" <<'EOFG'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -334,7 +334,7 @@ git -C "$repoG" add -A
 git -C "$repoG" -c user.email=t@t -c user.name=t commit -qm base
 
 printf 'edit\n' >> "$repoG/state/NOW.md"
-outG="$(cd "$repoG" && AI_FLOPPY_HOME="$fake_plugin" bash .floppy/run commit -m "should fail" state/NOW.md 2>&1)"; rcG=$?
+outG="$(cd "$repoG" && bash "$fake_plugin/scripts/run" commit -m "should fail" state/NOW.md 2>&1)"; rcG=$?
 assert_rc       "missing wrap-guard.sh: commit refuses (rc)" 1 "$rcG"
 assert_contains "missing wrap-guard.sh: names it as a broken installation" \
   "broken plugin installation" "$outG"
@@ -353,7 +353,7 @@ rm -rf "$repoG" "$fake_plugin"
 # half). commit_push=never in .floppy/config opts a repository like that out
 # of the whole pull+push tail. Deliberately no `git remote add` here — this
 # is the "no upstream" repository the finding was about.
-repoNR="$(sandbox)"; cp shim/run "$repoNR/.floppy/run"
+repoNR="$(sandbox)"
 cat > "$repoNR/.floppy/config" <<'EOFNR'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -369,7 +369,7 @@ git -C "$repoNR" -c user.email=t@t -c user.name=t commit -qm base
 
 printf 'edit\n' >> "$repoNR/state/NOW.md"
 before_nr="$(git -C "$repoNR" rev-parse HEAD)"
-outNR="$(cd "$repoNR" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "local only" state/NOW.md 2>&1)"; rcNR=$?
+outNR="$(cd "$repoNR" && bash "$ROOT/scripts/run" commit -m "local only" state/NOW.md 2>&1)"; rcNR=$?
 after_nr="$(git -C "$repoNR" rev-parse HEAD)"
 assert_rc "commit_push=never: commit succeeds with no remote at all" 0 "$rcNR"
 case "$after_nr" in
@@ -387,7 +387,7 @@ rm -rf "$repoNR"
 # human reading only the failure learns nothing about which repository it was
 # about to touch. Assert on ORDER, not just presence: the "-- target" section
 # must come before "-- gates" in the actual output.
-repoT="$(sandbox)"; cp shim/run "$repoT/.floppy/run"
+repoT="$(sandbox)"
 cat > "$repoT/.floppy/config" <<'EOFT'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -401,7 +401,7 @@ git -C "$repoT" add -A
 git -C "$repoT" -c user.email=t@t -c user.name=t commit -qm base
 
 printf 'x\n' > "$repoT/stray.txt"
-outT="$(cd "$repoT" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "should fail" stray.txt 2>&1)"; rcT=$?
+outT="$(cd "$repoT" && bash "$ROOT/scripts/run" commit -m "should fail" stray.txt 2>&1)"; rcT=$?
 assert_rc       "target-naming: the gate still rejects the commit (rc)" 1 "$rcT"
 assert_contains "target-naming: names the resolved repository" "repo:   $repoT" "$outT"
 assert_contains "target-naming: names the branch"               "branch: main" "$outT"
@@ -426,7 +426,7 @@ rm -rf "$repoT"
 # with "did not match any files" and takes the whole commit down. Measured on
 # this machine's git: `git add -A -- <path>` fails identically, so widening the
 # add is not the fix. A deletion staged by `git rm` needs no staging at all.
-repoD="$(sandbox)"; cp shim/run "$repoD/.floppy/run"
+repoD="$(sandbox)"
 cat > "$repoD/.floppy/config" <<'EOFD'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -442,7 +442,7 @@ git -C "$repoD" add -A
 git -C "$repoD" -c user.email=t@t -c user.name=t commit -qm base
 
 git -C "$repoD" rm -q state/OLD.md
-outD="$(cd "$repoD" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "drop the superseded note" state/OLD.md 2>&1)"; rcD=$?
+outD="$(cd "$repoD" && bash "$ROOT/scripts/run" commit -m "drop the superseded note" state/OLD.md 2>&1)"; rcD=$?
 assert_rc       "git rm: the commit goes through (rc)"  0 "$rcD"
 case "$outD" in
   *"git add failed"*) fail "git rm: staging does not fail on the deleted path" "no add failure" "$outD" ;;
@@ -458,7 +458,7 @@ assert_eq       "git rm: nothing left uncommitted"           "" \
 # A path that never existed must still fail — the skip is for a staged
 # deletion, not a blanket "ignore what git cannot find".
 printf 'x\n' > "$repoD/state/NEW.md"
-outD2="$(cd "$repoD" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "typo in the list" state/NEW.md state/nosuch.md 2>&1)"; rcD2=$?
+outD2="$(cd "$repoD" && bash "$ROOT/scripts/run" commit -m "typo in the list" state/NEW.md state/nosuch.md 2>&1)"; rcD2=$?
 assert_rc       "git rm: a typo in the file list still fails (rc)" 1 "$rcD2"
 rm -rf "$repoD"
 
@@ -471,7 +471,7 @@ rm -rf "$repoD"
 # a branch created for it, and such a branch never has an upstream on its
 # first commit — so this is now every close, not an occasional one.
 remoteB="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remoteB"
-repoB="$(sandbox)"; cp shim/run "$repoB/.floppy/run"
+repoB="$(sandbox)"
 cat > "$repoB/.floppy/config" <<'EOFB'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -489,7 +489,7 @@ git -C "$repoB" push -q -u origin main
 # the wrap branch: created here, unknown to the remote, no upstream
 git -C "$repoB" switch -q -c wrap-branch
 printf 'edit\n' >> "$repoB/state/NOW.md"
-outB="$(cd "$repoB" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "close on a fresh branch" state/NOW.md 2>&1)"; rcB=$?
+outB="$(cd "$repoB" && bash "$ROOT/scripts/run" commit -m "close on a fresh branch" state/NOW.md 2>&1)"; rcB=$?
 assert_rc       "fresh branch: the whole tail succeeds (rc)" 0 "$rcB"
 assert_eq       "fresh branch: the remote received it" \
   "$(git -C "$repoB" rev-parse HEAD)" "$(git -C "$remoteB" rev-parse refs/heads/wrap-branch 2>/dev/null)"
@@ -507,7 +507,7 @@ esac
 # must not be a way of skipping it. Second commit on the same branch — the
 # upstream is set now, so the pull runs again.
 printf 'more\n' >> "$repoB/state/NOW.md"
-outB2="$(cd "$repoB" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "second close" state/NOW.md 2>&1)"; rcB2=$?
+outB2="$(cd "$repoB" && bash "$ROOT/scripts/run" commit -m "second close" state/NOW.md 2>&1)"; rcB2=$?
 assert_rc       "upstream exists: still succeeds (rc)" 0 "$rcB2"
 assert_eq       "upstream exists: the remote received it too" \
   "$(git -C "$repoB" rev-parse HEAD)" "$(git -C "$remoteB" rev-parse refs/heads/wrap-branch 2>/dev/null)"
@@ -526,7 +526,7 @@ rm -rf "$repoB" "$remoteB"
 # push", which is advice that cannot work. A pre-receive hook stands in for
 # the branch rule: this test must never reach a real remote.
 remoteP="$(cd "$(mktemp -d)" && pwd -P)"; git init -q --bare -b main "$remoteP"
-repoP="$(sandbox)"; cp shim/run "$repoP/.floppy/run"
+repoP="$(sandbox)"
 cat > "$repoP/.floppy/config" <<'EOFP'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -548,7 +548,7 @@ EOFPH
 chmod +x "$remoteP/hooks/pre-receive"
 
 printf 'edit\n' >> "$repoP/state/NOW.md"
-outP="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "refused by the rule" state/NOW.md 2>&1)"; rcP=$?
+outP="$(cd "$repoP" && bash "$ROOT/scripts/run" commit -m "refused by the rule" state/NOW.md 2>&1)"; rcP=$?
 assert_rc       "branch rule: the call still fails (rc)" 1 "$rcP"
 assert_contains "branch rule: names the rule, not the network" "branch rule" "$outP"
 assert_contains "branch rule: names the branch that is protected" "main is protected" "$outP"
@@ -572,7 +572,7 @@ exit 1
 EOFPH2
 chmod +x "$remoteP/hooks/pre-receive"
 printf 'again\n' >> "$repoP/state/NOW.md"
-outP2="$(cd "$repoP" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "refused for another reason" state/NOW.md 2>&1)"; rcP2=$?
+outP2="$(cd "$repoP" && bash "$ROOT/scripts/run" commit -m "refused for another reason" state/NOW.md 2>&1)"; rcP2=$?
 assert_rc       "ordinary push failure: still fails (rc)" 1 "$rcP2"
 assert_contains "ordinary push failure: keeps the generic advice" "Retry: git push" "$outP2"
 case "$outP2" in
@@ -588,7 +588,7 @@ rm -rf "$repoP" "$remoteP"
 # mapped every non-zero code to its problem-counting branch, and since a
 # refusal prints no "  x" lines the human got "MEMORY LINT IS RED, 0
 # problem(s)" and nothing else — red with no reason given.
-repoR="$(sandbox)"; cp shim/run "$repoR/.floppy/run"
+repoR="$(sandbox)"
 cat > "$repoR/.floppy/config" <<'EOFR'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -600,7 +600,7 @@ git -C "$repoR" add -A
 git -C "$repoR" -c user.email=t@t -c user.name=t commit -qm base
 printf '| Notes | 1 | 3 | up |\n' > "$repoR/state/NOW.md"
 
-outR="$(cd "$repoR" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check state/NOW.md 2>&1)"; rcR=$?
+outR="$(cd "$repoR" && bash "$ROOT/scripts/run" check state/NOW.md 2>&1)"; rcR=$?
 assert_rc       "lint refusal: check is still red (rc)" 1 "$rcR"
 assert_contains "lint refusal: the linter's own reason is shown" \
   "does not use this memory layout" "$outR"

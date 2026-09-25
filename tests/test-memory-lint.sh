@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 # memory in a non-default directory, to catch any surviving ".agent-memory"
-repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
+repo="$(sandbox)"
 echo "memory_dir=brain" > "$repo/.floppy/config"
 mkdir -p "$repo/brain/half"
 cat > "$repo/brain/MEMORY.md" <<'EOF'
@@ -28,7 +28,7 @@ Body.
 EOF
 printf 'notes_max=10\nchars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repo/brain/quota.lock"
 
-out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc=$?
+out="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rc=$?
 assert_rc       "clean memory in a custom dir passes" 0 "$rc"
 assert_contains "counts are reported"                 "1 notes"     "$out"
 case "$out" in *".agent-memory"*) fail "no hardcoded .agent-memory" "absent" "$out";; *) ok "no hardcoded .agent-memory";; esac
@@ -36,7 +36,7 @@ case "$out" in *".agent-memory"*) fail "no hardcoded .agent-memory" "absent" "$o
 # positive control: a note nobody points at must be caught
 cp "$repo/brain/half/a-note.md" "$repo/brain/half/orphan.md"
 sed -i.bak 's/^name: a-note/name: orphan/' "$repo/brain/half/orphan.md" && rm -f "$repo/brain/half/orphan.md.bak"
-out2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc2=$?
+out2="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rc2=$?
 assert_rc       "orphan note fails the run"  1 "$rc2"
 assert_contains "orphan note is named"       "orphan.md" "$out2"
 
@@ -65,7 +65,7 @@ if [[ -z "$store" ]]; then echo none; fi
 ```
 EOF
 rm -f "$repo/brain/half/orphan.md"
-outB="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcB=$?
+outB="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rcB=$?
 assert_rc       "a note quoting a bash condition passes" 0 "$rcB"
 case "$outB" in
   *"resolves to nothing"*) fail "and the condition is not read as a link" "no such line" "$outB" ;;
@@ -74,7 +74,7 @@ esac
 
 # positive control: a real link that resolves nowhere must still be caught
 printf 'And a link to [[no-such-note]].\n' >> "$repo/brain/half/a-note.md"
-outC="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcC=$?
+outC="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rcC=$?
 assert_rc       "a dangling [[slug]] still fails the run" 1 "$rcC"
 assert_contains "and is named"  "[[no-such-note]]" "$outC"
 
@@ -116,7 +116,7 @@ metadata:
 ---
 Body.
 EOF
-outc="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcc=$?
+outc="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rcc=$?
 assert_rc       "a common note needs no pointer in this project's index" 0 "$rcc"
 assert_contains "and is not counted into this project's corpus"  "1 notes" "$outc"
 assert_contains "but the run says it checked it"                 "1 in common/" "$outc"
@@ -132,7 +132,7 @@ metadata:
 ---
 Body.
 EOF
-outc2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcc2=$?
+outc2="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rcc2=$?
 assert_rc       "a common note missing evidence fails the run" 1 "$rcc2"
 assert_contains "and is named by its path in the scope" "common/shared/undated.md" "$outc2"
 rm -f "$repo/brain/common/shared/undated.md"
@@ -141,7 +141,7 @@ rm -f "$repo/brain/common/shared/undated.md"
 # so the link is dead for anyone who has not wired it. Same rule the private
 # scope has carried since 0.4.0, and the same reason.
 printf 'See [the trap](common/shared/a-trap.md).\n' >> "$repo/brain/half/a-note.md"
-outc3="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcc3=$?
+outc3="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rcc3=$?
 assert_rc       "a committed note linking into common/ fails" 1 "$rcc3"
 assert_contains "and says why the link is dead" "has not wired that scope" "$outc3"
 
@@ -151,7 +151,7 @@ rm -rf "$repo"
 # The index became a three-level tree on 2026-08-25 (root -> half -> sub-index
 # -> note), after sdk/ hit the 60-pointer cap and the ratchet said to split the
 # half rather than raise the number. A clean tree at that depth must pass.
-repo3="$(sandbox)"; cp shim/run "$repo3/.floppy/run"
+repo3="$(sandbox)"
 echo "memory_dir=brain" > "$repo3/.floppy/config"
 mkdir -p "$repo3/brain/half/sub"
 cat > "$repo3/brain/MEMORY.md" <<'EOF'
@@ -178,7 +178,7 @@ Body.
 EOF
 printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repo3/brain/quota.lock"
 
-out3="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc3=$?
+out3="$(cd "$repo3" && bash "$ROOT/scripts/run" lint 2>&1)"; rc3=$?
 assert_rc       "three-level tree passes clean"  0 "$rc3"
 assert_contains "three indexes are counted"       "3 indexes" "$out3"
 
@@ -203,7 +203,7 @@ metadata:
 Body.
 EOF
 
-out4="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc4=$?
+out4="$(cd "$repo3" && bash "$ROOT/scripts/run" lint 2>&1)"; rc4=$?
 assert_rc       "orphan sub-index fails the run"        1 "$rc4"
 assert_contains "orphan sub-index is named"              "half/orphan-sub/INDEX.md" "$out4"
 assert_contains "orphan sub-index names its own parent"  "not linked from half/INDEX.md" "$out4"
@@ -211,7 +211,7 @@ assert_contains "orphan sub-index names its own parent"  "not linked from half/I
 rm -rf "$repo3"
 
 # ---------- note nested past three levels ----------
-repo5="$(sandbox)"; cp shim/run "$repo5/.floppy/run"
+repo5="$(sandbox)"
 echo "memory_dir=brain" > "$repo5/.floppy/config"
 mkdir -p "$repo5/brain/half/sub/toodeep"
 cat > "$repo5/brain/MEMORY.md" <<'EOF'
@@ -248,7 +248,7 @@ Body.
 EOF
 printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repo5/brain/quota.lock"
 
-out5="$(cd "$repo5" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc5=$?
+out5="$(cd "$repo5" && bash "$ROOT/scripts/run" lint 2>&1)"; rc5=$?
 assert_rc       "note past three levels fails the run" 1 "$rc5"
 assert_contains "deep note is named"                    "half/sub/toodeep/deep-note.md" "$out5"
 assert_contains "depth-limit message"                   "index tree stops at three levels" "$out5"
@@ -259,7 +259,7 @@ rm -rf "$repo5"
 # Previously an unguarded non-numeric value in quota.lock printed its own
 # message but also let later comparisons run on the bad value, spilling raw
 # bash diagnostics ahead of it. The current script validates before using.
-repo6="$(sandbox)"; cp shim/run "$repo6/.floppy/run"
+repo6="$(sandbox)"
 echo "memory_dir=brain" > "$repo6/.floppy/config"
 mkdir -p "$repo6/brain/half"
 cat > "$repo6/brain/MEMORY.md" <<'EOF'
@@ -282,7 +282,7 @@ Body.
 EOF
 printf 'chars_max=abc\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repo6/brain/quota.lock"
 
-out6="$(cd "$repo6" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc6=$?
+out6="$(cd "$repo6" && bash "$ROOT/scripts/run" lint 2>&1)"; rc6=$?
 assert_rc       "non-numeric quota value fails the run" 1 "$rc6"
 assert_contains "non-numeric value is named"             "chars_max is 'abc'" "$out6"
 case "$out6" in
@@ -297,8 +297,8 @@ rm -rf "$repo6"
 # in a harness that can have several open at once (Cursor especially). In its
 # old form it read as "your setup is broken"; naming the repository turns it
 # into "you are in the wrong place".
-repo7="$(sandbox)"; cp shim/run "$repo7/.floppy/run"
-out7="$(cd "$repo7" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc7=$?
+repo7="$(sandbox)"
+out7="$(cd "$repo7" && bash "$ROOT/scripts/run" lint 2>&1)"; rc7=$?
 assert_rc       "no memory layout: exits 2"                    2 "$rc7"
 assert_contains "no memory layout: message names the repository path" "$repo7" "$out7"
 assert_contains "no memory layout: still explains what's missing" \
@@ -311,7 +311,7 @@ rm -rf "$repo7"
 # is a fact about this corpus's writing convention, like pointers_max beside
 # it, so it lives in quota.lock. Merging them into one file would make every
 # project re-measure somebody else's tool.
-repo8="$(sandbox)"; cp shim/run "$repo8/.floppy/run"
+repo8="$(sandbox)"
 echo "memory_dir=brain" > "$repo8/.floppy/config"
 mkdir -p "$repo8/brain/half"
 cat > "$repo8/brain/half/a-note.md" <<'EOFN'
@@ -329,7 +329,7 @@ printf '# Half\n- [A note](a-note.md) — pointer\n' > "$repo8/brain/half/INDEX.
 long_line="- [x](half/INDEX.md) $(printf 'y%.0s' $(seq 1 179))"
 printf '# Index\n%s\n' "$long_line" > "$repo8/brain/MEMORY.md"
 
-lint8() { OUT8="$(cd "$repo8" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RC8=$?; }
+lint8() { OUT8="$(cd "$repo8" && bash "$ROOT/scripts/run" lint 2>&1)"; RC8=$?; }
 
 lint8
 assert_rc       "default pointer_line_max catches a long line" 1 "$RC8"
@@ -365,7 +365,7 @@ rm -rf "$repo8"
 # the rule "committed memory must not link into the local scope" is what
 # protects against links that are dead on a second machine, and under any other
 # name it silently applied to nothing.
-repo9="$(sandbox)"; cp shim/run "$repo9/.floppy/run"
+repo9="$(sandbox)"
 printf 'memory_dir=brain\nmemory_private_dir=mine\n' > "$repo9/.floppy/config"
 mkdir -p "$repo9/brain/half" "$repo9/brain/mine"
 printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$repo9/brain/MEMORY.md"
@@ -396,7 +396,7 @@ metadata:
 Body.
 EOFP
 
-lint9() { OUT9="$(cd "$repo9" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RC9=$?; }
+lint9() { OUT9="$(cd "$repo9" && bash "$ROOT/scripts/run" lint 2>&1)"; RC9=$?; }
 lint9
 assert_rc       "a renamed private scope is not held to the index rules" 0 "$RC9"
 assert_contains "and only the committed note is counted"                 "1 notes" "$OUT9"
@@ -479,7 +479,7 @@ rm -rf "$repo9/brain/mine/machines"
 
 # The quota belongs to the committed corpus, and is not borrowed for this one:
 # quota.lock is measured on the memory in THIS repository.
-repoQ="$(sandbox)"; cp shim/run "$repoQ/.floppy/run"
+repoQ="$(sandbox)"
 printf 'memory_dir=brain\nmemory_private_dir=mine\n' > "$repoQ/.floppy/config"
 mkdir -p "$repoQ/brain/half" "$repoQ/brain/mine"
 printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$repoQ/brain/MEMORY.md"
@@ -489,7 +489,7 @@ printf -- '---\nname: a-note\ndescription: a note\nmetadata:\n  type: project\n 
 printf 'notes_max=10\nchars_max=100000\nnote_chars_max=120\npointers_max=40\ngrandfathered=\n' > "$repoQ/brain/quota.lock"
 { printf -- '---\nname: big\ndescription: a long private note\nmetadata:\n  type: project\n  evidence: read\n---\n'
   for i in 1 2 3 4 5 6 7 8; do printf 'padding padding padding padding\n'; done; } > "$repoQ/brain/mine/big.md"
-outQ="$(cd "$repoQ" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcQ=$?
+outQ="$(cd "$repoQ" && bash "$ROOT/scripts/run" lint 2>&1)"; rcQ=$?
 assert_rc "the committed corpus's note cap is not applied to the private scope" 0 "$rcQ"
 case "$outQ" in
   *"mine/big.md"*) fail "and the private note is not named by the quota section" "not named" "$outQ" ;;
@@ -517,7 +517,7 @@ rm -rf "$repo9"
 # is, and on a repository worked from two machines those are different people.
 # The per-half keys are optional: a corpus that sets none must behave exactly as
 # it did before, which is what the first assertion here pins down.
-repoH="$(sandbox)"; cp shim/run "$repoH/.floppy/run"
+repoH="$(sandbox)"
 echo "memory_dir=brain" > "$repoH/.floppy/config"
 mkdir -p "$repoH/brain/alpha" "$repoH/brain/beta"
 printf '# Index\n- [Alpha](alpha/INDEX.md) — pointer\n- [Beta](beta/INDEX.md) — pointer\n- [Root note](root-note.md) — pointer\n' > "$repoH/brain/MEMORY.md"
@@ -532,7 +532,7 @@ note_body small 50     > "$repoH/brain/beta/small.md"
 note_body root-note 50 > "$repoH/brain/root-note.md"
 printf 'chars_max=100000\nnote_chars_max=10000\npointers_max=40\ngrandfathered=\n' > "$repoH/brain/quota.lock"
 
-lintH() { OUTH="$(cd "$repoH" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RCH=$?; }
+lintH() { OUTH="$(cd "$repoH" && bash "$ROOT/scripts/run" lint 2>&1)"; RCH=$?; }
 
 lintH
 assert_rc "a corpus with no per-half keys is unaffected" 0 "$RCH"
@@ -584,7 +584,7 @@ rm -rf "$repoH"
 # 79 + length(name) + padding characters, so big is 2082 and small is 134, and
 # the pair is 2216. A band assertion is only worth anything if the corpus really
 # sits inside the band, so these are placed by arithmetic rather than by eye.
-repoW="$(sandbox)"; cp shim/run "$repoW/.floppy/run"
+repoW="$(sandbox)"
 echo "memory_dir=brain" > "$repoW/.floppy/config"
 mkdir -p "$repoW/brain/alpha" "$repoW/brain/beta"
 printf '# Index\n- [Alpha](alpha/INDEX.md) — pointer\n- [Beta](beta/INDEX.md) — pointer\n' > "$repoW/brain/MEMORY.md"
@@ -593,7 +593,7 @@ printf '# Beta\n- [Small](small.md) — pointer\n' > "$repoW/brain/beta/INDEX.md
 note_body big 2000 > "$repoW/brain/alpha/big.md"   # 2082 characters
 note_body small 50 > "$repoW/brain/beta/small.md"  #  134 characters
 
-lintW() { OUTW="$(cd "$repoW" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RCW=$?; }
+lintW() { OUTW="$(cd "$repoW" && bash "$ROOT/scripts/run" lint 2>&1)"; RCW=$?; }
 
 # Far below every ceiling: still silent. Without this the assertions after it
 # would pass just as well on a script that warns about everything always.
@@ -682,7 +682,7 @@ day_offset() { # $1 = signed days, e.g. +1 or -400
 }
 TODAY="$(date -u +%Y-%m-%d)"
 
-repoA="$(sandbox)"; cp shim/run "$repoA/.floppy/run"
+repoA="$(sandbox)"
 echo "memory_dir=brain" > "$repoA/.floppy/config"
 mkdir -p "$repoA/brain"
 cat > "$repoA/brain/MEMORY.md" <<'EOF'
@@ -697,7 +697,7 @@ mknote() { # $1 = slug, $2 = as_of line (may be empty)
     printf -- '---\nBody.\n'
   } > "$repoA/brain/$1.md"
 }
-lintA() { OUTA="$(cd "$repoA" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; RCA=$?; }
+lintA() { OUTA="$(cd "$repoA" && bash "$ROOT/scripts/run" lint 2>&1)"; RCA=$?; }
 
 # 1. A dated note and an undated one together: the run passes, and the undated
 #    one is counted rather than named. Counted, because naming each of eight

@@ -28,7 +28,7 @@ make_store_remote() {
 
 run_store() { # repo, then args
   local r="$1"; shift
-  OUT="$(cd "$r" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run store "$@" 2>&1)"
+  OUT="$(cd "$r" && bash "$ROOT/scripts/run" store "$@" 2>&1)"
   RC=$?
 }
 
@@ -36,7 +36,7 @@ run_store() { # repo, then args
 # Half a configuration is not a layout. A store with no scope has nowhere to
 # put this project's notes, and defaulting one would write them into whatever
 # repository happened to be configured.
-repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
+repo="$(sandbox)"
 printf 'memory_dir=.agent-memory\n' > "$repo/.floppy/config"
 run_store "$repo"
 assert_eq       "no store configured: refuses"       "2" "$RC"
@@ -68,7 +68,7 @@ assert_eq "it points into the project's own scope" "$checkout/public/projects/ac
 assert_eq "the code repository ignores it" "0" \
   "$(cd "$repo" && git check-ignore -q -- .agent-memory; echo $?)"
 # The shim must now derive the external layout from that symlink alone.
-env_out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1)"
+env_out="$(cd "$repo" && bash "$ROOT/scripts/run" env 2>&1)"
 assert_contains "the shim derives the external layout" "FLOPPY_MEMORY_EXTERNAL=1" "$env_out"
 
 # ---------- the cross-project scope, wired beside the project's own ----------
@@ -112,7 +112,7 @@ assert_contains "and names the link target"         "public/projects/acme" "$OUT
 # ---------- it never decides the fate of memory somebody wrote ----------
 # A real directory where the symlink belongs is the lagging-machine case, and
 # those notes may be the only copies in existence.
-repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"
+repo2="$(sandbox)"
 cat > "$repo2/.floppy/config" <<EOF
 memory_dir=.agent-memory
 public_repo=$remote
@@ -132,7 +132,7 @@ assert_eq "the notes are untouched" "a note" "$(cat "$repo2/.agent-memory/note.m
 # Ignore line added, symlink never created: notes are written and read normally,
 # git cannot show them because it was told not to, and nothing publishes them.
 # This is the state `store` exists to avoid and the guard exists to name.
-repo3="$(sandbox)"; cp shim/run "$repo3/.floppy/run"
+repo3="$(sandbox)"
 printf 'memory_dir=.agent-memory\nwatched_dirs=docs\n' > "$repo3/.floppy/config"
 printf '/.agent-memory\n' > "$repo3/.gitignore"
 mkdir -p "$repo3/.agent-memory" "$repo3/docs"
@@ -140,7 +140,7 @@ printf 'x\n' > "$repo3/docs/a.md"
 git -C "$repo3" add -- .gitignore .floppy docs
 git -C "$repo3" -c user.email=t@t -c user.name=t commit -qm base
 printf 'y\n' >> "$repo3/docs/a.md"
-guard_out="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard docs/a.md 2>&1)"
+guard_out="$(cd "$repo3" && bash "$ROOT/scripts/run" guard docs/a.md 2>&1)"
 guard_rc=$?
 assert_eq       "ignored-but-not-external fails the guard" "1" "$guard_rc"
 assert_contains "and names the real cause"   "nothing will ever commit these notes" "$guard_out"
@@ -153,14 +153,14 @@ assert_contains "and says why store is not it"     "without both keys" "$guard_o
 # With a destination configured the other half becomes actionable, and the
 # message offers it. Same guard, same broken state — only the config differs.
 printf 'memory_dir=.agent-memory\nwatched_dirs=docs\npublic_repo=%s\nproject_key=acme\n' "$remote" > "$repo3/.floppy/config"
-guard_out="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard docs/a.md 2>&1)"
+guard_out="$(cd "$repo3" && bash "$ROOT/scripts/run" guard docs/a.md 2>&1)"
 assert_contains "a configured repository is sent to store" "run store" "$guard_out"
 printf 'memory_dir=.agent-memory\nwatched_dirs=docs\n' > "$repo3/.floppy/config"
 
 # A memory that is neither ignored nor external — the ordinary layout — must
 # not trip it. Without this the check above could be passing on everything.
 rm -f "$repo3/.gitignore"
-guard_out="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard docs/a.md 2>&1)"
+guard_out="$(cd "$repo3" && bash "$ROOT/scripts/run" guard docs/a.md 2>&1)"
 case "$guard_out" in
   *"nothing will ever commit these notes"*) fail "the ordinary layout is not flagged" "no such error" "$guard_out" ;;
   *) ok "the ordinary layout is not flagged" ;;

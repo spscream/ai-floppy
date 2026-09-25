@@ -36,10 +36,10 @@ mk_remote() { # bare-path name
   rm -rf "$s"
 }
 
-# A consumer repository carrying the shim and a config body. Echoes its path.
+# A consumer repository with a config body and no runner of its own — what
+# `init` lays down since 0.26.0. Echoes its path.
 mk_consumer() { # config-body
   local d; d="$(sandbox)"
-  cp "$ROOT/shim/run" "$d/.floppy/run"
   printf '%s\n' "$1" > "$d/.floppy/config"
   printf 'x\n' > "$d/README.md"
   git -C "$d" add -A
@@ -50,7 +50,7 @@ mk_consumer() { # config-body
 run_verb() { # repo home verb...
   local r="$1" h="$2"; shift 2
   OUT="$(cd "$r" && HOME="$h" AI_FLOPPY_HOME="$ROOT" CLAUDE_PLUGIN_ROOT= \
-    git_author=t bash .floppy/run "$@" 2>&1)"
+    git_author=t bash "$ROOT/scripts/run" "$@" 2>&1)"
   RC=$?
 }
 
@@ -194,7 +194,7 @@ agents_memory_dir=$H6/agents_memory
 private_repo=$url
 workplace_project_key=acme")"
   got="$(cd "$r" && HOME="$H6" AI_FLOPPY_HOME="$ROOT" CLAUDE_PLUGIN_ROOT= \
-    bash .floppy/run env 2>/dev/null | sed -n 's/^FLOPPY_WORKPLACE_MEMORY_DIR=//p')"
+    bash "$ROOT/scripts/run" env 2>/dev/null | sed -n 's/^FLOPPY_WORKPLACE_MEMORY_DIR=//p')"
   assert_eq "checkout for $url is named $want" "$H6/agents_memory/.clones/$want" "$got"
 done
 

@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 . tests/lib.sh
 ROOT="$(pwd)"
 
-repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
+repo="$(sandbox)"
 cat > "$repo/.floppy/config" <<'EOF'
 memory_dir=brain
 statuses_now=state/NOW.md
@@ -18,7 +18,7 @@ git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit 
 
 # 1. journal touched, NOW.md not in the list
 printf 'more\n' >> "$repo/state/2026-01-01_status.md"
-out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/2026-01-01_status.md 2>&1)"
+out="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/2026-01-01_status.md 2>&1)"
 # Check the configured path itself, not the bare "NOW.md" substring: the
 # section header "-- journal without NOW.md" always contains that substring,
 # even when the guard fails to catch anything, so a weaker check would pass
@@ -27,24 +27,24 @@ assert_contains "journal without NOW is caught" "state/NOW.md is not in your lis
 
 # 2. a trend row disappeared
 printf '' > "$repo/state/NOW.md"
-out2="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md state/2026-01-01_status.md 2>&1)"
+out2="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md state/2026-01-01_status.md 2>&1)"
 assert_contains "dropped trend row is caught" "Notes" "$out2"
 
 # 3. the cap, and it comes from config not from a constant
 printf '| Notes | 1 | 2 | up |\n' > "$repo/state/NOW.md"
 head -c 400 /dev/zero | tr '\0' 'x' >> "$repo/state/NOW.md"
-out3="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"
+out3="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"
 assert_contains "cap is read from config" "200" "$out3"
 
 # 4. a claimed file outside every watched path
-out4="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard outside/file.txt 2>&1)"; rc4=$?
+out4="$(cd "$repo" && bash "$ROOT/scripts/run" guard outside/file.txt 2>&1)"; rc4=$?
 assert_rc       "outside-watch file is refused (rc)"   1 "$rc4"
 assert_contains "outside-watch file is named"           "outside/file.txt" "$out4"
 
 # 5. a claimed file that was not actually modified
 printf '| Notes | 1 | 2 | up |\n' > "$repo/state/NOW.md"
 git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit -qm settle
-out5="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc5=$?
+out5="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"; rc5=$?
 assert_rc       "unchanged claimed file is refused (rc)" 1 "$rc5"
 assert_contains "unchanged claimed file is named"         "not changed" "$out5"
 
@@ -56,7 +56,7 @@ printf '| Metric | before | after |\n|---|---|---|\n| Latency | 10ms | 8ms |\n| 
 git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit -qm "table base"
 
 printf '| KPI | before | after |\n|---|---|---|\n| Latency | 10ms | 8ms |\n| Errors | 3 | 1 |\n' > "$repo/state/NOW.md"
-out6="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc6=$?
+out6="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"; rc6=$?
 assert_rc       "renamed header column is not flagged (rc)"        0 "$rc6"
 case "$out6" in
   *"dropped from NOW.md"*) fail "renamed header column is not flagged" "no dropped-row error" "$out6" ;;
@@ -64,7 +64,7 @@ case "$out6" in
 esac
 
 printf '| KPI | before | after |\n|---|---|---|\n| Latency | 10ms | 8ms |\n' > "$repo/state/NOW.md"
-out7="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc7=$?
+out7="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"; rc7=$?
 assert_rc       "actual dropped data row is still caught (rc)" 1 "$rc7"
 assert_contains "actual dropped data row is named"              "Errors" "$out7"
 
@@ -79,7 +79,7 @@ git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit 
 
 # an improved row and a one-time "done" row may both go
 printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Errors | 1 | 3 | worse |\n' > "$repo/state/NOW.md"
-out8="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc8=$?
+out8="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"; rc8=$?
 assert_rc "unmarked rows may be dropped (rc)" 0 "$rc8"
 case "$out8" in
   *"dropped from NOW.md"*) fail "unmarked rows may be dropped" "no dropped-row error" "$out8" ;;
@@ -88,14 +88,14 @@ esac
 
 # the row marked as a regression may not, and the guard still names it
 printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Latency | 10ms | 8ms | better |\n| Shipped | no | yes | done |\n' > "$repo/state/NOW.md"
-out9="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc9=$?
+out9="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"; rc9=$?
 assert_rc       "dropped regression row is still caught (rc)" 1 "$rc9"
 assert_contains "dropped regression row is named"              "Errors" "$out9"
 
 # a row that stopped being a regression counts as present, not as dropped:
 # the new side is unfiltered on purpose
 printf '| KPI | before | after | dir |\n|---|---|---|---|\n| Errors | 3 | 1 | better |\n' > "$repo/state/NOW.md"
-out10="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard state/NOW.md 2>&1)"; rc10=$?
+out10="$(cd "$repo" && bash "$ROOT/scripts/run" guard state/NOW.md 2>&1)"; rc10=$?
 assert_rc "recovered row is not read as dropped (rc)" 0 "$rc10"
 
 rm -rf "$repo"
