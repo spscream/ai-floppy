@@ -36,4 +36,35 @@ done
 hits="$(grep -rln 'allowed-tools' skills/ 2>/dev/null || true)"
 assert_eq "no file in skills/ contains allowed-tools" "" "$hits"
 
+# ---------- how a skill spells the dispatcher (0.26.0) ----------
+# `.floppy/run` is no longer written into a consumer repository, so a skill
+# that names it sends the agent at a file that exists only where an older
+# `init` has been run. The call is the plugin's own dispatcher, reached from
+# the base directory the harness states when it loads the skill.
+#
+# This is the guard that replaced tests/test-init-bootstrap.sh, which used to
+# extract the init skill's hand copy of the plugin search and run it. That copy
+# is gone (skills/init/SKILL.md §2), and what is left to protect is the
+# spelling: a skill that names the old path, or one that uses the `<plugin>`
+# placeholder without ever saying where it comes from, both leave the agent
+# with a path it cannot resolve.
+run_hits="$(grep -rln '\.floppy/run' skills/ 2>/dev/null || true)"
+assert_eq "no skill names the consumer's .floppy/run" "" "$run_hits"
+
+# Newlines folded to spaces before the match: the quoted line is prose and
+# wraps at the file's margin, so the phrase is regularly split across two
+# lines and a plain grep for it finds nothing.
+for f in "${skills[@]}"; do
+  case "$(cat "$f")" in
+    *'<plugin>'*)
+      if tr '\n' ' ' < "$f" | grep -q 'Base directory for this skill'; then
+        ok "$f: says where <plugin> comes from"
+      else
+        fail "$f: says where <plugin> comes from" \
+          "the base-directory line the harness prints" "no such line"
+      fi
+      ;;
+  esac
+done
+
 summary
