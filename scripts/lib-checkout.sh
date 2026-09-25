@@ -1,5 +1,5 @@
-# Sourced by memory-store.sh and memory-workplace.sh. Not a verb: the shim
-# dispatches on scripts/<verb>.sh, and nothing dispatches here.
+# Sourced by memory-store.sh, memory-workplace.sh and memory-link.sh. Not a
+# verb: the shim dispatches on scripts/<verb>.sh, and nothing dispatches here.
 #
 # Both verbs need the same four things from a memory checkout — refuse a
 # directory holding somebody else's repository, refuse to clone inside another
@@ -12,6 +12,28 @@
 #
 # One function, two callers, and the messages differ only by a label naming
 # which of the two stores is being wired.
+
+# link_or_fail <target> <path>
+# `ln -s` with its exit status actually read.
+#
+# Every "ok linked" line in this plugin used to be printed unconditionally
+# after an `ln` nobody checked, and the failure was invisible exactly where it
+# mattered. Measured 2026-09-25 in a git worktree, where the directory the link
+# goes into did not exist:
+#
+#   ln: failed to create symbolic link '<wt>/.agent-memory/private': No such file or directory
+#   ok linked: .agent-memory/private -> ~/agents_memory/ai_floppy/private
+#
+# Two lines apart, on two streams, and the second one is a lie. It was the only
+# place in the whole verb matrix where this tool said yes about something that
+# had not happened. `ln`'s own message goes to stderr and is left there rather
+# than swallowed: it names the errno, which is the useful half.
+link_or_fail() {
+  if ln -s "$1" "$2"; then return 0; fi
+  echo "x could not create the symlink $2 -> $1"
+  echo "  The reason is on the line above, from ln itself. Nothing else was changed."
+  return 1
+}
 
 # ensure_checkout <url> <dir> <label>
 # Leaves a usable checkout of <url> at <dir>, or prints why not and returns 1.
@@ -135,7 +157,7 @@ view_link() {
     # still RESOLVES somewhere else is a different matter and is refused.
     if [[ ! -e "$vl_path" ]]; then
       rm -f "$vl_path"
-      ln -s "$vl_target" "$vl_path"
+      link_or_fail "$vl_target" "$vl_path" || return 1
       echo "ok repointed the dangling view: $vl_path -> $vl_target"
       ignore_wiring_link "$vl_path"
       return 0
@@ -149,7 +171,7 @@ view_link() {
     echo "  Nothing was moved or deleted: this script does not decide the fate of memory."
     return 1
   fi
-  ln -s "$vl_target" "$vl_path"
+  link_or_fail "$vl_target" "$vl_path" || return 1
   echo "ok view: $vl_path -> $vl_target"
   # In the adopted legacy layout the parent IS a checkout, so the view lands
   # inside it. A view is wiring like any other link here, and wiring does not
@@ -271,7 +293,7 @@ link_common_scope() {
     echo "  Nothing was moved or deleted: this script does not decide the fate of memory."
     return 1
   else
-    ln -s "$lc_want" "$lc_link"
+    link_or_fail "$lc_want" "$lc_link" || return 1
     echo "ok common/$lc_leaf -> $lc_want"
   fi
 

@@ -19,7 +19,10 @@ ROOT="$(pwd -P)"
 fake_plugin() { # -> path
   local p; p="$(cd "$(mktemp -d)" && pwd -P)"
   mkdir -p "$p/scripts" "$p/shim"
-  cp scripts/memory-lint.sh scripts/run scripts/lib-config.sh "$p/scripts/"
+  # lib-wiring.sh comes along because lib-config.sh sources it: the harness
+  # pointer is made by the parser, so a plugin root without it is not a
+  # plugin root the dispatcher can run.
+  cp scripts/memory-lint.sh scripts/run scripts/lib-config.sh scripts/lib-wiring.sh "$p/scripts/"
   cp shim/run "$p/shim/run"
   printf '%s\n' "$p"
 }

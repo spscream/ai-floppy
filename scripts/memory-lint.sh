@@ -15,7 +15,13 @@ set -uo pipefail
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 repo="$(pwd)"
 
-MEM="${FLOPPY_MEMORY_DIR:-.agent-memory}"
+# The RESOLVED path, not the logical name. Since 0.27.0 a store-hosted memory
+# has no representation in the working tree at all — it is addressed by
+# repository and lives in the cache, so `.agent-memory` names nothing here.
+# Every message below reports paths relative to $MEM (`${f#"$MEM"/}`), so the
+# reader sees the same `flow/x.md` whichever of the two $MEM holds.
+# The literal default is for a direct invocation without the config parser.
+MEM="${FLOPPY_MEMORY_REAL:-${FLOPPY_MEMORY_DIR:-.agent-memory}}"
 IDX="$MEM/MEMORY.md"
 # The machine-local scope inside the memory: written here, never committed here.
 # Its NAME is a consumer's choice, so it comes from config rather than being

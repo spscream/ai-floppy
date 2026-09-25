@@ -309,6 +309,30 @@ assert_eq       "the project file is committed here" "both at once" \
 assert_eq       "and the private note is NOT in this repository" "" \
   "$(git -C "$pr" ls-tree -r --name-only HEAD | grep private || true)"
 
+# ---------- unpushed notes are reported even when the wiring is broken ----------
+# "Which wiring step is missing" and "is there work in that repository nobody
+# pushed" are two questions, and 0.26.0 briefly answered only the first. The
+# workplace section grew a shared judgement (`wiring_state`), and the dirt count
+# moved into its `else` — so a clone holding an uncommitted note went unmentioned
+# the moment anything about the wiring around it was incomplete, which is
+# precisely when a person is about to reach in and fix things by hand. Found in
+# review 2026-09-25; before the change the count ran on the clone's existence
+# alone.
+wpclone="$(cd "$pr" && bash "$ROOT/scripts/run" env 2>/dev/null \
+  | sed -n 's/^FLOPPY_WORKPLACE_MEMORY_DIR=//p')"
+assert_eq "setup: the workplace clone is on disk" "0" \
+  "$([[ -d "$wpclone/.git" ]] && echo 0 || echo 1)"
+printf -- '---\nname: unpushed\ndescription: written before the wiring broke\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
+  > "$wpclone/private/projects/acme/unpushed.md"
+# Break the wiring, leaving the clone exactly as it is: this is what a person
+# who removed a link to re-do it by hand is looking at.
+rm -f "$pr/.agent-memory/private"
+outW="$(cd "$pr" && bash "$ROOT/scripts/run" check docs/statuses/NOW.md 2>&1)"
+assert_contains "the broken wiring is still named"      "run the workplace verb" "$outW"
+assert_contains "and the uncommitted note is not lost"  "uncommitted change(s) in $wpclone" "$outW"
+rm -f "$wpclone/private/projects/acme/unpushed.md"
+(cd "$pr" && bash "$ROOT/scripts/run" workplace >/dev/null 2>&1)
+
 # ---------- the THIRD shape: ONE repository holds both scopes ----------
 # Reported from a consumer checkout on 2026-09-18. A project whose own
 # repository may hold no notes at all — a fork kept for upstream PRs — points
@@ -349,10 +373,17 @@ git -C "$tr1" remote add origin "$T/code.git"; git -C "$tr1" push -q -u origin m
 
 run_in "$tr1" store
 run_in "$tr1" workplace
-assert_eq "one URL, one clone: the memory is wired" "link" \
-  "$([[ -L "$tr1/.agent-memory" ]] && echo link || echo no)"
+# Wired means the CACHE holds it, not the working tree. Since 0.26.0 nothing
+# stands at $tr1/.agent-memory — that symlink is what git refused to carry into
+# a worktree, which is why it is gone — and `view` is the address every
+# checkout of this repository resolves to.
+view1="$T/am/acme/shared"
+assert_eq "one URL, one clone: the memory is wired" "dir" \
+  "$([[ -d "$view1" ]] && echo dir || echo no)"
 assert_eq "and the private scope inside it too" "link" \
-  "$([[ -L "$tr1/.agent-memory/private" ]] && echo link || echo no)"
+  "$([[ -L "$view1/private" ]] && echo link || echo no)"
+assert_eq "and the working tree holds nothing at all" "absent" \
+  "$([[ -e "$tr1/.agent-memory" || -L "$tr1/.agent-memory" ]] && echo present || echo absent)"
 
 run_in "$tr1" env
 stT="$(printf '%s\n' "$OUT" | sed -n 's/^FLOPPY_MEMORY_STORE=//p')"
@@ -360,7 +391,7 @@ psT="$(printf '%s\n' "$OUT" | sed -n 's/^FLOPPY_PRIVATE_STORE=//p')"
 assert_eq "the private scope names the store it really lives in" "$stT" "$psT"
 
 printf -- '---\nname: one-repo-fact\ndescription: a private fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
-  > "$tr1/.agent-memory/private/one-repo-fact.md"
+  > "$view1/private/one-repo-fact.md"
 run_in "$tr1" guard .agent-memory/private/one-repo-fact.md
 assert_rc "guard sees a note in the private scope (rc)" 0 "$RC"
 case "$OUT" in
@@ -372,9 +403,9 @@ esac
 # derived and translated; they merge where the unit stops being a scope and
 # becomes a repository.
 printf -- '---\nname: public-fact\ndescription: a public fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
-  > "$tr1/.agent-memory/half/public-fact.md"
+  > "$view1/half/public-fact.md"
 printf '# Half\n- [A note](a-note.md) — pointer\n- [Public fact](public-fact.md) — pointer\n' \
-  > "$tr1/.agent-memory/half/INDEX.md"
+  > "$view1/half/INDEX.md"
 clone1="$T/am/.clones/both"
 before="$(git -C "$clone1" rev-list --count HEAD 2>/dev/null)"
 run_in "$tr1" commit -m "both scopes at once" \

@@ -42,9 +42,19 @@ repo="$(pwd)"
 # Config values resolved once, used everywhere below — including message
 # strings, so a message never drifts from the value it describes.
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
+# The logical name above is what a reader types; this is where those bytes are.
+# Since 0.27.0 a store-hosted memory has no representation in the working tree
+# at all, so anything that has to LOOK at the memory looks here.
+mem_path="${FLOPPY_MEMORY_REAL:-$repo/$mem_dir}"
 now_file="${FLOPPY_STATUSES_NOW:-docs/statuses/NOW.md}"
 statuses_dir="${now_file%/*}"
 hook="$repo/.floppy/workstatus-project.sh"
+
+# One judgement about the wiring, shared with wrap-check.sh: the two used to
+# carry a copy each and had already drifted. See scripts/lib-wiring.sh.
+_lw="$here/lib-wiring.sh"
+[[ -f "$_lw" ]] || _lw="${FLOPPY_ROOT:-}/scripts/lib-wiring.sh"
+. "$_lw"
 
 # Parse arguments through $#: in bash 3.2 on macOS, expanding "$@" with zero
 # positional parameters under `set -u` raises "unbound variable", and the
@@ -135,11 +145,16 @@ other=$(git branch -r --sort=-committerdate --format='%(refname:short) %(committ
 # of the path is computed in exactly one place, memory-link.sh, so this asks
 # it rather than repeating the rule and drifting from it.
 hr "memory wiring"
-link_out="$(bash "$here/memory-link.sh" --check 2>&1)"
-if [[ $? -eq 0 ]]; then
+link_out="$(bash "$here/memory-link.sh" --check 2>&1)"; link_rc=$?
+if [[ $link_rc -eq 0 ]]; then
   echo "  wired to the Claude Code memory directory"
 else
-  echo "  ${link_out#x }"
+  # Every line indented, not only the first. The refusal grew a second and
+  # third line in 0.27.0 — it now names the verb that produces the missing
+  # memory — and `echo "  ${link_out#x }"` would have indented the first of
+  # them and left the rest hanging at the margin, inside a report whose whole
+  # shape is two-space section bodies.
+  echo "$link_out" | sed 's/^x //; s/^/  /'
 fi
 
 # ---------- memory hosted in another repository ----------
@@ -188,10 +203,9 @@ if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
   # copy that has not been refreshed still exports only that one, and reading
   # it keeps this section honest on a repository mid-migration.
   priv="${FLOPPY_MEMORY_PRIVATE_DIR:-${FLOPPY_MEMORY_LOCAL_DIR:-private}}"
-  if [[ ! -d "$wp/.git" ]]; then
-    echo "  not wired: no $wp — $floppy_run workplace"
-  elif [[ ! -L "$mem_dir/$priv" ]]; then
-    echo "  repository exists, but $mem_dir/$priv is not a symlink — $floppy_run workplace"
+  wp_state="$(wiring_state "$wp" "$mem_path" "$priv")"
+  if [[ "$wp_state" != "wired" ]]; then
+    wiring_advice "$wp_state" "$wp" "$mem_path" "$priv"
   else
     wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
     wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
@@ -338,13 +352,15 @@ if [[ $FLOW -eq 1 ]]; then
 
   hr "process: lock and worktrees"
   echo "  wrap lock: $(bash "$here/wrap-lock.sh" status 2>&1 | head -1)"
-  # An extra worktree is a separate memory directory, and without its own
-  # `link` a session there writes memory past the repository,
-  # silently. So the list prints only when there is more than one — a single
-  # worktree is the normal case, not news.
+  # An extra worktree used to be a separate memory directory, and without its
+  # own `link` a session there wrote memory past the repository, silently.
+  # Since 0.27.0 the memory is addressed by repository and the harness's
+  # pointer is made automatically per working directory, so the list is
+  # information rather than a chore. It still prints only when there is more
+  # than one — a single worktree is the normal case, not news.
   wt_n=$(git worktree list 2>/dev/null | wc -l | tr -d ' ')
   if [[ "${wt_n:-1}" -gt 1 ]]; then
-    echo "  worktrees: $wt_n — each one needs its own $floppy_run link"
+    echo "  worktrees: $wt_n — all of them read and write the same memory"
     git worktree list | sed 's/^/    /'
   else
     echo "  worktrees: one, none extra"

@@ -79,12 +79,43 @@ scope="private/projects/$project_key"
 target="$dir/$scope"
 view="${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/$priv"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
-link="$repo/$mem_dir/$priv"
+# The RESOLVED memory, not a path in the working tree. Since 0.27.0 a
+# store-hosted memory is addressed by repository and has no representation in
+# any working copy, so `$repo/$mem_dir/$priv` names nothing in a worktree —
+# which is precisely where it used to fail, silently, below.
+mem_root="${FLOPPY_MEMORY_REAL:-$repo/$mem_dir}"
+link="$mem_root/$priv"
 
 echo "workplace memory: $dir"
 echo "project scope:    $scope"
 echo "view:             $view"
+echo "memory:           $mem_root"
 echo
+
+# ---------- there has to be a memory for the scope to sit in ----------
+# Before anything is cloned or pulled, because a refusal that fires after a
+# side effect is worse than none — the same rule the two required keys above
+# follow.
+#
+# Measured 2026-09-25, in a git worktree where the memory directory did not
+# exist. This verb ran to the end: `ln` failed with No such file or directory,
+# the next line said `ok linked:` anyway, the cross-project scope below then
+# created a REAL memory directory to hold its own symlinks, and `store` — which
+# must never delete a directory that may be somebody's only copy of their notes
+# — refused it from then on. Following the tool's own advice left the tree
+# behind a manual `rm`. The unchecked `ln` is fixed separately (link_or_fail);
+# this is the other half, and it is the half that says which verb comes first.
+if [[ ! -d "$mem_root" ]]; then
+  echo "x no memory at $mem_root — there is nothing for the private scope to sit in"
+  if [[ -n "${FLOPPY_MEMORY_REPO:-}" ]]; then
+    echo "  This project keeps its memory in a store. Run the store verb FIRST: it clones"
+    echo "  the store and lays out the cache this path names. Then run this verb again."
+  else
+    echo "  The memory is laid out by init. Create it first, then run this verb again."
+  fi
+  echo "  Nothing was cloned, linked or written."
+  exit 1
+fi
 
 # ---------- the repository itself ----------
 # Refusals, clone or pull, and the secret hook are shared with `store`:
@@ -145,7 +176,7 @@ if [[ -L "$link" ]]; then
     # covers the case that is genuinely ambiguous — a link into some other
     # repository, which may be another workplace.
     rm -f "$link"
-    ln -s "$view" "$link"
+    link_or_fail "$view" "$link" || exit 1
     echo "ok repointed $mem_dir/$priv from an earlier scope to $view"
   else
     echo "x the symlink points elsewhere: $link -> $cur"
@@ -247,10 +278,10 @@ elif [[ -e "$link" ]]; then
     exit 1
   fi
   echo "ok local/ migrated and removed"
-  ln -s "$view" "$link"
+  link_or_fail "$view" "$link" || exit 1
   echo "ok linked: $mem_dir/$priv -> $view"
 else
-  ln -s "$view" "$link"
+  link_or_fail "$view" "$link" || exit 1
   echo "ok linked: $mem_dir/$priv -> $view"
 fi
 
@@ -263,7 +294,7 @@ fi
 # is not this script's call.
 for legacy_name in local; do
   [[ "$legacy_name" == "$priv" ]] && continue
-  for legacy_path in "$repo/$mem_dir/$legacy_name" \
+  for legacy_path in "$mem_root/$legacy_name" \
                      "${FLOPPY_AGENTS_MEMORY_DIR:-$HOME/agents_memory}/$project_key/$legacy_name"; do
     if [[ -L "$legacy_path" && ! -e "$legacy_path" ]]; then
       rm -f "$legacy_path"
@@ -292,7 +323,7 @@ ignore_wiring_link "$link"
 #
 # Reported, not fatal: the project scope above is wired and proven, and a
 # common scope that refuses says why in its own message.
-link_common_scope "$dir" private "$priv" "$repo/$mem_dir" || common_failed=1
+link_common_scope "$dir" private "$priv" "$mem_root" || common_failed=1
 
 # ---------- does a write reach the repository? ----------
 probe="$link/.write-probe-$$"

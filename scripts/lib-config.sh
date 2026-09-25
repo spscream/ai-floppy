@@ -66,6 +66,132 @@ case "$FLOPPY_MEMORY_DIR" in
   /*) _mem_abs="$FLOPPY_MEMORY_DIR" ;;
   *)  _mem_abs="$FLOPPY_REPO/$FLOPPY_MEMORY_DIR" ;;
 esac
+
+# ---------- the working tree is not where the memory is kept ----------
+# memory_dir is the LOGICAL name of the memory from here on: the prefix a
+# person and an agent type (`.agent-memory/flow/x.md`) and the vocabulary every
+# gate reports in. WHERE those bytes live is a separate question, and until
+# 0.27.0 the two were one — the logical name was a path in the working tree,
+# and the store layout made it a gitignored symlink there.
+#
+# A git worktree never inherits that symlink. Git carries tracked files and
+# nothing else, so a worktree of a store-hosted repository starts with no
+# memory at all, and every derivation below read that as "internal memory, and
+# empty". Measured 2026-09-25 on a worktree of this plugin's own repository:
+# `lint` exited 2 with "this repository does not use this memory layout",
+# `check` printed MEMORY LINT COULD NOT RUN, `link` called the right
+# repository the wrong one, and `commit` stopped at "memory lint is red" — the
+# rite could not be closed from a worktree at all. The cost was not
+# theoretical: this repository's own corpus took its last note on 2026-09-09,
+# while the git-tracked corpus of another project on the same machine kept
+# growing through the same fortnight.
+#
+# Teaching the refusals to name the right wiring order does not fix it, because
+# nobody is there to read them: a worktree is cut per task by the tooling and
+# the agent arrives in a finished tree. So the memory stops living in the tree.
+# When the tree holds nothing at memory_dir and the repository is configured
+# for a store, the memory resolves into the cache that store keeps per project
+# — the same path `store` has always pointed the symlink at. Nothing is
+# created, nothing is moved, nothing is deleted: this is a path being computed.
+#
+# THE KEY IS project_key FROM .floppy/config, and it is a tracked file, so
+# every worktree of a repository computes the same one. The three derived
+# candidates were measured on 2026-09-25 against a real worktree of this
+# repository and all three answer identically from a worktree and from the
+# checkout — but each carries a failure the tracked key does not:
+# `--git-common-dir` (absolute) moves with the checkout, so a `mv` of the
+# repository orphans the memory; `git remote get-url origin` is empty in a
+# repository with no remote, which is every test sandbox and many clones; the
+# root commit does not exist until the first commit, which is the state `init`
+# runs in. A key carried by git has none of those states.
+#
+# THE CONFIGURATION DECIDES, NOT THE STATE OF THE WORKING TREE, and the first
+# draft of this change had it the other way round. It resolved into the cache
+# only when nothing stood at memory_dir, which reads as caution and is a trap:
+# the skills of this same plugin still tell an agent to write
+# `.agent-memory/<file>`, so ONE note written by an agent that followed them
+# created a real directory, took the address back, and put the repository
+# straight into the state this release exists to remove. Measured 2026-09-25 in
+# review, in a wired worktree: after a single `touch .agent-memory/n.md`,
+# FLOPPY_MEMORY_REAL moved to the working tree, `lint` exited 2 with "this
+# repository does not use this memory layout", `check` printed MEMORY LINT
+# COULD NOT RUN, and the whole store corpus went invisible. A forked memory must
+# not be reachable by accident.
+#
+# So a repository configured for a store resolves into that store's cache,
+# always, and whatever stands in a working copy is not an address. A symlink
+# left by an older `store` points at this same path, so following the
+# configuration gives it the same answer it already had. A real directory is a
+# fork: nothing reads it, `wrap-guard` names it, and `store --migrate` moves it.
+# This parser neither reads it nor removes it.
+#
+# Read here, ahead of the exports below that are their authority, because the
+# memory path is resolved before the block that reads them. Same parser, same
+# keys, same defaults — and `store` composes this very path from the same three
+# values.
+#
+# A memory_dir written as an ABSOLUTE path is exempt from all of this. It is not
+# a logical name inside a working copy; it is an address somebody chose, and the
+# store cache is not a substitute for it. Measured 2026-09-25 in review: with
+# `memory_dir=/mnt/share/mem` and a store configured, renaming that directory
+# away made the memory resolve into the cache and `lint` go GREEN over a
+# different corpus while the real one sat on an unmounted volume. An address
+# that goes missing must stay missing.
+_cache_key="$(cfg_get memory_project_key "$(cfg_get project_key '')")"
+_mem_is_abs=0
+case "$FLOPPY_MEMORY_DIR" in /*) _mem_is_abs=1 ;; esac
+if [[ $_mem_is_abs -eq 0 && -n "$(cfg_get public_repo '')" && -n "$_cache_key" ]]; then
+  _mem_abs="$(cfg_get agents_memory_dir "$HOME/agents_memory")/$_cache_key/shared"
+elif [[ ! -e "$_mem_abs" && ! -L "$_mem_abs" ]]; then
+  {
+    # THE LAYOUT NOBODY CONFIGURED FOR A CACHE. A repository whose memory_dir
+    # was pointed at a store by hand — the adopted layout, and every consumer
+    # wired before 0.27.0 that has not re-run `store` — has no public_repo to
+    # compose the cache path from. Its worktrees would stay exactly as broken
+    # as this release exists to fix, and the human who would re-run `store` is
+    # the human who is not there.
+    #
+    # So: ask the repository's MAIN working tree, which is where that symlink
+    # was made. --git-common-dir is shared by every worktree of a clone by
+    # definition, and its parent is that main tree. --path-format=absolute is
+    # load-bearing: without it the same call answers a bare relative `.git`
+    # from the main checkout and an absolute path from a worktree (measured
+    # 2026-09-25), so the parent would be computed from ".".
+    #
+    # Only ever a fallback, and only to a SYMLINK: a real directory in the main
+    # tree is that checkout's own memory in the ordinary layout, and two
+    # worktrees of an ordinary repository are two checkouts that each carry
+    # their own. Recomputed on every run, so it is not a stored address and a
+    # `mv` of the repository cannot orphan anything.
+    # A memory_dir given as an absolute path is not relative to any working
+    # tree, so there is no "the same path in the main one" to ask about.
+    #
+    # --path-format=absolute needs git 2.31. On anything older the option is
+    # unknown, the substitution is empty, and this fallback simply does not
+    # engage: a hand-wired repository's worktree then behaves as it did before
+    # 0.27.0. Silent no-op rather than wrong answer, which is the right way
+    # round, but it is silent — said out loud in docs/guide/config.md instead,
+    # because a warning printed on every verb of every ordinary repository
+    # would be noise everywhere to name a case almost nobody is in.
+    _main_git=""
+    if [[ $_mem_is_abs -eq 0 ]]; then
+      _main_git="$(git -C "$FLOPPY_REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    fi
+    if [[ -n "$_main_git" ]]; then
+      _main_tree="$(dirname "$_main_git")"
+      if [[ "$_main_tree" != "$FLOPPY_REPO" && -L "$_main_tree/$FLOPPY_MEMORY_DIR" ]]; then
+        _mem_abs="$_main_tree/$FLOPPY_MEMORY_DIR"
+      fi
+    fi
+  }
+fi
+# The ADDRESS, before any symlink in it is followed: <agents_memory>/<key>/shared
+# in a store layout. Kept beside the resolved path because the two have
+# different jobs. Every gate compares real paths, so it wants the resolved one;
+# the harness pointer wants this one, because the view survives the store moving
+# to another URL and the clone path under it does not. A pointer made to the
+# clone would go stale on that move with nothing red anywhere.
+_mem_addr="$_mem_abs"
 if [[ -d "$_mem_abs" ]]; then _mem_real="$(cd "$_mem_abs" && pwd -P)"; else _mem_real="$_mem_abs"; fi
 _repo_real="$(cd "$FLOPPY_REPO" && pwd -P)"
 case "$_mem_real/" in
@@ -84,6 +210,26 @@ if [[ "$FLOPPY_MEMORY_EXTERNAL" == "1" && -d "$_mem_real" ]]; then
 fi
 export FLOPPY_MEMORY_EXTERNAL FLOPPY_MEMORY_STORE
 export FLOPPY_MEMORY_REAL="$_mem_real"
+
+# ---------- the one pointer that is still per working directory ----------
+# The memory above is addressed by repository; the harness's own session loader
+# is addressed by CWD. See auto_harness_link for why that pointer is made here,
+# on any verb, rather than waiting for somebody to run `link`.
+#
+# Sourced rather than reimplemented: the path encoding has exactly one
+# definition, and `link` reads the same one.
+#
+# FLOPPY_REPO and not its resolved form, because that is the spelling the
+# harness sees as the session's cwd and the spelling `link` encodes — two
+# spellings of one directory would make two project directories, which is the
+# very failure the encoding comment records.
+_lw="${FLOPPY_ROOT:-}/scripts/lib-wiring.sh"
+if [[ -f "$_lw" ]]; then
+  . "$_lw"
+  auto_harness_link "$FLOPPY_REPO" "$_mem_addr"
+fi
+export FLOPPY_MEMORY_ADDR="$_mem_addr"
+
 # private_repo/public_repo, 0.7.0. The names they replaced paired an audience
 # with a validity value and made two independent questions look like one axis:
 # `memory_repo` meant "public, but not in the code repository", and

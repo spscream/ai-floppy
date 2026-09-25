@@ -73,7 +73,7 @@ else
   mkdir -p "$plug/scripts"
   # The real dispatcher and config parser, so the hops under test are the ones
   # that ship — only the verb at the end is a stub.
-  cp scripts/run scripts/lib-config.sh "$plug/scripts/"
+  cp scripts/run scripts/lib-config.sh scripts/lib-wiring.sh "$plug/scripts/"
   printf '#!/usr/bin/env bash\nprintf "verb-ran-on %%s\\n" "${BASH_VERSION:-none}"\n' \
     > "$plug/scripts/memory-lint.sh"
   ( cd "$repo" && git init -q . && mkdir -p .floppy && printf 'memory_dir=.agent-memory\n' > .floppy/config )

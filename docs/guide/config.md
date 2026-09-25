@@ -12,7 +12,7 @@ does not contain it.
 |---|---|---|
 | `memory_dir` | `.agent-memory` | the directory of the memory of this repository |
 | `memory_private_dir` | `private` | the name of the private scope in the memory: facts about this project that the code repository must not carry, such as somebody else's checkout or an access note. The workplace repository holds them, so **other machines do read them**. Facts about one machine go to `machines/<name>/` of that repository instead. Only the name is a setting; the rule is not — committed memory must not link into this scope, and the check uses this key. The same rule covers `common/`, whose name is fixed rather than configurable: it is written into the store paths themselves, and a name settable in one of the two places would be a name that drifts |
-| `public_repo` | *(not set)* | the git URL of the repository that holds this project's **public** memory when the code repository cannot. Set `project_key` also. Then run the `store` command one time for each machine and each worktree |
+| `public_repo` | *(not set)* | the git URL of the repository that holds this project's **public** memory when the code repository cannot. Set `project_key` also. Then run the `store` command one time for each machine. Not for each working copy: the memory is addressed by repository, and a worktree needs no step of its own |
 | `private_repo` | *(not set)* | the git URL of the repository that holds this project's **private** memory: facts the team must not get. The `workplace` command wires it |
 | `machine_key` | *(not set)* | the name of this machine in the memory repositories, chosen by you. `hostname` is not used: on one of the author's machines it is `WIN-GVR0V5UPOD7`. Only needed for a note that is true on one machine |
 | `workplace_key` | *(not set)* | the name of this workplace, when one private repository serves several of them. Only needed for a note that is true at one workplace |
@@ -74,9 +74,11 @@ The result on disk is:
 repository contains them. They are relative, so you can move
 `agents_memory_dir` as one directory.
 
-`<memory_dir>` in your repository points at `~/agents_memory/acme/shared`, and
-`<memory_dir>/private` points at `~/agents_memory/acme/private`. These two
-addresses stay the same if a repository URL changes.
+`<memory_dir>` in your repository *resolves to* `~/agents_memory/acme/shared`,
+and `<memory_dir>/private` to `~/agents_memory/acme/private`. Resolves, not
+points: since 0.27.0 there is no file in the repository doing the pointing. See
+"The memory is not in your working copy" below. These two addresses stay the
+same if a repository URL changes.
 
 A second project uses the same two repositories in the same way. It gets its
 own directory `~/agents_memory/<other key>/`, and its own scopes
@@ -194,25 +196,78 @@ To set it up later, put `public_repo` and `project_key` in `.floppy/config`.
 Then run:
 
 ```
-bash <plugin>/scripts/run store  # clone or pull, link, ignore, verify a write
-bash <plugin>/scripts/run link   # then the agent application's memory directory
+bash <plugin>/scripts/run store  # clone or pull, lay out the cache, verify a write
 ```
 
-`store` runs one time for each machine and each worktree. It is idempotent. To
-see the result without a change, run `store --check`.
+`store` runs **one time for each machine**. Not for each working copy. It is
+idempotent. To see the result without a change, run `store --check`.
 
-If a directory is in the position of the symbolic link, `store` stops. It does
-not delete the directory. Those notes can be the only copies.
+There is no second step. `link` was one until 0.27.0; the memory directory of
+the agent application is now created for you, for whichever directory you are
+working in, the first time any verb runs there. It is announced when it
+happens.
+
+### The memory is not in your working copy
+
+From 0.27.0 the memory of a project in a store is addressed by **repository**,
+not by working copy. `memory_dir` stays the name you type — `.agent-memory/…`
+is what you write in a file list, and what every report calls it — but no file
+or symbolic link of that name is created in the code repository at all. The
+notes are in `agents_memory_dir/<project_key>/shared`, which is a view into the
+store.
+
+The reason is `git worktree`. A symbolic link in the working copy is ignored by
+git, by design, so git never carries it into a worktree. A worktree of a
+correctly configured repository therefore started with no memory, and every
+verb in it reported that the project had none. The key that finds the memory is
+`project_key` from `.floppy/config`, which git *does* carry, so every worktree
+of a repository computes the same one.
+
+A symbolic link from an earlier version still works. Everything follows it. It
+is reported and never removed: removing it is your decision.
+
+A repository whose `memory_dir` was pointed at a store **by hand**, with no
+`public_repo` and no `project_key`, has nothing to compose a cache path from.
+Its worktrees fall back to asking the main working copy of the same clone,
+which is where that symbolic link was made. That fallback needs `git` 2.31 or
+newer, for `rev-parse --path-format=absolute`. On an older `git` it does not
+engage, and a worktree of such a repository behaves as it did before 0.27.0: it
+reports no memory. The repair is the same in both cases — set `public_repo` and
+`project_key` and run `store` once.
+
+If a real **directory** of notes is in that position, `store` stops and moves
+nothing. Those notes can be the only copies. To move them into the store, run:
+
+```
+bash <plugin>/scripts/run store --migrate
+```
+
+It prints every file before it moves it. If a name exists on both sides it
+stops and moves nothing at all, because which copy you meant to keep is not a
+question a script can answer. It deletes nothing, including the directory it
+empties. Nothing else calls this flag.
 
 The last step of `store` is the important one. It writes a file through the
-link, and confirms that the file is in the store. All other steps can look
+view, and confirms that the file is in the store. All other steps can look
 correct while a write goes to a location that nobody publishes.
 
 The configuration contains no key for "external" or "internal". The layout
-comes from the location of `memory_dir`. A key in a file could disagree with
-the file system. It would disagree exactly in the dangerous condition: a
-symbolic link that was not created, and notes that go into an ignored directory
-in the code repository.
+follows from `public_repo` and `project_key`: both present means the memory of
+this project is in a store, and the address is computed from them. **The
+configuration decides, not the file system.** Whatever stands at `memory_dir`
+in a working copy is not an address and does not become one.
+
+That is deliberate, and it was measured. Resolution used to fall back to the
+working copy whenever nothing stood at the store's address, which reads as
+caution and is not: the skills of this plugin tell an agent to write
+`.agent-memory/<file>`, so one note from an agent that followed them created a
+directory there, took the address back, and put the repository into the exact
+condition this version removes — `lint` refusing to run, `check` printing
+`MEMORY LINT COULD NOT RUN`, and the whole corpus in the store invisible while
+nothing anywhere was red.
+
+A real directory in that position is now a fork of the corpus, not a memory.
+`guard` refuses while it stands and names `store --migrate`; see above.
 
 With a store, the `wrap` procedure closes two repositories:
 
@@ -230,11 +285,13 @@ Know one disadvantage before you select this layout. Nobody reviews the memory
 with the code. In the in-repository layout, that review is free.
 
 **Caution:** the incomplete condition is comfortable, and thus dangerous. The
-ignore line is present, but the symbolic link is absent. Notes are written and
-read correctly. `git status` cannot show them, because it was told to ignore
-them. Nothing publishes them. `guard` fails on this combination, and names it.
-`status` reports the store in a section of its own, and thus shows a machine
-that omitted the setup.
+configuration names a store, and the machine never cloned it. Every path
+resolves; `lint` and `check` are quiet, because there is nothing there to be
+loud about; and a session reads an empty memory and believes the project has
+none. `guard` fails on it and names the verb that repairs it, and `status`
+reports the store in a section of its own, and thus shows a machine that
+omitted the setup. `store --check` answers the same question in one line, and
+answers it about this machine, not about this working copy.
 
 ## `quota.lock`
 

@@ -83,7 +83,13 @@ assert_eq "workplace checkout really is the workplace repository" "workplace" \
 
 # The measurement that matters: a note written to the workplace scope must be
 # in the workplace repository, not merely in some directory that exists.
-printf 'private\n' > "$repo1/.agent-memory/private/note.md"
+#
+# Written to the VIEW, not to $repo1/.agent-memory. Since 0.26.0 that path does
+# not exist in a working copy at all — the memory is addressed by repository
+# and resolved into the cache — so writing there would make a real directory
+# and test nothing but mkdir. The view is the address every checkout of this
+# repository resolves to, worktrees included.
+printf 'private\n' > "$H1/agents_memory/acme/shared/private/note.md"
 assert_eq "a note in private/ lands in the workplace checkout" "0" \
   "$([[ -f "$w_dir/private/projects/acme/note.md" ]] && echo 0 || echo 1)"
 assert_eq "and not in the store checkout" "1" \
@@ -175,7 +181,7 @@ assert_eq "the private/ link was created inside the store checkout" "0" \
   "$([[ -L "$s5/public/projects/acme/private" ]] && echo 0 || echo 1)"
 untracked="$(git -C "$s5" status --porcelain -uall 2>/dev/null | grep -c 'memory/local' | tr -d ' ')"
 assert_eq "the store repository ignores that link rather than committing it" "0" "$untracked"
-printf 'private\n' > "$repo5/.agent-memory/private/note.md"
+printf 'private\n' > "$H5/agents_memory/acme/shared/private/note.md"
 assert_eq "a note through it still reaches the workplace repository" "0" \
   "$([[ -f "$H5/agents_memory/.clones/wp/private/projects/acme/note.md" ]] && echo 0 || echo 1)"
 

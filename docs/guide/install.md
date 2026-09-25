@@ -135,7 +135,10 @@ Run `init` one time in each repository.
 - writes `.floppy/config`. It is the only file `init` puts there, and the
   only one you commit; `heat` later writes a `.floppy/heat.log` that
   `.gitignore` covers. Your repository carries data, not code.
-- creates the memory index `<memory_dir>/MEMORY.md`.
+- creates the memory index `MEMORY.md` — in `<memory_dir>` of this repository
+  when the memory lives here, and in the store's scope for this project when
+  `.floppy/config` names a store. From 0.27.0 nothing of that name is created
+  in the working copy in the second case.
 - creates the state file `docs/statuses/NOW.md`.
 - adds the private memory scope to `.gitignore`. That path becomes a symlink
   into the private memory repository, and the code repository must not carry

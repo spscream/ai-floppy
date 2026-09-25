@@ -205,7 +205,19 @@ if [[ -n "$public_repo" ]]; then
 fi
 
 # ---------- memory skeleton ----------
+# Where the skeleton actually goes. For a project keeping memory in its own
+# repository this is still <repo>/<memory_dir>. For a store-backed one it is
+# NOT: since 0.27.0 the memory is addressed by repository and resolved into the
+# cache, with nothing representing it in the working tree (see lib-config.sh
+# and memory-store.sh). Writing the skeleton to <repo>/<memory_dir> there makes
+# a real, ignored directory holding the one file every reader looks for, while
+# every reader looks somewhere else — `lint` red on a repository `init` just
+# reported as done. The view below is the same path `store` printed two
+# sections up.
 mem="$repo/$mem_dir"
+if [[ -n "$public_repo" ]]; then
+  mem="${agents_memory_dir:-$HOME/agents_memory}/$memory_key/shared"
+fi
 mkdir -p "$mem"
 idx="$mem/MEMORY.md"
 if [[ -f "$idx" ]]; then
@@ -363,7 +375,7 @@ fi
 # `find -L`, not `find`: memory_dir is a symlink in the external layout, and a
 # plain walk of it yields nothing while exiting 0 — docs/lessons.md records what
 # that cost the linter itself.
-mem_abs="$repo/$mem_dir"
+mem_abs="$mem"
 existing_notes="$(find -L "$mem_abs" -type f -name '*.md' \
   ! -name 'MEMORY.md' ! -name 'INDEX.md' 2>/dev/null | wc -l | tr -d ' ')"
 
