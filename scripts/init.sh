@@ -93,6 +93,19 @@ if [[ -n "$public_repo" && -z "$memory_key" ]] || [[ -z "$public_repo" && -n "$m
   exit 2
 fi
 
+# Before the FIRST `cd` in this file, not before the second. CDPATH, exported
+# with a relative entry in it, makes `cd` print the directory it found on
+# stdout — inside a command substitution that lands in the variable. Measured
+# 2026-09-25 (review of PR #95, finding 1): with CDPATH=.:<dir> and a relative
+# `--repo target`, $repo came out two lines long, init created a directory
+# whose name ends in a newline, printed `ok` at every step and exited 0 while
+# the repository it was pointed at stayed empty. `--repo .` is immune — `cd .`
+# consults no CDPATH — and so is an absolute `--repo`, which is why every call
+# the suite and the init skill make missed it. Unset rather than worked around,
+# so it is gone from what the store subcall inherits too; see scripts/run for
+# the same unset and the same reason.
+unset CDPATH
+
 repo="$(cd "$repo_arg" && pwd)"
 
 # Where this script itself lives, i.e. the plugin checkout — one level above
@@ -100,7 +113,6 @@ repo="$(cd "$repo_arg" && pwd)"
 # that already points at the right checkout, so nothing is searched for here.
 # It is also what the target repository gets told to call: the dispatcher
 # beside this file.
-unset CDPATH   # see scripts/run: it would print into the substitutions below
 self_dir="$(cd "$(dirname "$0")" && pwd)"
 plugin_root="$(cd "$self_dir/.." && pwd)"
 floppy_run="bash $plugin_root/scripts/run"

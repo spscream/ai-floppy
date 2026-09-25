@@ -281,4 +281,32 @@ assert_contains "a mention outside the floppy section is caught too" \
   "AGENTS.md still names .floppy/run" "$outN"
 rm -rf "$repoN"
 
+# ---------- a relative --repo under an exported CDPATH ----------
+# CDPATH with a relative entry in it makes `cd` print the directory it found,
+# and that print lands inside the command substitution that resolves --repo.
+# Measured 2026-09-25 (review of PR #95, finding 1): $repo came out two lines
+# long, init created a directory whose name ends in a newline BESIDE the
+# target, printed `ok` at every step and exited 0, and the repository it had
+# been pointed at kept nothing but its .git.
+#
+# Two conditions have to meet, which is why nothing else in this file catches
+# it: the CDPATH entry has to be relative, and the --repo spelling has to be
+# one `cd` consults — neither absolute (every other call here) nor `.`.
+parentC="$(cd "$(mktemp -d)" && pwd -P)"
+mkdir -p "$parentC/target"
+git -C "$parentC/target" init -q -b main
+
+outC="$(cd "$parentC" && CDPATH=".:$parentC" bash "$ROOT/scripts/init.sh" --repo target 2>&1)"; rcC=$?
+assert_rc "a relative --repo under CDPATH succeeds"  0 "$rcC"
+assert_eq "and the header names one path, not two" \
+  "memory_dir:  .agent-memory" "$(printf '%s\n' "$outC" | sed -n 2p)"
+assert_eq "the config lands in the repository that was named" "0" \
+  "$([[ -f "$parentC/target/.floppy/config" ]] && echo 0 || echo 1)"
+# The newline-named sibling is what `ok` on every step was hiding, so count
+# what is there rather than trust the report: two entries means the work went
+# somewhere nobody asked for.
+assert_eq "and nothing is created beside it" "1" \
+  "$(ls -1 "$parentC" | wc -l | tr -d ' ')"
+rm -rf "$parentC"
+
 summary
