@@ -57,17 +57,29 @@ EOF
 run_store "$repo"
 assert_eq       "wiring succeeds (rc)"                "0" "$RC"
 assert_contains "it clones the store"                 "cloning" "$OUT"
-assert_contains "it links the memory"                 "linked" "$OUT"
+assert_contains "it lays out the view the memory is read through" "ok view:" "$OUT"
 assert_contains "it adds the ignore line"             ".gitignore" "$OUT"
 # The step that actually proves the wiring: everything else can look right
 # while a write lands somewhere other than the store.
 assert_contains "it verifies a write reaches the store" "lands in the store" "$OUT"
-[[ -L "$repo/.agent-memory" ]] && ok "the memory is a symlink" || fail "the memory is a symlink" "symlink" "not a symlink"
-assert_eq "it points into the project's own scope" "$checkout/public/projects/acme" \
-  "$(cd "$repo/.agent-memory" && pwd -P)"
-assert_eq "the code repository ignores it" "0" \
+# NOTHING in the working tree. This is the 0.26.0 contract and the reason for
+# it: the symlink that used to stand here is gitignored by design, so git never
+# carried it into a worktree, and every worktree of a correctly wired
+# repository was told it had no memory. A path git cannot carry cannot be the
+# address of the memory. Measured 2026-09-25 — see scripts/lib-config.sh.
+[[ -e "$repo/.agent-memory" || -L "$repo/.agent-memory" ]] \
+  && fail "nothing is left in the working tree" "no such path" "$(ls -ld "$repo/.agent-memory")" \
+  || ok "nothing is left in the working tree"
+# The memory is the view instead, and every checkout of this repository reaches
+# the same one.
+assert_eq "the view points into the project's own scope" "$checkout/public/projects/acme" \
+  "$(cd "$views/acme/shared" && pwd -P)"
+# The ignore line stays, though nothing here creates the path any more: the
+# skills still tell an agent to write .agent-memory/<file>, and one that does
+# must not be able to COMMIT the memory into the code repository.
+assert_eq "the code repository ignores the path anyway" "0" \
   "$(cd "$repo" && git check-ignore -q -- .agent-memory; echo $?)"
-# The shim must now derive the external layout from that symlink alone.
+# The dispatcher must derive the external layout with no symlink to read it from.
 env_out="$(cd "$repo" && bash "$ROOT/scripts/run" env 2>&1)"
 assert_contains "the shim derives the external layout" "FLOPPY_MEMORY_EXTERNAL=1" "$env_out"
 
@@ -77,10 +89,10 @@ assert_contains "the shim derives the external layout" "FLOPPY_MEMORY_EXTERNAL=1
 # 2026-09-08, which left notes in the store that no session could reach.
 assert_contains "it wires the common scope"           "common/shared" "$OUT"
 assert_eq "the link lands beside the project's memory, not inside it" \
-  "$checkout/public/common" "$(cd "$repo/.agent-memory/common/shared" && pwd -P)"
+  "$checkout/public/common" "$(cd "$views/acme/shared/common/shared" && pwd -P)"
 # A DIRECTORY holding one link per namespace, not a link of its own: the two
 # namespaces are two different repositories and only one of them is wired here.
-[[ -L "$repo/.agent-memory/common" ]] \
+[[ -L "$views/acme/shared/common" ]] \
   && fail "the container is a directory, not a link" "directory" "symlink" \
   || ok "the container is a directory, not a link"
 # The link holds an absolute path and lands inside the store's working tree, so
@@ -154,7 +166,11 @@ assert_contains "and says why store is not it"     "without both keys" "$guard_o
 # message offers it. Same guard, same broken state — only the config differs.
 printf 'memory_dir=.agent-memory\nwatched_dirs=docs\npublic_repo=%s\nproject_key=acme\n' "$remote" > "$repo3/.floppy/config"
 guard_out="$(cd "$repo3" && bash "$ROOT/scripts/run" guard docs/a.md 2>&1)"
-assert_contains "a configured repository is sent to store" "run store" "$guard_out"
+# Since 0.27.0 a configured repository is external whatever stands in its
+# working tree, so this is no longer the "ignored but not external" arm — it is
+# the external branch reporting a cache this machine has not cloned yet. Same
+# question, and the answer must still be the verb that fixes it.
+assert_contains "a configured repository is sent to store" "run the store verb" "$guard_out"
 printf 'memory_dir=.agent-memory\nwatched_dirs=docs\n' > "$repo3/.floppy/config"
 
 # A memory that is neither ignored nor external — the ordinary layout — must
@@ -174,10 +190,16 @@ init_out="$(bash scripts/init.sh --repo "$repo4" \
   --agents-memory-dir "$views" 2>&1)"
 init_rc=$?
 assert_eq       "init with a store succeeds"        "0" "$init_rc"
-assert_contains "it wires the store"                "linked" "$init_out"
-[[ -L "$repo4/.agent-memory" ]] && ok "init leaves a symlink" || fail "init leaves a symlink" "symlink" "not a symlink"
-# MEMORY.md must be created THROUGH the link, so it lands in the store rather
-# than in a directory that would have blocked the symlink.
+assert_contains "it wires the store"                "ok view:" "$init_out"
+[[ -e "$repo4/.agent-memory" || -L "$repo4/.agent-memory" ]] \
+  && fail "init leaves nothing in the working tree" "no such path" "$(ls -ld "$repo4/.agent-memory")" \
+  || ok "init leaves nothing in the working tree"
+# MEMORY.md must be created where the READERS read — the view — and not at
+# <repo>/<memory_dir>. init wrote it to the latter until 0.26.0, which was the
+# same path; once the memory moved to the cache it was not, and init finished
+# by reporting success over a repository whose linter is red and whose index is
+# in an ignored directory nobody opens. Measured 2026-09-25 while making this
+# change, which is what this assertion now guards.
 assert_eq "the index landed in the store" "0" \
   "$([[ -f "$checkout2/public/projects/beta/MEMORY.md" ]] && echo 0 || echo 1)"
 # Two projects, two DIFFERENT stores, one agents_memory_dir — the ordinary case
@@ -186,9 +208,9 @@ assert_eq "the index landed in the store" "0" \
 # rightly refuses to repoint it; linking straight into each clone has no shared
 # name to collide over. Measured 2026-09-08: the first draft failed here.
 assert_eq "a second project's common scope points at its OWN store" \
-  "$checkout2/public/common" "$(cd "$repo4/.agent-memory/common/shared" && pwd -P)"
+  "$checkout2/public/common" "$(cd "$views/beta/shared/common/shared" && pwd -P)"
 assert_eq "and the first project's is untouched" \
-  "$checkout/public/common" "$(cd "$repo/.agent-memory/common/shared" && pwd -P)"
+  "$checkout/public/common" "$(cd "$views/acme/shared/common/shared" && pwd -P)"
 
 assert_contains "the config records where the store is" "public_repo=$remote" "$(cat "$repo4/.floppy/config")"
 # Exact line, not a substring: "project_key=beta" is a substring of

@@ -50,6 +50,13 @@ fi
 hr() { printf '%s\n' "-- $1"; }
 rc=0
 
+# One judgement about the memory wiring, shared with workstatus.sh. Until
+# 0.27.0 each carried its own, and the gate's copy was the more optimistic of
+# the two — see scripts/lib-wiring.sh for the measurement.
+_lw="$here/lib-wiring.sh"
+[[ -f "$_lw" ]] || _lw="${FLOPPY_ROOT:-}/scripts/lib-wiring.sh"
+. "$_lw"
+
 # ---------- memory invariants ----------
 hr "memory"
 lint_out="$(bash "$here/memory-lint.sh" 2>&1)"; lint_rc=$?
@@ -138,9 +145,26 @@ fi
 if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
   hr "workplace memory"
   wp="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
-  if [[ ! -d "$wp/.git" ]]; then
-    echo "  not wired: no $wp — $floppy_run workplace"
-  else
+  wp_priv="${FLOPPY_MEMORY_PRIVATE_DIR:-${FLOPPY_MEMORY_LOCAL_DIR:-private}}"
+  wp_mem="${FLOPPY_MEMORY_REAL:-${FLOPPY_MEMORY_DIR:-.agent-memory}}"
+  wp_state="$(wiring_state "$wp" "$wp_mem" "$wp_priv")"
+  if [[ "$wp_state" != "wired" ]]; then
+    # Reported, not red. The memory sections above already carry the rc for a
+    # memory that cannot be read; this one says which wiring step is missing,
+    # and it says the same thing `status` says — which is the whole point of
+    # the shared judgement. Two reports of one scope disagreeing in the same
+    # second is what this replaced.
+    wiring_advice "$wp_state" "$wp" "$wp_mem" "$wp_priv"
+  fi
+  # ASKED OF THE CLONE, not of the wiring, and therefore not an `else` of the
+  # branch above. The two answer different questions: "which step is missing"
+  # and "is there work in that repository nobody has pushed". A clone can hold
+  # unpushed notes while the wiring around it is incomplete — `wiring_state`
+  # returns no-memory or no-link before it ever looks at the checkout — and in
+  # that state the first draft of this change printed the advice and said
+  # nothing at all about the notes. Found in review 2026-09-25; before the
+  # change the count ran on `-d "$wp/.git"` alone, which is what this restores.
+  if [[ -d "$wp/.git" ]]; then
     # Several projects share this clone, so its dirt is counted in two piles:
     # this project's own paths — its scope and the common namespace — are what
     # "name them in your file list" can actually close, and everything else

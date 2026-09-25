@@ -49,28 +49,24 @@ check_only=0
 
 repo="$(pwd)"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
-mem="$repo/$mem_dir"
-# `_` belongs in this set as much as `/` and `.` do. Claude Code folds all
-# three into `-`, and this encoded only the first two — so a checkout whose
-# name carries an underscore got a project directory of its own that the
-# harness never opens. Nothing failed: the script created what it computed and
-# reported success, `--check` agreed with it because it asks this same line,
-# and the session's memory went to a second copy. That is the exact failure
-# this file's header describes as its second silent mode, and it was live.
-#
-# Measured 2026-09-05 from the harness's own transcripts, which record the cwd
-# a session actually ran in:
-#
-#   -home-amalaev-work-agents-harness   cwd=/home/amalaev/work/agents_harness
-#   -home-amalaev-work-ai-floppy        cwd=/home/amalaev/work/ai_floppy
-#   -home-amalaev--local-bin            cwd=/home/amalaev/.local/bin
-#
-# Two of that machine's three consumers were unwired this way, one across
-# fifteen sessions. Case is NOT folded — `/tmp/consensus-5Ob9Z2` keeps its
-# capitals in the harness's directory name — so this stays a `tr` of three
-# characters and not a general slug.
-enc="$(printf '%s' "$repo" | tr '/._' '---')"
-proj="$HOME/.claude/projects/$enc"
+# The RESOLVED memory, not a path in the working tree. Since 0.27.0 a
+# store-hosted memory is addressed by repository and lives in the cache, with
+# nothing at all standing at $mem_dir here — so composing the target out of the
+# tree would wire the harness to a path that does not exist, in exactly the
+# working copies (worktrees) that need this verb most.
+mem="${FLOPPY_MEMORY_REAL:-$repo/$mem_dir}"
+# The encoding of the harness's project directory moved to lib-wiring.sh in
+# 0.27.0, unchanged, because the config parser needs it too — it makes this
+# pointer appear without anybody running this verb. It is still defined once;
+# this file is now a reader of that definition rather than its home.
+_lib="$(dirname "$0")/lib-wiring.sh"
+[[ -f "$_lib" ]] || _lib="${FLOPPY_ROOT:-}/scripts/lib-wiring.sh"
+. "$_lib"
+# And the checked `ln`, shared with the two store verbs.
+_libc="$(dirname "$0")/lib-checkout.sh"
+[[ -f "$_libc" ]] || _libc="${FLOPPY_ROOT:-}/scripts/lib-checkout.sh"
+. "$_libc"
+proj="$(harness_project_dir "$repo")"
 link="$proj/memory"
 
 # The repository itself is already the shim's own first line (see
@@ -82,7 +78,25 @@ if [[ $check_only -eq 0 ]]; then
   echo
 fi
 
-[[ -d "$mem" ]] || { echo "x no $mem — wrong repository"; exit 2; }
+# "wrong repository" is what a git worktree of the RIGHT repository used to be
+# told here, and it was wrong on the facts, not merely blunt: the repository
+# was correct and the memory simply had no copy on this machine, or none this
+# working copy could see. Measured 2026-09-25 in a worktree of this plugin's
+# own repository, which printed `x no <wt>/.agent-memory — wrong repository`
+# and exited 2. The refusal now names what is actually missing and the verb
+# that produces it.
+if [[ ! -d "$mem" ]]; then
+  echo "x no memory at $mem — there is nothing on this machine to point the harness at"
+  if [[ -n "${FLOPPY_MEMORY_REPO:-}" ]]; then
+    echo "  This project keeps its memory in a store, addressed by repository rather than"
+    echo "  by working copy. Run the store verb first: it clones the store and lays out"
+    echo "  the cache this path names. Then run this verb again."
+  else
+    echo "  Either this repository has no floppy memory laid out yet (init does that),"
+    echo "  or $mem_dir was removed. Nothing was created here: this verb only wires."
+  fi
+  exit 2
+fi
 
 # Both sides of every comparison below are resolved, not one of them.
 #
@@ -141,7 +155,7 @@ elif [[ -e "$link" ]]; then
   exit 1
 else
   mkdir -p "$proj"
-  ln -s "$mem" "$link"
+  link_or_fail "$mem" "$link" || exit 1
   echo "ok symlink created: $link -> $mem"
 fi
 

@@ -90,12 +90,21 @@ assert_eq       "store layout: the lock is in the store's git dir, named for the
 assert_eq       "store layout: and NOT in this repository's git dir" \
   "1" "$([[ -d "$repoS/.git/wrap.lock" ]] && echo 0 || echo 1)"
 
-# The regression itself: a second worktree of the same clone. .floppy/ is
-# tracked so it arrives with the checkout; the memory symlink is gitignored and
-# is created per worktree, exactly as `bash "$ROOT/scripts/run" store` does.
+# The regression itself: a second worktree of the same clone, cut the way git
+# actually cuts one and left exactly as it lands.
+#
+# Until 0.27.0 this fixture created the memory symlink in the worktree by hand,
+# with a comment claiming `store` does that per worktree. It does not, and
+# nothing else did either: the symlink is gitignored, git carries tracked files
+# only, and a worktree of a store-hosted repository arrives with no memory at
+# all. So the hole this line covered was the hole the line itself hid — the
+# lock test passed on a state no worktree on any machine was ever in. Measured
+# 2026-09-25 on a worktree of this plugin's own repository; the `ln -s` is gone
+# and the checkout below is whatever `git worktree add` leaves behind.
 wtS="$(cd "$(mktemp -d)" && pwd -P)/wt"
 git -C "$repoS" worktree add -q "$wtS" -b second 2>/dev/null
-ln -s "$storeS/projects/acme/memory" "$wtS/.agent-memory"
+assert_eq "setup: a real worktree carries no memory of its own" "absent" \
+  "$([[ -e "$wtS/.agent-memory" || -L "$wtS/.agent-memory" ]] && echo present || echo absent)"
 assert_eq "setup: the two worktrees really do have different git dirs" "1" \
   "$([[ "$(cd "$repoS" && git rev-parse --absolute-git-dir)" == "$(cd "$wtS" && git rev-parse --absolute-git-dir)" ]] && echo 0 || echo 1)"
 

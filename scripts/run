@@ -72,6 +72,22 @@ if ! FLOPPY_REPO="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   exit 1
 fi
 export FLOPPY_REPO
+
+# `--check` means report only, change nothing, and two verbs promise it in their
+# own headers. The config parser makes the harness's memory pointer as a side
+# effect of being read (see auto_harness_link), which would break that promise
+# on the one call a person makes precisely because they do not want anything
+# touched. Decided here because this is where the arguments are; the parser
+# never sees them.
+#
+# Any `--check` anywhere in the line, not just the first argument: it is the
+# reporting flag of every verb that has one, and a future verb that grows one
+# gets this for free.
+for _arg in "$@"; do
+  [[ "$_arg" == "--check" ]] && export FLOPPY_AUTOLINK=0
+done
+unset _arg
+
 # One parser for the whole plugin, in the plugin.
 . "$FLOPPY_ROOT/scripts/lib-config.sh"
 

@@ -237,13 +237,17 @@ done
 # reader followed that half, hit the refusal, and reported the tool as
 # inapplicable — while the other half of the same sentence was the correct fix.
 # So the message branches on the config instead of offering both every time.
+#
+# Only one arm since 0.27.0. A repository that HAS public_repo and a key is now
+# external by configuration — the memory resolves into the store's cache
+# whatever stands in the working tree — so "ignored, inside, and not external"
+# can only mean a repository that never opted into a store, and the arm that
+# used to advise finishing the external setup became unreachable. Its case did
+# not vanish, it moved: a real directory left behind in such a repository is a
+# fork of the corpus, and the external branch below names it.
 if [[ "$external" == "0" && -e "$mem_dir" ]] && git check-ignore -q -- "$mem_dir" 2>/dev/null; then
   hr "memory wiring"
-  if [[ -n "${FLOPPY_MEMORY_REPO:-}" && -n "${FLOPPY_MEMORY_PROJECT_KEY:-}" ]]; then
-    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Either drop the ignore line, or finish the external setup so the path resolves into the store ($floppy_run store)"
-  else
-    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Drop the ignore line so this repository commits them — or, to host them elsewhere, set public_repo and project_key in .floppy/config first, because without both keys \`$floppy_run store\` refuses and cannot be the fix"
-  fi
+  err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Drop the ignore line so this repository commits them — or, to host them elsewhere, set public_repo and project_key in .floppy/config first, because without both keys \`$floppy_run store\` refuses and cannot be the fix"
 fi
 
 # ---------- the external memory is actually wired to publish ----------
@@ -252,7 +256,17 @@ fi
 if [[ "$external" == "1" ]]; then
   hr "memory store"
   if [[ -z "$store" ]]; then
-    err "$mem_dir resolves to $mem_real, outside this repository and outside any git repository — nothing will ever publish those notes"
+    # Two different states wear this one shape, and the advice has to tell them
+    # apart. A repository configured for a store resolves into a cache that a
+    # machine which has never run `store` simply does not have yet — an ordinary
+    # first-run state with an ordinary fix. Anything else is a memory_dir
+    # pointing somewhere no git covers, which is a configuration mistake and has
+    # no verb that repairs it.
+    if [[ -n "${FLOPPY_MEMORY_REPO:-}" && -n "${FLOPPY_MEMORY_PROJECT_KEY:-}" ]]; then
+      err "$mem_dir resolves to $mem_real, which does not exist on this machine yet — run the store verb: it clones the store and lays out that path. Until then nothing here can publish a note"
+    else
+      err "$mem_dir resolves to $mem_real, outside this repository and outside any git repository — nothing will ever publish those notes"
+    fi
   else
     echo "  memory lives in $store, committed there, not here"
   fi
@@ -260,8 +274,30 @@ if [[ "$external" == "1" ]]; then
   # memory after all — which is the one thing this layout exists to prevent.
   # Checked here rather than trusted: the ignore line is added by hand at
   # setup, and a setup step done by hand is a setup step that gets skipped.
-  if ! git check-ignore -q -- "$mem_dir" 2>/dev/null; then
+  #
+  # Only when something is actually there. Since 0.27.0 a store-hosted memory
+  # normally has NO representation in the working tree — it is addressed by
+  # repository and resolved into the cache — and asking git to ignore a path
+  # that does not exist is asking for a rule against nothing. Without this
+  # guard every fresh worktree failed here on a file it does not have.
+  if [[ -e "$mem_dir" || -L "$mem_dir" ]] && ! git check-ignore -q -- "$mem_dir" 2>/dev/null; then
     err "$mem_dir is not ignored by this repository: the memory is hosted elsewhere on purpose, but git here can still stage it — add \"/$mem_dir\" to .gitignore (no trailing slash, or the symlink is not matched)"
+  fi
+  # A REAL DIRECTORY standing where the memory used to be represented is a fork
+  # of the corpus, and the quietest kind: ignored by this repository, read by
+  # nothing since 0.27.0, and growing every time an agent follows a skill that
+  # still names `.agent-memory/<file>` as a place to write. Nothing else is red
+  # about it — `lint` is green over the store, `git status` says nothing because
+  # the path is ignored — so the only moment it can be caught is here, in the
+  # gate a person actually reads before committing.
+  #
+  # Named by the guard and moved by `store --migrate`, which is a separate,
+  # typed command: naming a fork is this script's job, resolving one is not.
+  # A SYMLINK in the same position is not a fork — it points into the store and
+  # everything behind it is the same memory — so it goes unmentioned here.
+  if [[ -d "$mem_dir" && ! -L "$mem_dir" ]]; then
+    stranded="$(find "$mem_dir" -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+    err "$mem_dir is a real directory in this working copy holding ${stranded:-0} note(s), and nothing reads it: this project's memory is $mem_real. Move them with \"store --migrate\", which prints every file it moves, then remove the directory"
   fi
 fi
 
