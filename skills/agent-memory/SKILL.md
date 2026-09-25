@@ -15,6 +15,13 @@ The memory lives under one configured directory — `memory_dir` in
 below calls that directory "the memory directory" rather than naming it,
 because the name is the consumer's choice, not this plugin's.
 
+The few commands below call floppy's dispatcher, which ships with the plugin
+and has no copy in this repository. The harness names this skill's own base
+directory when it loads it — `Base directory for this skill:
+<plugin>/skills/agent-memory` — and the dispatcher is `scripts/run` two
+directories above that. Write that absolute path wherever a command says
+`<plugin>`.
+
 ## One fact per file
 
 A memory note holds exactly one fact. A refinement of an existing fact edits
@@ -234,7 +241,8 @@ file exists.
 
 ## The heat log: what pruning decisions stand on
 
-Opening a note is worth one line: `bash .floppy/run heat <slug>` appends a
+Opening a note is worth one line: `bash <plugin>/scripts/run heat <slug>`
+appends a
 dated entry to `.floppy/heat.log` — machine-local, kept out of git via
 `.git/info/exclude` by the verb itself, outside every
 quota. `lint` reads it back and names the notes no session has ever reported
@@ -297,14 +305,15 @@ policy separating notes from code — so `memory_dir` is a symlink into a
 separate git repository and is gitignored here. The first scope above is then
 hosted elsewhere; it is still this project's memory, not the workplace store.
 
-Wiring that up is `bash .floppy/run store`, once per machine and per worktree;
+Wiring that up is `bash <plugin>/scripts/run store`, once per machine and per
+worktree;
 `init --memory-repo … --memory-key …` does it at setup time. The state to know
 about is the half-done one — the ignore line added, the symlink never created —
 because it is comfortable: notes are written and read normally while nothing
 will ever commit them. `guard` fails on that combination by name.
 
 Nothing about writing a note changes: same paths, same index, same frontmatter.
-Two things about **closing** a session do, and the shim handles both — `check`
+Two things about **closing** a session do, and the verbs handle both — `check`
 prints a `memory store` section, because this repository's own diff cannot see
 the notes, and `commit` commits and pushes that store from the same file list.
 What you must not do is conclude from a clean `git status` here that the
@@ -354,7 +363,7 @@ half out shrinks how often that happens — it does not close it.
 
 ## Language
 
-Everything this plugin ships — scripts, shim output, these skills — is
+Everything this plugin ships — scripts, their output, these skills — is
 English, because it is meant to travel between projects unmodified. The
 memory notes it manages are not: their language is the consumer's own
 choice, set once as `memory_language` in `.floppy/config`. Neither of those

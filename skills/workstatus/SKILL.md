@@ -1,6 +1,6 @@
 ---
 name: workstatus
-description: Report what is true right now, checked live rather than recalled — retells `bash .floppy/run status` and names what is waiting on the human. Use mid-session for "where are we", a live status check, before answering a question about current state, or when the user asks for workstatus.
+description: Report what is true right now, checked live rather than recalled — retells the plugin's own `status` verb and names what is waiting on the human. Use mid-session for "where are we", a live status check, before answering a question about current state, or when the user asks for workstatus.
 ---
 
 # Workstatus
@@ -17,8 +17,14 @@ kind of guess this report exists to rule out.
 
 ## What to run
 
+The dispatcher ships with the plugin; this repository holds no copy of it. The
+harness names this skill's own base directory when it loads it — `Base
+directory for this skill: <plugin>/skills/workstatus` — and the dispatcher is
+`scripts/run` two directories above that. Write that absolute path wherever a
+block below says `<plugin>`.
+
 ```bash
-bash .floppy/run status
+bash <plugin>/scripts/run status
 ```
 
 One call collects background jobs, git state (divergence from the remote,
@@ -36,7 +42,7 @@ A repository split into halves (see `agent-memory`) may also support a
 wrap-lock, worktrees, recent process edits):
 
 ```bash
-bash .floppy/run status --flow
+bash <plugin>/scripts/run status --flow
 ```
 
 Use it only when the task is about the process itself — on any other branch

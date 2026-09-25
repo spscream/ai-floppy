@@ -1,6 +1,6 @@
 ---
 name: wrap
-description: Close a session — select the facts worth keeping into memory, update the current-state file, name what's left unfinished, then check and commit through the shim. Use when a session is ending, context is about to be cleared, or the user asks to wrap up.
+description: Close a session — select the facts worth keeping into memory, update the current-state file, name what's left unfinished, then check and commit through the plugin's own verbs. Use when a session is ending, context is about to be cleared, or the user asks to wrap up.
 ---
 
 # Wrap
@@ -13,10 +13,16 @@ detail is worse than a short one.
 See `agent-memory` for what a note, an index, and `evidence` mean; this skill
 is about which facts earn a place in them and how the session closes.
 
+The commands below call floppy's dispatcher, which ships with the plugin and
+has no copy in this repository. The harness names this skill's own base
+directory when it loads it — `Base directory for this skill:
+<plugin>/skills/wrap` — and the dispatcher is `scripts/run` two directories
+above that. Write that absolute path wherever a command says `<plugin>`.
+
 ## 0. Take the lock
 
 ```bash
-bash .floppy/run lock acquire "<the thread of work, one phrase>"
+bash <plugin>/scripts/run lock acquire "<the thread of work, one phrase>"
 ```
 
 A parallel session writes into the same current-state file and the same
@@ -147,7 +153,7 @@ session may have written to them since this one started.
 
 State explicitly, in memory or the current-state file:
 
-- background jobs and uncommitted work (`bash .floppy/run status` gives
+- background jobs and uncommitted work (`bash <plugin>/scripts/run status` gives
   both in one call);
 - what's waiting on the human versus what can proceed without them;
 - what's broken or deferred — if it stays red, say so plainly.
@@ -155,7 +161,7 @@ State explicitly, in memory or the current-state file:
 ## 5. Check, see the diff, commit — two calls, not ten
 
 ```bash
-bash .floppy/run check <files you wrote>
+bash <plugin>/scripts/run check <files you wrote>
 ```
 
 Both calls print the repository they resolved as their first line
@@ -168,7 +174,7 @@ whichever one the shell happened to be in rather than the one the human was
 talking about. One line is enough — name it, don't turn it into a ceremony.
 
 ```bash
-bash .floppy/run commit -m "<what the facts are, not 'updated memory'>" <same files>
+bash <plugin>/scripts/run commit -m "<what the facts are, not 'updated memory'>" <same files>
 ```
 
 `commit` pulls `--rebase` and pushes after committing, by default — that
