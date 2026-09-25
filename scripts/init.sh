@@ -350,14 +350,16 @@ durable memory. Its verbs are run from the plugin, not from this repository:
 \`bash <plugin>/scripts/run <verb>\`, where \`<plugin>\` is two directories
 above the base directory the harness states when it loads a floppy skill
 (\`Base directory for this skill: <plugin>/skills/start\`). Nothing here has
-to be kept in step with the plugin: \`.floppy/\` holds no code. What it holds
-is \`config\`, the one file committed out of it, and — once \`heat\` has been
-called — \`heat.log\`, which is machine-local and kept out of git through
-\`.git/info/exclude\`, never through this repository's \`.gitignore\`. See
-\`agent-memory\` for what a note looks like and how the memory is laid out,
-and \`start\` / \`workstatus\` / \`wrap\` for the three rites built on top of
-it. Settings live in \`.floppy/config\`; the memory itself is under
-\`$mem_dir\`.
+to be kept in step with the plugin, and the plugin puts no code in
+\`.floppy/\`. What it puts there is \`config\`, which is committed, and —
+once \`heat\` has been called — \`heat.log\`, which is machine-local and kept
+out of git through \`.git/info/exclude\`, never through this repository's
+\`.gitignore\`. Anything else in \`.floppy/\` is this project's own; the one
+name the plugin will pick up is \`workstatus-project.sh\`, run by
+\`workstatus\` when it exists. See \`agent-memory\` for what a note looks
+like and how the memory is laid out, and \`start\` / \`workstatus\` /
+\`wrap\` for the three rites built on top of it. Settings live in
+\`.floppy/config\`; the memory itself is under \`$mem_dir\`.
 EOF
   echo "ok AGENTS.md: floppy section added"
 fi
@@ -518,24 +520,45 @@ if [[ -f "$repo/.floppy/run" ]]; then
   echo "   something of yours calls it. To drop it: git rm .floppy/run"
 fi
 
-# ---------- a watch list that still names the runner ----------
-# Checked apart from the block above and whether or not the file is there: the
-# config is what `wrap` reads, and an entry in it outlives a `git rm`. Nothing
-# fails — measured 2026-09-25 on a repository carrying the pre-0.26.0 entry
-# with no .floppy/run in it: `guard` and `check` both ran clean. What the entry
-# does do is put a path nothing in the layout has any more into the scope line
-# `guard` prints on every run ("nothing else changed under … .floppy/run …"),
-# which is a line the reader is being asked to trust.
+# ---------- a watch list that names the runner ----------
+# Provenance first, because it decides what this block may say: NO released
+# `init` ever wrote an active watched_files line. Every version from 0.11.0 to
+# 0.26.0 writes it commented out and without the runner in it
+# (`git grep watched_files $(git tag) -- scripts/init.sh`, checked 2026-09-26).
+# Where the entry exists somebody typed it — as this repository's own
+# .floppy/config did until 0.26.0. So this is a reminder about a hand-written
+# line, not a migration step, and it never edits the file: .floppy/config is
+# the consumer's.
 #
-# Named, never edited. .floppy/config is the consumer's file, hand-tuned as
-# often as not, and init rewrites no file it did not write itself.
-if [[ -f "$cfg" ]] && grep -q '^watched_files=.*\.floppy/run' "$cfg"; then
-  echo
-  echo "!  .floppy/config still lists .floppy/run under watched_files."
-  echo "   Left over from the pre-0.26.0 layout. Nothing breaks — wrap matches"
-  echo "   it against a path that is not there — but every guard run prints it"
-  echo "   in the scope it claims to have covered. Drop that one entry."
-fi
+# Read the way the parser reads it. cfg_get takes the FIRST
+# `^[[:space:]]*key[[:space:]]*=` line, so `watched_files = …` and an indented
+# copy are real settings; a `^watched_files=` grep missed both while reporting
+# `.floppy/runner.md`, which is not this entry at all (all three measured
+# 2026-09-26). Hence the parser's own key pattern, and comma boundaries around
+# a value with its whitespace stripped.
+wf_line="$(grep -m1 '^[[:space:]]*watched_files[[:space:]]*=' "$cfg" 2>/dev/null || true)"
+wf_norm=",$(printf '%s' "${wf_line#*=}" | tr -d '[:space:]'),"
+case "$wf_norm" in
+  *",.floppy/run,"*)
+    echo
+    echo "!  .floppy/config lists .floppy/run under watched_files."
+    if [[ -f "$repo/.floppy/run" ]]; then
+      # The file is still here, so the entry is not stale — it is the only
+      # reason `wrap` may commit an edit to the runner. Measured 2026-09-26:
+      # drop the entry with the file still tracked and `guard .floppy/run`
+      # goes from rc 0 to rc 1, "outside .agent-memory docs AGENTS.md". The
+      # two belong together in whichever direction the reader chooses.
+      echo "   The file is still there, so the entry still covers it: that is"
+      echo "   what lets wrap commit an edit to the runner. Drop the two"
+      echo "   together, or keep both while something of yours calls it —"
+      echo "   dropping the entry alone leaves a tracked file wrap refuses."
+    else
+      echo "   Nothing is at that path, so the entry names a file that is gone."
+      echo "   Nothing breaks — but every guard run prints it in the scope it"
+      echo "   claims to have covered. Drop that one entry."
+    fi
+    ;;
+esac
 
 echo
 echo "done"

@@ -270,12 +270,14 @@ assert_eq "init leaves the leftover file where it is" "0" \
   "$([[ -f "$repoM/.floppy/run" ]] && echo 0 || echo 1)"
 rm -rf "$repoM"
 
-# ---------- a watch list that still names the runner ----------
-# The third leftover of the pre-0.26.0 layout, and the one that survives the
-# `git rm`: the entry is in .floppy/config, which init must name and must not
-# edit. Checked with no .floppy/run in the tree on purpose — that is the state
-# a reader reaches by following the migration, and the state in which the
-# reminder is the only thing that can still tell them.
+# ---------- a watch list that names the runner ----------
+# A hand-written entry, not something an init ever wrote: every released
+# version writes watched_files commented out and without the runner in it. So
+# what is asserted here is that the reminder reads the config the way the
+# parser does, and that its ADVICE follows the file — dropping the entry while
+# .floppy/run is still tracked takes guard coverage off a tracked file.
+#
+# The runner is gone: the entry names nothing, and dropping it is safe.
 repoW="$(sandbox)"
 printf '%s\n' 'memory_dir=.agent-memory' 'memory_language=en' \
   'watched_files=AGENTS.md,.floppy/run,.floppy/config' > "$repoW/.floppy/config"
@@ -283,20 +285,64 @@ cfg_before="$(cat "$repoW/.floppy/config")"
 
 outW="$(bash scripts/init.sh --repo "$repoW" 2>&1)"
 assert_contains "a watched_files entry for the runner is named" \
-  "watched_files" "$outW"
-assert_contains "and the reader is told to drop that entry" \
-  "Drop that one entry" "$outW"
+  "lists .floppy/run under watched_files" "$outW"
+assert_contains "with no runner there, the entry names a file that is gone" \
+  "names a file that is gone" "$outW"
+assert_contains "and dropping it is what is advised" "Drop that one entry" "$outW"
 assert_eq "and init edits nobody's config" "$cfg_before" "$(cat "$repoW/.floppy/config")"
 rm -rf "$repoW"
 
-# The same run against a config with no such entry says nothing: a reminder
-# that prints for everyone is a reminder nobody reads.
+# The runner is still there: the entry is not stale, it is the only reason
+# `wrap` may commit an edit to that file. Measured 2026-09-26 — drop it alone
+# and `guard .floppy/run` goes from rc 0 to rc 1 — so the advice must not be
+# "drop that one entry" in this state.
+repoY="$(sandbox)"
+printf '%s\n' 'memory_dir=.agent-memory' 'watched_files=AGENTS.md,.floppy/run' \
+  > "$repoY/.floppy/config"
+printf '#!/usr/bin/env bash\n' > "$repoY/.floppy/run"
+outY="$(bash scripts/init.sh --repo "$repoY" 2>&1)"
+assert_contains "with the runner present, the entry is said to still cover it" \
+  "still covers it" "$outY"
+case "$outY" in
+  *"Drop that one entry"*)
+    fail "and dropping the entry alone is not advised" "no bare drop advice" "$outY" ;;
+  *)
+    ok   "and dropping the entry alone is not advised" ;;
+esac
+rm -rf "$repoY"
+
+# Read like the parser, not with a looser grep. cfg_get takes the first
+# `^[[:space:]]*key[[:space:]]*=` line, so both spellings below are live
+# settings; `.floppy/runner.md` is a different file and must not be reported.
+# All three were measured against a `^watched_files=.*\.floppy/run` grep on
+# 2026-09-26: two misses and one false positive.
+for wf_case in 'watched_files = AGENTS.md,.floppy/run' \
+               '  watched_files=AGENTS.md, .floppy/run' \
+               'watched_files=AGENTS.md,.floppy/runner.md'; do
+  repoZ="$(sandbox)"
+  printf '%s\n%s\n' 'memory_dir=.agent-memory' "$wf_case" > "$repoZ/.floppy/config"
+  outZ="$(bash scripts/init.sh --repo "$repoZ" 2>&1)"
+  case "$wf_case" in
+    *runner.md)
+      case "$outZ" in
+        *"under watched_files"*) fail "a different file is not reported: $wf_case" "no reminder" "$outZ" ;;
+        *)                       ok   "a different file is not reported: $wf_case" ;;
+      esac ;;
+    *)
+      assert_contains "a spelling the parser accepts is seen: $wf_case" \
+        "under watched_files" "$outZ" ;;
+  esac
+  rm -rf "$repoZ"
+done
+
+# And a config with no such entry stays quiet: a reminder that prints for
+# everyone is a reminder nobody reads.
 repoX="$(sandbox)"
 printf '%s\n' 'memory_dir=.agent-memory' 'watched_files=AGENTS.md,.floppy/config' \
   > "$repoX/.floppy/config"
 outX="$(bash scripts/init.sh --repo "$repoX" 2>&1)"
 case "$outX" in
-  *"Drop that one entry"*)
+  *"under watched_files"*)
     fail "a clean watch list is not warned about" "no reminder" "$outX" ;;
   *)
     ok   "a clean watch list is not warned about" ;;
