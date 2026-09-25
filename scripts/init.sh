@@ -4,7 +4,6 @@
 #   bash scripts/init.sh --repo <path> --memory-dir <dir> --language <lang>
 #
 # What it creates in the target repository:
-#   .floppy/run              copied from this checkout — the ONLY file copied
 #   .floppy/config            flat key=value, memory_dir/memory_language set
 #   <memory_dir>/MEMORY.md    the empty router, so `lint` is green immediately
 #   .gitignore                gains "/<memory_dir>/common/", and
@@ -18,6 +17,15 @@
 #                              "local", the pre-0.6.0 name, until 2026-09-05
 #   AGENTS.md                 gains a section naming .floppy/ and pointing at
 #                              agent-memory
+#
+# What it deliberately does NOT create, since 0.26.0: a runner inside the
+# repository. Until then init's first act was to copy shim/run to .floppy/run,
+# and that copy was the consumer's only way to find the plugin. The harness
+# now states the plugin root to the agent in-band when it loads a skill
+# (measured 2026-09-22), so the verbs are called at <plugin>/scripts/run and
+# the repository carries data — .floppy/config — and no code. A leftover
+# .floppy/run from an older init still works, because shim/run still ships;
+# nothing here reads it, and the report at the end names it once.
 #
 # What it deliberately does NOT create on an EMPTY memory: <memory_dir>/quota.lock.
 # There is nothing to measure, and a ceiling copied from another project is that
@@ -88,27 +96,20 @@ fi
 repo="$(cd "$repo_arg" && pwd)"
 
 # Where this script itself lives, i.e. the plugin checkout — one level above
-# scripts/. This is how the shim source is found: whoever calls this script
-# (the init skill, or a test with AI_FLOPPY_HOME) passes a $0 that already
-# points at the right checkout, so no further search is needed here.
+# scripts/. Whoever calls this script (the init skill, or a test) passes a $0
+# that already points at the right checkout, so nothing is searched for here.
+# It is also what the target repository gets told to call: the dispatcher
+# beside this file.
 self_dir="$(cd "$(dirname "$0")" && pwd)"
 plugin_root="$(cd "$self_dir/.." && pwd)"
-shim_src="$plugin_root/shim/run"
-[[ -f "$shim_src" ]] || { echo "x no shim at $shim_src — is this run from a floppy checkout?" >&2; exit 2; }
+floppy_run="bash $plugin_root/scripts/run"
 
 echo "repository:  $repo"
 echo "memory_dir:  $mem_dir"
 echo "language:    $language"
 echo
 
-# ---------- .floppy/run ----------
-# The one file this plugin copies. Always refreshed from the plugin's own
-# copy: it's meant to track the plugin, and an unchanged source produces an
-# unchanged file, which is what idempotence actually requires.
 mkdir -p "$repo/.floppy"
-cp "$shim_src" "$repo/.floppy/run"
-chmod +x "$repo/.floppy/run"
-echo "ok .floppy/run"
 
 # ---------- .floppy/config ----------
 # Written into the generated config only when asked for, and commented out
@@ -117,7 +118,7 @@ echo "ok .floppy/run"
 if [[ -n "$public_repo" ]]; then
   store_cfg="
 # This repository does not hold its own memory: memory_dir is a symlink into
-# the store below. Wire it on each machine with \"bash .floppy/run store\".
+# the store below. Wire it on each machine with floppy's \"store\" verb.
 public_repo=$public_repo
 # One key, not two: project_key is the default of both memory_project_key and
 # workplace_project_key, so this project is named the same in every store it
@@ -130,7 +131,7 @@ else
   store_cfg="
 # public_repo/project_key host the memory in ANOTHER repository, for a
 # code repository that cannot hold agent notes at all. Set both, then run
-# \"bash .floppy/run store\" once per machine and per worktree.
+# floppy's \"store\" verb once per machine and per worktree.
 # public_repo=git@example.com:workplace/agents-memory.git
 # project_key names this project in every store it uses; memory_project_key and
 # workplace_project_key override it per scope, and are rarely needed.
@@ -151,7 +152,7 @@ agents_memory_dir=$agents_memory_dir}
 $store_cfg
 # private_repo and workplace_project_key have no default on purpose: a
 # fresh project must not silently write into somebody else's private memory.
-# Set both to use "bash .floppy/run workplace".
+# Set both to use floppy's "workplace" verb.
 # private_repo=git@example.com:workplace/agents-memory.git
 # workplace_project_key=your-project-key
 # Checkout paths are derived: agents_memory_dir (default $HOME/agents_memory)
@@ -159,7 +160,7 @@ $store_cfg
 # for this repository only, and is rarely needed.
 # workplace_memory_dir=/path/to/your/workplace-memory-checkout
 
-# commit_push controls what "bash .floppy/run commit" does after committing:
+# commit_push controls what floppy's "commit" verb does after committing:
 # auto (default) pulls --rebase then pushes, same as always. A repository
 # with no upstream configured fails that every time — set commit_push=never
 # to keep every commit local instead (the --no-push flag does this per call).
@@ -189,11 +190,12 @@ fi
 # — correctly, since it never decides the fate of files somebody wrote.
 if [[ -n "$public_repo" ]]; then
   echo
-  # A subshell with the target repository as the working directory: the shim
-  # derives FLOPPY_REPO from `git rev-parse`, and init's own cwd is the plugin
-  # checkout, so a bare call would wire the plugin instead of the consumer.
-  if ( cd "$repo" && AI_FLOPPY_HOME="${AI_FLOPPY_HOME:-$(cd "$self_dir/.." && pwd)}" \
-       bash "$repo/.floppy/run" store ); then
+  # A subshell with the target repository as the working directory: the
+  # dispatcher derives FLOPPY_REPO from `git rev-parse`, and init's own cwd is
+  # the plugin checkout, so a bare call would wire the plugin instead of the
+  # consumer. The dispatcher is called by its own path — there is nothing in
+  # the target repository to call, and this is the same call the skills make.
+  if ( cd "$repo" && bash "$plugin_root/scripts/run" store ); then
     echo
   else
     echo "x wiring the store failed — nothing else was created" >&2
@@ -309,6 +311,18 @@ marker="<!-- floppy:agents-section -->"
 touch "$agents"
 if grep -qF "$marker" "$agents"; then
   echo "ok AGENTS.md already has the floppy section, left untouched"
+  # Left untouched, and said out loud when it is out of date: a section written
+  # before 0.26.0 tells the agent the entry point is `.floppy/run`, which is
+  # the habit this release removes. Rewriting somebody's AGENTS.md from a
+  # script is not init's business — idempotence here means leaving prose alone
+  # — but a silent stale instruction is how the old path survives the change.
+  if grep -q '\.floppy/run' "$agents"; then
+    echo "!  that section still names .floppy/run as the entry point."
+    echo "   The verbs are run from the plugin now:"
+    echo "     bash <plugin>/scripts/run <verb>"
+    echo "   <plugin> being two directories above the base directory the harness"
+    echo "   states when it loads a floppy skill. Update the section by hand."
+  fi
 else
   if [[ -s "$agents" ]] && [[ "$(tail -c1 "$agents")" != "" ]]; then
     printf '\n' >> "$agents"
@@ -319,11 +333,15 @@ $marker
 ## Agent memory
 
 This repository uses the \`floppy\` plugin for its session ritual and its
-durable memory. The entry point is \`.floppy/run\` — see \`agent-memory\`
-for what a note looks like and how the memory is laid out, and
-\`start\` / \`workstatus\` / \`wrap\` for the three rites
-built on top of it. Settings live in \`.floppy/config\`; the memory itself is
-under \`$mem_dir\`.
+durable memory. Its verbs are run from the plugin, not from this repository:
+\`bash <plugin>/scripts/run <verb>\`, where \`<plugin>\` is two directories
+above the base directory the harness states when it loads a floppy skill
+(\`Base directory for this skill: <plugin>/skills/start\`). Nothing here has
+to be kept in step with the plugin — \`.floppy/\` holds \`config\` and
+nothing else. See \`agent-memory\` for what a note looks like and how the
+memory is laid out, and \`start\` / \`workstatus\` / \`wrap\` for the
+three rites built on top of it. Settings live in \`.floppy/config\`; the
+memory itself is under \`$mem_dir\`.
 EOF
   echo "ok AGENTS.md: floppy section added"
 fi
@@ -376,7 +394,7 @@ if [[ "${existing_notes:-0}" -gt 0 ]]; then
     chars_cap=$(( (total * 11 / 10 + 4999) / 5000 * 5000 ))
 
     cat > "$lock" <<EOF
-# Quota ratchet for the agent memory. Read by \`bash .floppy/run lint\`.
+# Quota ratchet for the agent memory. Read by floppy's \`lint\` verb.
 #
 # Seeded by \`init\` on $(date +%Y-%m-%d), from the corpus that was already here:
 # $existing_notes notes, $total characters, longest index $ptr pointers.
@@ -430,7 +448,7 @@ EOF
     echo "   Nothing was rewritten. Grouped by kind, count first:"
     printf '%s\n' "$lint_raw" | grep '^  x' | sed 's/.*: //' \
       | sed 's/[0-9][0-9]*/N/g' | sort | uniq -c | sort -rn | sed 's/^/     /'
-    echo "   full list: bash .floppy/run lint"
+    echo "   full list: $floppy_run lint"
   fi
 fi
 
@@ -452,7 +470,20 @@ if (cd "$repo" && bash "$self_dir/memory-link.sh" --check) >/dev/null 2>&1; then
 else
   echo "!  not wired on this machine yet — memory would land in a second copy"
   echo "   under ~/.claude, silently. From $repo run:"
-  echo "     bash .floppy/run link"
+  echo "     $floppy_run link"
+fi
+
+# ---------- a runner left over from an older init ----------
+# Not deleted: it is a tracked file in somebody else's repository, and it still
+# works — shim/run ships, and a copy of it finds the plugin exactly as before.
+# What it no longer is, is the way anything here calls floppy. Naming it once
+# is what keeps a repository from carrying a file nobody maintains by accident.
+if [[ -f "$repo/.floppy/run" ]]; then
+  echo
+  echo "!  .floppy/run is left over from an init before 0.26.0."
+  echo "   Nothing reads it any more — the verbs are called at"
+  echo "   $plugin_root/scripts/run, and the skills say so. It still works if"
+  echo "   something of yours calls it. To drop it: git rm .floppy/run"
 fi
 
 echo

@@ -12,7 +12,10 @@ rmdir "$repo/.floppy" 2>/dev/null || true   # sandbox() pre-creates .floppy/; in
 
 bash scripts/init.sh --repo "$repo" --memory-dir .agent-memory --language en >/dev/null
 
-assert_eq "shim placed"    "0" "$([[ -f "$repo/.floppy/run" ]] && echo 0 || echo 1)"
+# 0.26.0: init writes data into the repository and no code. The runner it used
+# to copy here is gone, and its absence is asserted rather than assumed — a
+# `cp` left in by accident would otherwise pass every other check in this file.
+assert_eq "no runner placed" "1" "$([[ -f "$repo/.floppy/run" ]] && echo 0 || echo 1)"
 assert_eq "config placed"  "0" "$([[ -f "$repo/.floppy/config" ]] && echo 0 || echo 1)"
 assert_eq "router placed"  "0" "$([[ -f "$repo/.agent-memory/MEMORY.md" ]] && echo 0 || echo 1)"
 assert_eq "no quota.lock"  "1" "$([[ -f "$repo/.agent-memory/quota.lock" ]] && echo 0 || echo 1)"
@@ -66,7 +69,7 @@ case "$(printf '%s\n' "$agents_content" | grep -v 'floppy:agents-section')" in
   *) ok "AGENTS.md section has no floppy: prefixed skill reference" ;;
 esac
 
-out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc=$?
+out="$(cd "$repo" && bash "$ROOT/scripts/run" lint 2>&1)"; rc=$?
 assert_rc       "lint is green on empty memory"        0 "$rc"
 assert_contains "missing ratchet warns, not fails"      "quota.lock" "$out"
 case "$out" in
@@ -77,7 +80,7 @@ esac
 # git-init the repo so `status` below has a HEAD to read git/origin state
 # from — it must not need that to find the current-state file it was seeded.
 git -C "$repo" add -A && git -C "$repo" -c user.email=t@t -c user.name=t commit -qm seed
-status_out="$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+status_out="$(cd "$repo" && bash "$ROOT/scripts/run" status 2>&1)"
 case "$status_out" in
   *"nothing for /start to read"*)
     fail "status finds the seeded current-state file" "no 'nothing for /start to read'" "$status_out" ;;
@@ -85,7 +88,7 @@ case "$status_out" in
 esac
 
 # ---------- idempotence: full status + checksums of every touched file ----------
-touched="$repo/.floppy/run $repo/.floppy/config $repo/.agent-memory/MEMORY.md $repo/.gitignore $repo/AGENTS.md $repo/docs/statuses/NOW.md"
+touched="$repo/.floppy/config $repo/.agent-memory/MEMORY.md $repo/.gitignore $repo/AGENTS.md $repo/docs/statuses/NOW.md"
 before_status="$(cd "$repo" && git status --porcelain)"
 before_sums=""
 for f in $touched; do before_sums="$before_sums$(md5_of "$f")"; done
@@ -139,7 +142,7 @@ assert_contains "custom dir: config carries brain"     "memory_dir=brain"    "$(
 assert_contains "custom dir: config carries language"  "memory_language=ru" "$(cat "$repo3/.floppy/config")"
 assert_contains "custom dir: gitignore uses brain"     "/brain/private"      "$(cat "$repo3/.gitignore")"
 
-out3="$(cd "$repo3" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rc3=$?
+out3="$(cd "$repo3" && bash "$ROOT/scripts/run" lint 2>&1)"; rc3=$?
 assert_rc "custom dir: lint is green" 0 "$rc3"
 
 rm -rf "$repo3"
