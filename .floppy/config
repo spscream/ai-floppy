@@ -4,7 +4,7 @@ memory_dir=.agent-memory
 memory_language=en
 
 # This repository does not hold its own memory: memory_dir is a symlink into
-# the store below. Wire it on each machine with "bash .floppy/run store".
+# the store below. Wire it on each machine with floppy's "store" verb.
 public_repo=git@github.com:spscream/ai_floppy_memory.git
 # One key, not two: project_key is the default of both memory_project_key and
 # workplace_project_key, so the project is named the same in every store it
@@ -23,11 +23,11 @@ private_repo=git@github.com:spscream/agents_memory.git
 # clone of its own instead of sharing the derived one: a live session of
 # another project (measured 2026-09-13: vps_inventory) held its half-written
 # status file dirty in the shared tree at the moment this project's wrap
-# synced. A new machine runs "bash .floppy/run workplace" once and gets the
+# synced. A new machine runs the "workplace" verb once and gets the
 # same layout — the leading ~ resolves to that machine's home (0.24.1).
 workplace_memory_dir=~/agents_memory/.clones/agents_memory--ai_floppy
 
-# commit_push controls what "bash .floppy/run commit" does after committing:
+# commit_push controls what the "commit" verb does after committing:
 # auto (default) pulls --rebase then pushes, same as always. A repository
 # with no upstream configured fails that every time — set commit_push=never
 # to keep every commit local instead (the --no-push flag does this per call).
@@ -44,7 +44,7 @@ workplace_memory_dir=~/agents_memory/.clones/agents_memory--ai_floppy
 # may write only the status file. wrap-guard matches these by prefix, so a
 # nested path needs no code change.
 watched_dirs=docs/statuses
-watched_files=AGENTS.md,.floppy/run,.floppy/config
+watched_files=AGENTS.md,.floppy/config
 
 # A metric that got worse stays in the current-state file, marked. The mark is
 # the word the file is written in, and this memory is English.
