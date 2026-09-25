@@ -132,12 +132,18 @@ Run `init` one time in each repository.
 
 `init` then does all of these steps:
 
-- writes `.floppy/config`. It is the only file `init` puts there, and the
-  only one you commit; `heat` later writes a `.floppy/heat.log` beside it and
-  ignores it in `.git/info/exclude`, never in your `.gitignore`. The log is
-  machine-local, and so is the rule that hides it: an ignore line committed
-  for it would leave every clone's tree dirty on a file `wrap` refuses to
-  commit. Your repository carries data, not code.
+- writes `.floppy/config`. It is the only file `init` puts there; `heat` later
+  writes a `.floppy/heat.log` beside it and ignores it in
+  `.git/info/exclude`, never in your `.gitignore`. Both the log and the rule
+  that hides it are machine-local, and that is the point: the first release of
+  `heat` appended to `.gitignore` instead, so the first call on every machine
+  left `.gitignore` modified — and `wrap`'s guard refuses to commit
+  `.gitignore`, which made every wrap after the first read "won't commit:
+  .gitignore". You may of course commit a rule of your own; `heat` then sees
+  the log is already ignored and writes nothing. The plugin puts no code in
+  `.floppy/` — the one executable that may live there is
+  `workstatus-project.sh`, which is yours to write and yours to commit if you
+  want it on every machine (see the `workstatus` skill).
 - creates the memory index `MEMORY.md` — in `<memory_dir>` of this repository
   when the memory lives here, and in the store's scope for this project when
   `.floppy/config` names a store. From 0.27.0 nothing of that name is created
