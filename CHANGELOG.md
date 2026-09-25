@@ -4,19 +4,82 @@ Why this file exists, in one line: **`plugin update` compares version strings
 and copies nothing while the version is unchanged**, so the version here is
 load-bearing, and a consumer needs to know whether an update is worth taking.
 
-One column matters more than the rest and is called out per release:
+One column mattered more than the rest and is called out per release:
 
-> **Refresh `.floppy/run`?** — `.floppy/run` is a *copy* in your repository,
-> not a link, and no plugin update ever touches it. When a release changes the
-> shim, updating the plugin is only half the job:
-> `cp "$FLOPPY_ROOT/shim/run" .floppy/run`. Since 0.2.1 the shim notices this
-> itself and prints the command; before that it was silent.
+> **Refresh `.floppy/run`?** — until 0.26.0, `.floppy/run` was a *copy* in your
+> repository, not a link, and no plugin update ever touched it. When a release
+> changed the shim, updating the plugin was only half the job:
+> `cp "$FLOPPY_ROOT/shim/run" .floppy/run`. Since 0.2.1 the shim noticed this
+> itself and printed the command; before that it was silent.
 >
-> Since 0.14.0 the answer is usually **no**. The copy holds only the search for
-> the plugin; verbs, config keys and defaults live in the plugin and arrive with
-> `plugin update`. A release says **yes** here only when that search changes.
+> Since 0.14.0 the answer was usually **no**: the copy held only the search for
+> the plugin, and verbs, config keys and defaults arrived with `plugin update`.
+> Since 0.26.0 there is nothing to refresh — the skills call the plugin's
+> dispatcher by path and `init` puts no runner in your repository. The line is
+> kept in every entry because a repository created before 0.26.0 still carries
+> its copy, and the answer for it is still worth stating.
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
+
+## 0.26.0 — 2026-09-25
+
+**Refresh `.floppy/run`: no — there is nothing left to refresh.** A repository
+that already carries a copy keeps working; a repository created from here on
+never gets one.
+
+### The runner leaves your repository
+
+Every `init` before this release copied `shim/run` into the consumer as
+`.floppy/run`, and every skill, document and status note named that path. The
+copy existed for one reason: a skill had no way to say where the plugin was, so
+something inside the repository had to search for it.
+
+It does have a way. A harness states the skill's own base directory above the
+skill text — `Base directory for this skill: <plugin>/skills/workstatus` — and
+the plugin directory is two levels above that (measured in Claude Code on
+2026-09-22, on this plugin and one other). So the skills now call
+`bash <plugin>/scripts/run <verb>` directly, and `scripts/run` derives
+`FLOPPY_ROOT` from its own `${BASH_SOURCE[0]}` instead of being handed it. A
+direct call needs no variable: `bash <plugin>/scripts/run status` works with an
+empty environment.
+
+What follows from that:
+
+- **`init` writes `.floppy/config` and nothing else.** Your repository carries
+  data, not code. Its refusal when the plugin had no `shim/run` is gone with
+  the copy it guarded.
+- **`skills/init/SKILL.md` drops its hand copy of the plugin search** — 33
+  lines that existed because `init` ran before `.floppy/run` existed. The test
+  that executed that fenced block (`tests/test-init-bootstrap.sh`) goes with
+  it; `tests/test-skills.sh` now asserts instead that no skill names
+  `.floppy/run` and that a skill using `<plugin>` says where it comes from.
+- **`shim/run` still ships, byte for byte.** It is what a pre-0.26.0 consumer
+  calls, and it `cmp`s itself against the plugin's copy — so any edit here
+  would tell every one of those repositories that their copy is stale. It is
+  deliberately left untouched.
+
+### Migrating a repository you already have
+
+Nothing breaks if you do nothing: `.floppy/run` still finds the plugin and
+still runs the verb. Nothing in the plugin calls it any more, so when you want
+it gone:
+
+```bash
+git rm .floppy/run
+```
+
+In the same commit, correct the line in `AGENTS.md` that names `.floppy/run` as
+the entry point — the verbs are run from the plugin now:
+`bash <plugin>/scripts/run <verb>`, where `<plugin>` is two directories above
+the base directory the harness states. A later `init` prints a reminder when it
+sees the old line, and prints one more when it finds the leftover file.
+
+### The command a human typed
+
+There isn't one, and that is the measurement: the operator of the six
+repositories that use floppy reports never having typed `.floppy/run` by hand.
+The surface is dropped rather than replaced; no `AI_FLOPPY_HOME` recipe and no
+cache path with a version in its last segment is invented to stand in for it.
 
 ## 0.25.1 — 2026-09-18
 
