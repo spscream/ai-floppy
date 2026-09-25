@@ -30,8 +30,12 @@ set -uo pipefail
 # absolute path — pasteable from wherever the reader is standing. scripts/run
 # exports FLOPPY_RUN; a direct call (the tests make them) derives the same
 # value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
 floppy_run="${FLOPPY_RUN:-}"
-[[ -n "$floppy_run" ]] || floppy_run="bash $(cd "$(dirname "$0")" && pwd)/run"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 # The cd is guarded because this script writes: a stale FLOPPY_REPO landing
 # in `pwd` would append the log into whatever repository the shell happens to
 # sit in, with rc 0 (review 2026-09-13, finding 8).

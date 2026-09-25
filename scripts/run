@@ -37,6 +37,15 @@ set -uo pipefail
 # this one dispatches, which is the "a script that had just been fixed was
 # reported as still broken" failure shim/run's own header records. The path a
 # call was made through is the truth about which copy is running.
+# CDPATH, exported with a relative entry in it, makes `cd` print the directory
+# it found on stdout. Inside the substitution below that lands in FLOPPY_ROOT,
+# which then holds two lines and sources nothing. Measured 2026-09-25, 3/3:
+# with CDPATH=.:/tmp, `bash scripts/run status` — the relative spelling
+# CLAUDE.md documents — died in lib-config.sh and blamed the install
+# ("Reinstall the plugin"), which was not the cause. Unset rather than worked
+# around here, because it is then gone from what every verb inherits too.
+unset CDPATH
+
 FLOPPY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 export FLOPPY_ROOT
 

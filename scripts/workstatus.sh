@@ -29,8 +29,12 @@ set -uo pipefail
 # absolute path — pasteable from wherever the reader is standing. scripts/run
 # exports FLOPPY_RUN; a direct call (the tests make them) derives the same
 # value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
 floppy_run="${FLOPPY_RUN:-}"
-[[ -n "$floppy_run" ]] || floppy_run="bash $(cd "$(dirname "$0")" && pwd)/run"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 repo="$(pwd)"
