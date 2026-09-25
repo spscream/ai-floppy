@@ -24,6 +24,14 @@
 # UTC date, same as metadata.as_of: a local-evening stamp is tomorrow for the
 # CI that reads it, and the memory already paid for that lesson once.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+floppy_run="${FLOPPY_RUN:-}"
+[[ -n "$floppy_run" ]] || floppy_run="bash $(cd "$(dirname "$0")" && pwd)/run"
 # The cd is guarded because this script writes: a stale FLOPPY_REPO landing
 # in `pwd` would append the log into whatever repository the shell happens to
 # sit in, with rc 0 (review 2026-09-13, finding 8).
@@ -41,7 +49,7 @@ MAX_LINES=5000
 KEEP_LINES=4000
 
 if [[ $# -eq 0 ]]; then
-  echo "usage: bash .floppy/run heat <note-slug> [<note-slug>...]" >&2
+  echo "usage: $floppy_run heat <note-slug> [<note-slug>...]" >&2
   echo "  Call it when a note is actually opened, with the note's slug" >&2
   echo "  (the filename without .md). The log feeds lint's cold-note report." >&2
   exit 2
@@ -50,8 +58,8 @@ fi
 # The ignore line goes into .git/info/exclude, never the consumer's
 # .gitignore: the first release of this verb edited .gitignore, and the first
 # call left the tree permanently dirty on a file wrap's guard refuses to
-# commit — `bash .floppy/run guard .gitignore` exits 1, so every wrap after
-# the first read "won't commit: .gitignore" forever (review 2026-09-13,
+# commit — `guard .gitignore` exits 1, so every wrap after the first
+# read "won't commit: .gitignore" forever (review 2026-09-13,
 # finding 1). The exclude file is machine-local like the log itself, which is
 # also why writing it needs no one's review. The check is per-file — the log
 # AND the rotation temp file — because a consumer's own `*.log` covers the

@@ -40,9 +40,9 @@
 # clones. This does not lock it: one lock per rite, following the memory that
 # every wrap writes, rather than a lock per repository the rite can touch.
 #
-#   bash .floppy/run lock acquire "denoise eval"   # 0 = taken, 1 = held
-#   bash .floppy/run lock release
-#   bash .floppy/run lock status
+#   bash <plugin>/scripts/run lock acquire "denoise eval"  # 0 taken, 1 held
+#   bash <plugin>/scripts/run lock release
+#   bash <plugin>/scripts/run lock status
 #
 # WRAP_LOCK_MAX_AGE_MIN (default 30) — after this age the lock is considered
 # abandoned and can be taken over. A /wrap takes minutes, not half an hour.

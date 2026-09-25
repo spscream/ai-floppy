@@ -17,9 +17,12 @@
 #
 # Output is English on purpose: the tool is reusable, the memory is not.
 #
-#   bash .floppy/run workplace                     wire it up (idempotent)
-#   bash .floppy/run workplace --migrate-local     plan the migration, change nothing
-#   bash .floppy/run workplace --migrate-local --apply    carry the plan out
+#   bash <plugin>/scripts/run workplace
+#       wire it up (idempotent)
+#   bash <plugin>/scripts/run workplace --migrate-local
+#       plan the migration, change nothing
+#   bash <plugin>/scripts/run workplace --migrate-local --apply
+#       carry the plan out
 #
 # --migrate-local exists for the machine that lagged behind: there `local/` is
 # still a real directory of notes, written before the workplace repository
@@ -32,6 +35,14 @@
 # or cross/ is a judgement about where the fact is true, and a script that
 # guessed it would file things where nobody looks for them.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+floppy_run="${FLOPPY_RUN:-}"
+[[ -n "$floppy_run" ]] || floppy_run="bash $(cd "$(dirname "$0")" && pwd)/run"
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 migrate=0
@@ -142,7 +153,7 @@ elif [[ -e "$link" ]]; then
   if [[ $migrate -eq 0 ]]; then
     echo "x a real directory sits where the symlink belongs. Memory files in it: $n."
     echo "  This is the lagging-machine case. To see what a migration would do:"
-    echo "      bash .floppy/run workplace --migrate-local"
+    echo "      $floppy_run workplace --migrate-local"
     echo "  Nothing is moved until you add --apply."
     exit 1
   fi
@@ -192,7 +203,7 @@ elif [[ -e "$link" ]]; then
   fi
   if [[ $apply -eq 0 ]]; then
     echo
-    echo "   to carry this out: bash .floppy/run workplace --migrate-local --apply"
+    echo "   to carry this out: $floppy_run workplace --migrate-local --apply"
     echo
     echo "   'move' is not the end of the job. Everything lands in projects/<key>/"
     echo "   because that is what local/ was; deciding that a note actually belongs"
@@ -258,7 +269,7 @@ for legacy_name in local; do
 done
 
 # ---------- the link itself must not be committed ----------
-# With a store (`bash .floppy/run store`), memory_dir is already a symlink, so
+# With a store (the `store` verb), memory_dir is already a symlink, so
 # this link is created INSIDE the store's working tree. It holds an absolute
 # path, and committed it dangles on any machine whose checkout lives at another
 # path — measured 2026-08-25, together with the recursion it opens

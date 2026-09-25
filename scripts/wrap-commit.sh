@@ -19,8 +19,8 @@
 #
 # Output is English on purpose: the wrap-* scripts are portable.
 #
-#   bash .floppy/run commit -m "message" <file> [file...]
-#   bash .floppy/run commit -m "message" --no-push <file> [file...]
+#   bash <plugin>/scripts/run commit -m "message" <file> [file...]
+#   bash <plugin>/scripts/run commit -m "message" --no-push <file> [file...]
 #
 # commit_push in .floppy/config (default "auto") picks what happens after the
 # commit: "auto" pulls --rebase then pushes, same as always; "never" skips
@@ -33,6 +33,14 @@
 #
 # Runs on macOS bash 3.2: no mapfile, no declare -A, no GNU-only flags.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+floppy_run="${FLOPPY_RUN:-}"
+[[ -n "$floppy_run" ]] || floppy_run="bash $(cd "$(dirname "$0")" && pwd)/run"
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
@@ -59,7 +67,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$msg" ]]; then
-  echo "no message: bash .floppy/run commit -m \"message\" <file> [file...]"
+  echo "no message: $floppy_run commit -m \"message\" <file> [file...]"
   echo "  the message is about the substance of the facts, not \"updated memory\""
   exit 2
 fi
@@ -104,7 +112,7 @@ trap unlock EXIT
 # ---------- gates ----------
 hr "gates"
 if ! bash "$here/memory-lint.sh" >/dev/null 2>&1; then
-  echo "  memory lint is red — run bash .floppy/run check with your file list"
+  echo "  memory lint is red — run $floppy_run check with your file list"
   exit 1
 fi
 guard_out="$(bash "$here/wrap-guard.sh" "${files[@]}" 2>&1)"
