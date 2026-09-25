@@ -30,9 +30,10 @@ Cursor, a local checkout, and what to do when an update copies nothing:
 
 ## Then
 
-Run `init` once in each repository. It writes `.floppy/run` and
-`.floppy/config`, creates the memory index and the state file, and points your
-`AGENTS.md` at the conventions.
+Run `init` once in each repository. It writes `.floppy/config`, creates the
+memory index and the state file, and points your `AGENTS.md` at the
+conventions. It puts no code in your repository: the commands are run from the
+plugin.
 
 Six skills: `init`, `agent-memory`, `start`, `workstatus`, `wrap`,
 `consolidate`. What each one does: [The six skills](docs/guide/skills.md).
@@ -81,9 +82,10 @@ reports, it does not gate.
 
 ## Releases
 
-See [CHANGELOG.md](CHANGELOG.md). For each release it answers one question that
-you cannot answer without it: does this update also need a new copy of the shim
-file? `.floppy/run` is a copy, and no plugin update changes it.
+See [CHANGELOG.md](CHANGELOG.md). Up to 0.26.0 each release answered one
+question you could not answer without it: does this update also need a new copy
+of the shim file in your repository? Since 0.26.0 there is no copy, and the
+answer is always no.
 
 ## License
 

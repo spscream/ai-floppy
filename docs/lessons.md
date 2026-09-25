@@ -86,7 +86,7 @@ Wrap acquired work rather than shedding it.
 is not the cheap thing":
 
 - *"The verbs that replaced the scripts are 3.6% of all turns, so the mechanical
-  half of wrap is nearly free."* On the billed unit, `.floppy/run` verbs are
+  half of wrap is nearly free."* On the billed unit, floppy's verbs are
   **5.1 turns per run — 23% of all turns**, the largest single category, ahead of
   note edits (3.9), other `Bash` (4.0) and state-file edits (2.6). About half of
   it is redundant: runs call `lint`, `guard` and `status` **on top of** `check`,

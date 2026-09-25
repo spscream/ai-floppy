@@ -21,17 +21,29 @@
 # Output is English on purpose: the wrap-* and memory-* scripts are portable
 # and will one day leave for a project of their own. The memory is not.
 #
-#   bash .floppy/run check <file> [file...]
+#   bash <plugin>/scripts/run check <file> [file...]
 #
 # Exit 0 only when the memory is clean AND the file list survives the guard.
 # Runs on macOS bash 3.2: no mapfile, no declare -A, no GNU-only flags.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
+floppy_run="${FLOPPY_RUN:-}"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 if [[ $# -eq 0 ]]; then
   echo "no files given: pass the files this session wrote"
-  echo "  bash .floppy/run check <file> [file...]"
+  echo "  $floppy_run check <file> [file...]"
   exit 2
 fi
 
@@ -59,7 +71,7 @@ else
   lint_n=$(echo "$lint_out" | grep -cE '^  x')
   echo "  MEMORY LINT IS RED, $lint_n problem(s) — fix yours, name someone else's and leave it"
   echo "$lint_out" | grep -E '^  x' | head -8
-  [[ "$lint_n" -gt 8 ]] && echo "    ... and $((lint_n - 8)) more: bash .floppy/run lint"
+  [[ "$lint_n" -gt 8 ]] && echo "    ... and $((lint_n - 8)) more: $floppy_run lint"
 fi
 # Warnings print in both branches: a note over the cap is a fact about the
 # memory, not a consequence of an error, and it would vanish with the green
@@ -72,7 +84,7 @@ guard_out="$(bash "$here/wrap-guard.sh" "$@" 2>&1)"
 if [[ $? -ne 0 ]]; then
   rc=1
   echo "$guard_out" | grep -E '^  x' | head -10
-  echo "  (full report: bash .floppy/run guard <your files>)"
+  echo "  (full report: $floppy_run guard <your files>)"
 else
   echo "$guard_out" | grep -E '^safe to stage' | sed 's/^/  /'
 fi
@@ -108,7 +120,7 @@ if [[ "${FLOPPY_MEMORY_EXTERNAL:-0}" == "1" ]]; then
     st_ahead=$(git -C "$st" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
     [[ "$st_ahead" != "0" && "$st_ahead" != "?" ]] && echo "  $st_ahead commit(s) unpushed there"
     # `commit` closes it too, so this is information, not a chore for the human.
-    echo "  (bash .floppy/run commit closes this store as well as this repository)"
+    echo "  ($floppy_run commit closes this store as well as this repository)"
   fi
 fi
 
@@ -127,7 +139,7 @@ if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
   hr "workplace memory"
   wp="${FLOPPY_WORKPLACE_MEMORY_DIR:-$HOME/agents_memory}"
   if [[ ! -d "$wp/.git" ]]; then
-    echo "  not wired: no $wp — bash .floppy/run workplace"
+    echo "  not wired: no $wp — $floppy_run workplace"
   else
     # Several projects share this clone, so its dirt is counted in two piles:
     # this project's own paths — its scope and the common namespace — are what
@@ -162,7 +174,7 @@ fi
 
 printf '\n'
 if [[ $rc -eq 0 ]]; then
-  echo "ready: bash .floppy/run commit -m \"<message>\" <the same files>"
+  echo "ready: $floppy_run commit -m \"<message>\" <the same files>"
 else
   echo "not ready: fix the red sections above, then run this again"
 fi

@@ -81,37 +81,45 @@ To correct this, do one of these steps:
 - Increase the version number in `.claude-plugin/plugin.json`.
 - Remove the plugin, then install it again.
 
-`.floppy/run` refuses a cache directory that contains no `scripts/*.sh` file.
-This gives a clear message instead of a later "No such file or directory".
+A cached copy with no `scripts/*.sh` file in it is a broken install. Until
+0.26.0 the copy in your repository searched for the plugin and refused such a
+directory with a clear message. A call that uses the path the harness states
+checks nothing first, so the error is `No such file or directory` on
+`<plugin>/scripts/run`. The answer is the same: install the plugin again.
 
-### 2. The shim file in your repository
+### 2. How a command is run
 
-`.floppy/run` is a copy of a file in the plugin. It is not a link. A plugin
-update does not change it. Git moves it with your repository.
+Since 0.26.0 your repository holds no runner. The commands live in the plugin
+and are called by path:
 
-Thus `.floppy/run` can be older than the plugin. On a second machine it can
-also be newer than the plugin.
+```bash
+bash <plugin>/scripts/run status
+```
 
-Since 0.14.0 this matters much less. The file does one thing: it finds the
-plugin and gives the call to it. The commands and the configuration keys are
-in the plugin. A new command, a new key or a new default reaches your
-repository with a plugin update alone. You do not copy the file again for them.
+`<plugin>` is the plugin directory. The agent is told it: when a harness loads
+a floppy skill, it states the base directory of that skill above the skill
+text — `Base directory for this skill: <plugin>/skills/workstatus`. The plugin
+directory is two levels above that. Measured in Claude Code on 2026-09-22, for
+this plugin and for one other.
 
-One thing still travels in the copy: the search for the plugin. If that search
-changes, an old copy can fail to find a plugin that is there. This failure is
-loud. It says `floppy plugin not found` and names the install commands.
+The dispatcher finds its own directory from its own path, so the call needs no
+variable and no file in your repository.
 
-At each call, `.floppy/run` compares itself with the file in the plugin. If the
-two files are different, it prints one line on stderr. That line contains the
-`cp` command that corrects the copy.
+**A repository from before 0.26.0 still works.** The plugin still ships
+`shim/run`, and a `.floppy/run` that an older `init` copied there still finds
+the plugin and runs the command. Nothing in the plugin calls it any more. To
+remove it:
 
-The correction is a `cp` command, not a floppy command. This is deliberate. A
-shim file that is old enough to need a correction does not know the new
-commands.
+```bash
+git rm .floppy/run
+```
 
-**Caution:** a plugin older than the copy is now a full stop, not a partial
-one. A plugin from before 0.14.0 has no dispatcher, so no command runs against
-it. The message says so and names the plugin directory it used.
+In the same commit, correct your `AGENTS.md` if it names `.floppy/run` as the
+entry point. A later `init` prints a reminder when it sees that line.
+
+**Caution:** a plugin older than the copy is a full stop. A plugin from before
+0.14.0 has no dispatcher, so no command runs against it. The message says so
+and names the plugin directory it used.
 
 ## `init`
 
@@ -124,9 +132,9 @@ Run `init` one time in each repository.
 
 `init` then does all of these steps:
 
-- copies the shim file to `.floppy/run`. This is the only file that the plugin
-  puts in your repository.
-- writes `.floppy/config`.
+- writes `.floppy/config`. It is the only file `init` puts there, and the
+  only one you commit; `heat` later writes a `.floppy/heat.log` that
+  `.gitignore` covers. Your repository carries data, not code.
 - creates the memory index `<memory_dir>/MEMORY.md`.
 - creates the state file `docs/statuses/NOW.md`.
 - adds the private memory scope to `.gitignore`. That path becomes a symlink

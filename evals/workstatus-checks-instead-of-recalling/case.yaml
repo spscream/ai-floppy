@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: workstatus-checks-instead-of-recalling
 description: >-
-  `workstatus` exists to report what is true right now, by running
-  `bash .floppy/run status` and describing what it printed — never by retelling
-  the documents. The fixture's current-state file is deliberately stale and
-  contradicts the shim on every fact, so an answer built from the file and an
+  `workstatus` exists to report what is true right now, by running floppy's
+  `status` verb and describing what it printed — never by retelling the
+  documents. The fixture's current-state file is deliberately stale and
+  contradicts the run on every fact, so an answer built from the file and an
   answer built from the command are told apart by their content alone.
 tags:
   - workstatus
@@ -30,15 +30,27 @@ graders:
     input_match: '"skill"\s*:\s*"(?:[\w-]+:)?workstatus"'
     arm: with-only
 
-  # The command the skill is built around.
+  # The command the skill is built around. Two spellings, because 0.26.0
+  # changed which one the skill names: the dispatcher in the plugin
+  # (`<plugin>/scripts/run status`, what the skill says now) and the copy in
+  # the consumer's repository (`.floppy/run status`, what every consumer
+  # carried until then and what this fixture's stand-in still answers to).
+  # Grading the spelling rather than the act is what made this grader red on a
+  # change that was about nothing else; either path is the command being run.
+  #
+  # Widening it does NOT make the case passable again. The model now runs the
+  # real dispatcher, which never reaches the stand-in this scaffold writes to
+  # .floppy/run, so the invented fact the other graders look for is not
+  # printed. The fixture work that would fix it is named in evals/README.md;
+  # these cases are unrun by decision (2026-09-17) and nothing turned red.
   - type: tool_used
-    name: the-shim-was-actually-run
+    name: the-dispatcher-was-actually-run
     tool: Bash
-    input_match: '"command"\s*:\s*"[^"]*\.floppy/run[^"]*status'
+    input_match: '"command"\s*:\s*"[^"]*(?:scripts/run|\.floppy/run)[^"]*status'
     min: 1
     weight: 3
 
-  # `corpus-reindex` is printed by the shim and appears nowhere in the
+  # `corpus-reindex` is printed by the run and appears nowhere in the
   # repository's documents. An answer that names it was built from the run; an
   # answer that does not was built from something else.
   - type: regex
@@ -74,7 +86,7 @@ graders:
          events as if true is not.
 
 expected_outcome: |
-  `bash .floppy/run status` is run, and the report is a retelling of what it
+  floppy's `status` verb is run, and the report is a retelling of what it
   printed — the running `corpus-reindex` job, the `fix/lock-takeover` branch,
   three uncommitted files — with the stale document either unmentioned or
   named as stale.

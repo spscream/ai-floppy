@@ -20,8 +20,8 @@
 # The script is idempotent: a second run on a configured machine changes nothing.
 # Output is English on purpose: the tool is reusable, the memory is not.
 #
-#   bash .floppy/run link                wire it up (idempotent)
-#   bash .floppy/run link --check        report only, change nothing
+#   bash <plugin>/scripts/run link                wire it up (idempotent)
+#   bash <plugin>/scripts/run link --check        report only, change nothing
 #
 # --check exists so that a status report can ask the question without being
 # able to answer it. This is the one wiring step whose absence is silent: an
@@ -30,6 +30,18 @@
 # in exactly one place — here — so a checker must call this script rather than
 # repeat the rule and drift from it.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
+floppy_run="${FLOPPY_RUN:-}"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 check_only=0
@@ -104,7 +116,7 @@ if [[ $check_only -eq 1 ]]; then
     echo "x a real directory sits where the memory symlink belongs ($link) — forked memory, sort it out by hand"
     exit 1
   else
-    echo "x memory is not wired on this machine — run: bash .floppy/run link"
+    echo "x memory is not wired on this machine — run: $floppy_run link"
     exit 1
   fi
 fi

@@ -12,8 +12,8 @@
 # too hard and the report stops catching the thing it exists for — a stuck
 # process, a divergence from origin, a stray hook.
 #
-#   bash .floppy/run status
-#   bash .floppy/run status --flow   # plus the state of the process half
+#   bash <plugin>/scripts/run status
+#   bash <plugin>/scripts/run status --flow   # plus the process half's state
 #
 # The project half of this report — anything that names this particular
 # project's data or stands (servers, corpora, a build system) — is not here.
@@ -23,6 +23,18 @@
 # `ps --no-headers`, `ss`, or `timeout` without a fallback — all GNU-only, and
 # on a Mac the report would otherwise turn silently into a wall of errors.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
+floppy_run="${FLOPPY_RUN:-}"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 repo="$(pwd)"
@@ -177,9 +189,9 @@ if [[ -n "${FLOPPY_WORKPLACE_REPO:-}" ]]; then
   # it keeps this section honest on a repository mid-migration.
   priv="${FLOPPY_MEMORY_PRIVATE_DIR:-${FLOPPY_MEMORY_LOCAL_DIR:-private}}"
   if [[ ! -d "$wp/.git" ]]; then
-    echo "  not wired: no $wp — bash .floppy/run workplace"
+    echo "  not wired: no $wp — $floppy_run workplace"
   elif [[ ! -L "$mem_dir/$priv" ]]; then
-    echo "  repository exists, but $mem_dir/$priv is not a symlink — bash .floppy/run workplace"
+    echo "  repository exists, but $mem_dir/$priv is not a symlink — $floppy_run workplace"
   else
     wp_dirty=$(git -C "$wp" status --porcelain | wc -l | tr -d ' ')
     wp_ahead=$(git -C "$wp" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')
@@ -269,7 +281,7 @@ if [[ $FLOW -eq 1 ]]; then
     lint_n=$(echo "$lint_out" | grep -cE '^  x')
     echo "  MEMORY LINT IS RED, $lint_n problem(s) — fix before touching memory further"
     echo "$lint_out" | grep -E '^  x' | head -8 | sed 's/^/  /'
-    [[ "$lint_n" -gt 8 ]] && echo "    ... and $((lint_n - 8)) more: bash .floppy/run lint"
+    [[ "$lint_n" -gt 8 ]] && echo "    ... and $((lint_n - 8)) more: $floppy_run lint"
   fi
   # Warnings print in both branches: on a red run they would otherwise vanish
   # along with the green branch, and a note over its cap is a fact about the
@@ -327,12 +339,12 @@ if [[ $FLOW -eq 1 ]]; then
   hr "process: lock and worktrees"
   echo "  wrap lock: $(bash "$here/wrap-lock.sh" status 2>&1 | head -1)"
   # An extra worktree is a separate memory directory, and without its own
-  # bash .floppy/run link a session there writes memory past the repository,
+  # `link` a session there writes memory past the repository,
   # silently. So the list prints only when there is more than one — a single
   # worktree is the normal case, not news.
   wt_n=$(git worktree list 2>/dev/null | wc -l | tr -d ' ')
   if [[ "${wt_n:-1}" -gt 1 ]]; then
-    echo "  worktrees: $wt_n — each one needs its own bash .floppy/run link"
+    echo "  worktrees: $wt_n — each one needs its own $floppy_run link"
     git worktree list | sed 's/^/    /'
   else
     echo "  worktrees: one, none extra"

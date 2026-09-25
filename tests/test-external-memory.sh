@@ -44,7 +44,7 @@ build() {
   git -C "$store" remote add origin "$storeremote"
   git -C "$store" push -q -u origin main
 
-  repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
+  repo="$(sandbox)"
   cat > "$repo/.floppy/config" <<EOF
 memory_dir=.agent-memory
 statuses_now=state/NOW.md
@@ -71,7 +71,7 @@ run_in() { # repo, then args
   OUT="$(cd "$r" && AI_FLOPPY_HOME="$ROOT" \
     GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t \
     GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-    bash .floppy/run "$@" 2>&1)"
+    bash "$ROOT/scripts/run" "$@" 2>&1)"
   RC=$?
 }
 
@@ -85,7 +85,7 @@ assert_contains "external memory is detected"      "FLOPPY_MEMORY_EXTERNAL=1" "$
 assert_contains "the store's git root is resolved" "FLOPPY_MEMORY_STORE=$store" "$OUT"
 
 # ---------- and does not misfire on the ordinary layout ----------
-plain="$(sandbox)"; cp shim/run "$plain/.floppy/run"
+plain="$(sandbox)"
 mkdir -p "$plain/.agent-memory"
 run_in "$plain" env
 assert_contains "in-repo memory is not called external" "FLOPPY_MEMORY_EXTERNAL=0" "$OUT"
@@ -169,9 +169,9 @@ assert_eq "no memory file landed in the code repository" "" \
 # Still an equality on that line — "contains free" would pass on any output
 # with the word in it, including "held ... this is not free".
 assert_eq "the lock is released" "free" \
-  "$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status | head -1)"
+  "$(cd "$repo" && bash "$ROOT/scripts/run" lock status | head -1)"
 assert_contains "and status names the store as its scope" "$store" \
-  "$(cd "$repo" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lock status)"
+  "$(cd "$repo" && bash "$ROOT/scripts/run" lock status)"
 
 # ---------- a session that wrote only memory still closes ----------
 # Nothing changed in the code repository, so `git add` there would have nothing
@@ -207,7 +207,7 @@ esac
 # store that merely happens to be quiet.
 loose="$(cd "$(mktemp -d)" && pwd -P)"
 seed_memory "$loose"
-repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"
+repo2="$(sandbox)"
 printf 'memory_dir=.agent-memory\n' > "$repo2/.floppy/config"
 printf '/.agent-memory\n' > "$repo2/.gitignore"
 ln -s "$loose" "$repo2/.agent-memory"
@@ -243,7 +243,6 @@ git -C "$B/seed" push -q origin main
 
 pr="$B/repo"; mkdir -p "$pr/.floppy" "$pr/.agent-memory/half" "$pr/docs/statuses" "$B/am"
 git -C "$pr" init -q -b main .
-cp shim/run "$pr/.floppy/run"
 printf 'project_key=acme\nprivate_repo=%s\nagents_memory_dir=%s\nstatuses_now=docs/statuses/NOW.md\ncommit_push=auto\n' \
   "$wpremote" "$B/am" > "$pr/.floppy/config"
 printf '# Index\n- [Half](half/INDEX.md) — pointer\n' > "$pr/.agent-memory/MEMORY.md"
@@ -261,21 +260,21 @@ git -C "$pr" -c user.email=t@t -c user.name=t commit -qm base
 git init -q --bare -b main "$B/code.git"
 git -C "$pr" remote add origin "$B/code.git"; git -C "$pr" push -q -u origin main
 
-(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run workplace >/dev/null 2>&1)
+(cd "$pr" && bash "$ROOT/scripts/run" workplace >/dev/null 2>&1)
 assert_eq "the private scope is wired as a symlink" "link" \
   "$([[ -L "$pr/.agent-memory/private" ]] && echo link || echo no)"
 
 printf -- '---\nname: private-fact\ndescription: a private fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
   > "$pr/.agent-memory/private/private-fact.md"
 
-outP="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check .agent-memory/private/private-fact.md 2>&1)"; rcP=$?
+outP="$(cd "$pr" && bash "$ROOT/scripts/run" check .agent-memory/private/private-fact.md 2>&1)"; rcP=$?
 assert_rc       "check accepts a note written into the private scope" 0 "$rcP"
 case "$outP" in
   *"not changed: wrong path"*) fail "and does not call it unchanged" "no such line" "$outP" ;;
   *)                           ok   "and does not call it unchanged" ;;
 esac
 
-outC="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "a private fact" .agent-memory/private/private-fact.md 2>&1)"; rcC=$?
+outC="$(cd "$pr" && bash "$ROOT/scripts/run" commit -m "a private fact" .agent-memory/private/private-fact.md 2>&1)"; rcC=$?
 assert_rc       "commit closes the workplace repository (rc)" 0 "$rcC"
 assert_contains "and says which repository took it"  "workplace memory" "$outC"
 assert_contains "and reports the push"               "pushed" "$outC"
@@ -290,7 +289,7 @@ assert_eq       "and its tree is clean"                    "" \
 # to the other machine or another session, and the guard has to see it — that
 # is the whole reason it asks that repository at all.
 printf 'stray\n' > "$pr/.agent-memory/private/not-mine.md"
-outS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard .agent-memory/half/a-note.md 2>&1)"; rcS=$?
+outS="$(cd "$pr" && bash "$ROOT/scripts/run" guard .agent-memory/half/a-note.md 2>&1)"; rcS=$?
 assert_rc       "an unclaimed private note is caught (rc)" 1 "$rcS"
 assert_contains "and is named in the path the human typed" \
   ".agent-memory/private/not-mine.md" "$outS"
@@ -300,7 +299,7 @@ rm -f "$pr/.agent-memory/private/not-mine.md"
 printf -- '---\nname: second\ndescription: another private fact\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
   > "$pr/.agent-memory/private/second.md"
 printf '| Notes | 1 | 3 | up |\n' > "$pr/docs/statuses/NOW.md"
-outM="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "both at once" \
+outM="$(cd "$pr" && bash "$ROOT/scripts/run" commit -m "both at once" \
   .agent-memory/private/second.md docs/statuses/NOW.md 2>&1)"; rcM=$?
 assert_rc       "a mixed commit succeeds (rc)" 0 "$rcM"
 assert_contains "the private note is in the workplace remote" "private/projects/acme/second.md" \
@@ -339,7 +338,6 @@ git -C "$T/seed" push -q origin main
 
 tr1="$T/repo"; mkdir -p "$tr1/.floppy" "$tr1/docs/statuses" "$T/am"
 git -C "$tr1" init -q -b main .
-cp shim/run "$tr1/.floppy/run"
 printf 'project_key=acme\npublic_repo=%s\nprivate_repo=%s\nagents_memory_dir=%s\nstatuses_now=docs/statuses/NOW.md\ncommit_push=auto\n' \
   "$bothremote" "$bothremote" "$T/am" > "$tr1/.floppy/config"
 printf '| Notes | 1 | 2 | up |\n' > "$tr1/docs/statuses/NOW.md"
@@ -398,7 +396,6 @@ assert_contains "and the public one too" "public/projects/acme/half/public-fact.
 # shape reaches that honestly: the link exists and points where no git covers.
 tr2="$T/repo2"; mkdir -p "$tr2/.floppy" "$tr2/docs/statuses" "$T/loose"
 git -C "$tr2" init -q -b main .
-cp shim/run "$tr2/.floppy/run"
 printf 'project_key=acme\nstatuses_now=docs/statuses/NOW.md\n' > "$tr2/.floppy/config"
 mkdir -p "$tr2/.agent-memory"
 seed_memory "$tr2/.agent-memory"
@@ -420,14 +417,14 @@ assert_contains "and names the path it resolves to" "$T/loose" "$OUT"
 # environment, so a derivation that pointed anywhere outside the private scope
 # fails here rather than passing against a path this test invented. This is the
 # question "what stays green if it is not wired?" asked of the split itself.
-sp_rel="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run env 2>&1 | sed -n 's/^FLOPPY_STATUSES_PERSONAL=//p')"
+sp_rel="$(cd "$pr" && bash "$ROOT/scripts/run" env 2>&1 | sed -n 's/^FLOPPY_STATUSES_PERSONAL=//p')"
 assert_contains "the resolved personal status is inside the private scope" \
   ".agent-memory/private/machines/" "$sp_rel"
 
 mkdir -p "$pr/$(dirname "$sp_rel")"
 printf '# Mid-way through\n\nThe branch is fresh-branch-push; the guard rewrite is half done.\n' \
   > "$pr/$sp_rel"
-outPS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "where I left off" "$sp_rel" 2>&1)"; rcPS=$?
+outPS="$(cd "$pr" && bash "$ROOT/scripts/run" commit -m "where I left off" "$sp_rel" 2>&1)"; rcPS=$?
 assert_rc       "a personal status commits through the same rite (rc)" 0 "$rcPS"
 assert_contains "and it is the workplace repository that takes it" "workplace memory" "$outPS"
 assert_contains "the personal status reached the workplace remote" \
@@ -440,12 +437,12 @@ assert_eq       "and nothing of it landed in the code repository" "" \
 # proves the status file did not read as a malformed note — but only for the
 # machine this run is on. Assert it directly too: a rc has one bit and this
 # claim is worth its own line.
-outL="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcL=$?
+outL="$(cd "$pr" && bash "$ROOT/scripts/run" lint 2>&1)"; rcL=$?
 assert_rc "the personal status does not turn the memory lint red" 0 "$rcL"
 
 # workstatus names it, so "where are we" does not have to guess whether a
 # working note was left behind.
-outW="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run status 2>&1)"
+outW="$(cd "$pr" && bash "$ROOT/scripts/run" status 2>&1)"
 assert_contains "status reports the personal slice" "personal, modified" "$outW"
 
 # ---------- the cross-project scope reaches the same rite ----------
@@ -470,14 +467,14 @@ assert_eq "and it points at the namespace's common, not the project's scope" \
 printf -- '---\nname: a-shell-trap\ndescription: true in every project, not this one\nmetadata:\n  type: reference\n  evidence: measured\n---\nBody.\n' \
   > "$pr/.agent-memory/common/private/a-shell-trap.md"
 
-outCC="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check .agent-memory/common/private/a-shell-trap.md 2>&1)"; rcCC=$?
+outCC="$(cd "$pr" && bash "$ROOT/scripts/run" check .agent-memory/common/private/a-shell-trap.md 2>&1)"; rcCC=$?
 assert_rc "check accepts a note written into the common scope" 0 "$rcCC"
 case "$outCC" in
   *"not changed: wrong path"*) fail "and does not call it unchanged" "no such line" "$outCC" ;;
   *)                           ok   "and does not call it unchanged" ;;
 esac
 
-outCM="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "a shell trap" \
+outCM="$(cd "$pr" && bash "$ROOT/scripts/run" commit -m "a shell trap" \
   .agent-memory/common/private/a-shell-trap.md 2>&1)"; rcCM=$?
 assert_rc       "commit carries it (rc)" 0 "$rcCM"
 # The path in the remote is the whole point: private/common/, NOT
@@ -491,7 +488,7 @@ assert_eq       "and not in this repository" "" \
 # The guard has to see the other direction too: a change in that scope which
 # this session did not claim belongs to another session or the other machine.
 printf 'stray\n' > "$pr/.agent-memory/common/private/not-mine.md"
-outCS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run guard .agent-memory/half/a-note.md 2>&1)"; rcCS=$?
+outCS="$(cd "$pr" && bash "$ROOT/scripts/run" guard .agent-memory/half/a-note.md 2>&1)"; rcCS=$?
 assert_rc       "an unclaimed common note is caught (rc)" 1 "$rcCS"
 assert_contains "and is named in the path the human typed" \
   ".agent-memory/common/private/not-mine.md" "$outCS"
@@ -501,14 +498,14 @@ rm -f "$pr/.agent-memory/common/private/not-mine.md"
 # eight of the first fifteen turned out to carry no metadata.evidence.
 printf -- '---\nname: unchecked\ndescription: no evidence field\nmetadata:\n  type: reference\n---\nBody.\n' \
   > "$pr/.agent-memory/common/private/unchecked.md"
-outCL="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"; rcCL=$?
+outCL="$(cd "$pr" && bash "$ROOT/scripts/run" lint 2>&1)"; rcCL=$?
 assert_rc       "a common note missing evidence turns the lint red" 1 "$rcCL"
 assert_contains "and the note is named" "common/private/unchecked.md" "$outCL"
 rm -f "$pr/.agent-memory/common/private/unchecked.md"
 
 # ...and the clean line says the scope was checked, rather than reporting a
 # count that silently means something narrower.
-outCL2="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run lint 2>&1)"
+outCL2="$(cd "$pr" && bash "$ROOT/scripts/run" lint 2>&1)"
 assert_contains "the clean line names what else it checked" "in common/" "$outCL2"
 
 # ---------- another project's dirt in the shared clone must not block this one ----------
@@ -531,14 +528,14 @@ printf 'their unfinished edit\n' >> "$wpclone/private/projects/other/note.md"
 # old single count invited exactly that.
 printf -- '---\nname: mine\ndescription: a fact of this project\nmetadata:\n  type: project\n  evidence: read\n---\nBody.\n' \
   > "$pr/.agent-memory/private/mine.md"
-outFS="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run check .agent-memory/private/mine.md 2>&1)"
+outFS="$(cd "$pr" && bash "$ROOT/scripts/run" check .agent-memory/private/mine.md 2>&1)"
 assert_contains "check counts only this project's files as committable" \
   "1 uncommitted change(s)" "$outFS"
 assert_contains "and names the foreign dirt as another project's" \
   "outside this project" "$outFS"
 
 # commit syncs and pushes past the foreign dirt instead of dying on it...
-outFC="$(cd "$pr" && AI_FLOPPY_HOME="$ROOT" bash .floppy/run commit -m "a fact of this project" \
+outFC="$(cd "$pr" && bash "$ROOT/scripts/run" commit -m "a fact of this project" \
   .agent-memory/private/mine.md 2>&1)"; rcFC=$?
 assert_rc       "commit pushes despite another project's dirty file (rc)" 0 "$rcFC"
 assert_contains "and reports the push" "pushed" "$outFC"

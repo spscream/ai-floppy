@@ -19,9 +19,21 @@
 #
 # Exit code 0 means the list matches reality and staging it is safe.
 #
-#   bash .floppy/run guard .agent-memory/foo.md docs/statuses/2026-08-20_status.md
-#   printf '%s\n' "${files[@]}" | bash .floppy/run guard
+#   bash <plugin>/scripts/run guard .agent-memory/foo.md docs/statuses/x.md
+#   printf '%s\n' "${files[@]}" | bash <plugin>/scripts/run guard
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
+floppy_run="${FLOPPY_RUN:-}"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 mem_dir="${FLOPPY_MEMORY_DIR:-.agent-memory}"
@@ -199,7 +211,7 @@ for f in "${claimed[@]}"; do
     # 2026-09-18, and it cost the reader several iterations of checking their
     # own paths before they ran `env` — which is the one place the truth was.
     if [[ "$f" == "$mem_dir/$priv_dir"/* && -n "$priv_real" && -z "$priv_store" ]]; then
-      err "$f — the private scope was never scanned: it resolves to $priv_real, which no store covers. Your path is fine; the wiring is not (bash .floppy/run env, FLOPPY_PRIVATE_STORE)"
+      err "$f — the private scope was never scanned: it resolves to $priv_real, which no store covers. Your path is fine; the wiring is not ($floppy_run env, FLOPPY_PRIVATE_STORE)"
     else
       err "$f — not changed: wrong path, or the edit was lost"
     fi
@@ -228,9 +240,9 @@ done
 if [[ "$external" == "0" && -e "$mem_dir" ]] && git check-ignore -q -- "$mem_dir" 2>/dev/null; then
   hr "memory wiring"
   if [[ -n "${FLOPPY_MEMORY_REPO:-}" && -n "${FLOPPY_MEMORY_PROJECT_KEY:-}" ]]; then
-    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Either drop the ignore line, or finish the external setup so the path resolves into the store (bash .floppy/run store)"
+    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Either drop the ignore line, or finish the external setup so the path resolves into the store ($floppy_run store)"
   else
-    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Drop the ignore line so this repository commits them — or, to host them elsewhere, set public_repo and project_key in .floppy/config first, because without both keys \`bash .floppy/run store\` refuses and cannot be the fix"
+    err "$mem_dir is inside this repository and gitignored: nothing will ever commit these notes. Drop the ignore line so this repository commits them — or, to host them elsewhere, set public_repo and project_key in .floppy/config first, because without both keys \`$floppy_run store\` refuses and cannot be the fix"
   fi
 fi
 

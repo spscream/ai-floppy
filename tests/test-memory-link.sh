@@ -4,16 +4,16 @@ cd "$(dirname "$0")/.."
 . tests/lib.sh
 ROOT="$(pwd)"
 
-repo="$(sandbox)"; cp shim/run "$repo/.floppy/run"
+repo="$(sandbox)"
 echo "memory_dir=brain" > "$repo/.floppy/config"
 mkdir -p "$repo/brain"
 home="$(mktemp -d)"
 
-out="$(cd "$repo" && HOME="$home" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rc=$?
+out="$(cd "$repo" && HOME="$home" bash "$ROOT/scripts/run" link --check 2>&1)"; rc=$?
 assert_rc       "unwired machine fails"       1 "$rc"
 assert_contains "unwired names the fix"       "run link" "$out"
 
-out2="$(cd "$repo" && HOME="$home" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"
+out2="$(cd "$repo" && HOME="$home" bash "$ROOT/scripts/run" link 2>&1)"
 assert_contains "wiring reports success"      "ok" "$out2"
 
 # IMPORTANT 7: this script wires Claude Code's own memory path specifically
@@ -21,7 +21,7 @@ assert_contains "wiring reports success"      "ok" "$out2"
 # so rather than run silently as if it were harness-agnostic.
 assert_contains "wiring says it is Claude-Code-specific" "Cursor" "$out2"
 
-out3="$(cd "$repo" && HOME="$home" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rc3=$?
+out3="$(cd "$repo" && HOME="$home" bash "$ROOT/scripts/run" link --check 2>&1)"; rc3=$?
 assert_rc       "wired machine passes"        0 "$rc3"
 
 # forked memory: a real directory where the symlink belongs
@@ -44,15 +44,15 @@ assert_rc       "wired machine passes"        0 "$rc3"
 # The comment at the bottom of this file called the recomputation deliberate,
 # on the grounds that it "only needs to agree with the script". It stopped
 # agreeing, silently, in the one release that changed the rule.
-repo2="$(sandbox)"; cp shim/run "$repo2/.floppy/run"; mkdir -p "$repo2/.agent-memory"
+repo2="$(sandbox)"; mkdir -p "$repo2/.agent-memory"
 home2="$(mktemp -d)"
-(cd "$repo2" && HOME="$home2" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link >/dev/null 2>&1)
+(cd "$repo2" && HOME="$home2" bash "$ROOT/scripts/run" link >/dev/null 2>&1)
 proj2="$(ls "$home2/.claude/projects" 2>/dev/null)"
 assert_eq "the fork setup wired exactly one project directory" \
   "1" "$(printf '%s\n' "$proj2" | grep -c .)"
 fork="$home2/.claude/projects/$proj2/memory"
 rm -f "$fork"; mkdir -p "$fork"
-out4="$(cd "$repo2" && HOME="$home2" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rc4=$?
+out4="$(cd "$repo2" && HOME="$home2" bash "$ROOT/scripts/run" link --check 2>&1)"; rc4=$?
 assert_rc       "forked memory fails"         1 "$rc4"
 assert_contains "forked memory is named"      "real directory" "$out4"
 
@@ -82,11 +82,10 @@ rm -rf "$repo" "$repo2" "$home" "$home2"
 repoU="$(mktemp -d)/my_project"
 mkdir -p "$repoU/.floppy" "$repoU/brain"
 git -C "$(dirname "$repoU")" init -q -b main "$repoU" 2>/dev/null || git init -q -b main "$repoU"
-cp shim/run "$repoU/.floppy/run"
 echo "memory_dir=brain" > "$repoU/.floppy/config"
 homeU="$(mktemp -d)"
 
-outU="$(cd "$repoU" && HOME="$homeU" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"
+outU="$(cd "$repoU" && HOME="$homeU" bash "$ROOT/scripts/run" link 2>&1)"
 assert_contains "an underscore path wires without complaint" "ok" "$outU"
 
 projU="$(ls "$homeU/.claude/projects" 2>/dev/null)"
@@ -102,7 +101,7 @@ esac
 
 # And the checker agrees with what was just made — the report is the half that
 # was lying, not the link.
-outU2="$(cd "$repoU" && HOME="$homeU" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcU=$?
+outU2="$(cd "$repoU" && HOME="$homeU" bash "$ROOT/scripts/run" link --check 2>&1)"; rcU=$?
 assert_rc "the checker sees the link it just made" 0 "$rcU"
 
 rm -rf "$(dirname "$repoU")" "$homeU"
@@ -116,17 +115,17 @@ rm -rf "$(dirname "$repoU")" "$homeU"
 # sides have to be resolved; in the ordinary layout $mem is a real directory
 # and resolving it changes nothing, which is what the assertions above keep
 # pinned.
-repoS="$(sandbox)"; cp shim/run "$repoS/.floppy/run"
+repoS="$(sandbox)"
 echo "memory_dir=brain" > "$repoS/.floppy/config"
 storeS="$(mktemp -d)/store"; mkdir -p "$storeS"
 ln -s "$storeS" "$repoS/brain"
 homeS="$(mktemp -d)"
 
-outS="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"; rcS=$?
+outS="$(cd "$repoS" && HOME="$homeS" bash "$ROOT/scripts/run" link 2>&1)"; rcS=$?
 assert_rc       "a symlinked memory_dir wires"        0 "$rcS"
 assert_contains "and reports the link it created"     "symlink created" "$outS"
 
-outS2="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcS2=$?
+outS2="$(cd "$repoS" && HOME="$homeS" bash "$ROOT/scripts/run" link --check 2>&1)"; rcS2=$?
 assert_rc       "and the checker calls it wired"      0 "$rcS2"
 case "$outS2" in
   *"points elsewhere"*) fail "and does not call its own link foreign" "no 'points elsewhere'" "$outS2" ;;
@@ -134,8 +133,8 @@ case "$outS2" in
 esac
 
 # Running it twice is the case a consumer actually hits, since `store` prints
-# `next: bash .floppy/run link` and `status` asks the same question afterwards.
-outS3="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link 2>&1)"; rcS3=$?
+# `next: bash "$ROOT/scripts/run" link` and `status` asks the same question afterwards.
+outS3="$(cd "$repoS" && HOME="$homeS" bash "$ROOT/scripts/run" link 2>&1)"; rcS3=$?
 assert_rc       "a second run is idempotent, not a refusal" 0 "$rcS3"
 assert_contains "and says it was already configured"        "already configured" "$outS3"
 
@@ -151,7 +150,7 @@ projS="$(ls "$homeS/.claude/projects" 2>/dev/null)"
 assert_eq "the store layout wired exactly one project directory" \
   "1" "$(printf '%s\n' "$projS" | grep -c .)"
 ln -sfn "$elsewhere" "$homeS/.claude/projects/$projS/memory"
-outS4="$(cd "$repoS" && HOME="$homeS" AI_FLOPPY_HOME="$ROOT" bash .floppy/run link --check 2>&1)"; rcS4=$?
+outS4="$(cd "$repoS" && HOME="$homeS" bash "$ROOT/scripts/run" link --check 2>&1)"; rcS4=$?
 assert_rc       "a link to another directory is still refused" 1 "$rcS4"
 assert_contains "and says where it actually points"           "points elsewhere" "$outS4"
 
@@ -160,11 +159,11 @@ rm -rf "$repoS" "$(dirname "$storeS")" "$homeS" "$elsewhere"
 # workplace: no project defaults left. An unset workplace_project_key must
 # refuse loudly before anything is cloned, symlinked, or moved — a check that
 # fires after a side effect is worse than none.
-repo3="$(sandbox)"; cp shim/run "$repo3/.floppy/run"
+repo3="$(sandbox)"
 mkdir -p "$repo3/.agent-memory"
 home3="$(mktemp -d)"
 
-out5="$(cd "$repo3" && HOME="$home3" AI_FLOPPY_HOME="$ROOT" bash .floppy/run workplace 2>&1)"; rc5=$?
+out5="$(cd "$repo3" && HOME="$home3" bash "$ROOT/scripts/run" workplace 2>&1)"; rc5=$?
 assert_rc       "workplace refuses without project key" 1 "$rc5"
 assert_contains "refusal names the config key"           "workplace_project_key" "$out5"
 assert_eq       "nothing cloned before the refusal"      "absent" "$([[ -e "$home3/agents_memory" ]] && echo exists || echo absent)"
@@ -173,7 +172,7 @@ assert_eq       "no local symlink created either"        "absent" "$([[ -e "$rep
 # even with a project key, an unset repository URL must also refuse before
 # any clone — the second required value guards a different side effect.
 echo "workplace_project_key=test-project" > "$repo3/.floppy/config"
-out6="$(cd "$repo3" && HOME="$home3" AI_FLOPPY_HOME="$ROOT" bash .floppy/run workplace 2>&1)"; rc6=$?
+out6="$(cd "$repo3" && HOME="$home3" bash "$ROOT/scripts/run" workplace 2>&1)"; rc6=$?
 assert_rc       "workplace refuses without repo url"     1 "$rc6"
 assert_contains "refusal names the repo config key"      "private_repo" "$out6"
 assert_eq       "still nothing cloned"                    "absent" "$([[ -e "$home3/agents_memory" ]] && echo exists || echo absent)"

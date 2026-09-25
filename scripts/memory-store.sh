@@ -20,13 +20,25 @@
 # a real directory standing where the symlink belongs — that is memory somebody
 # wrote, and a human decides what happens to it.
 #
-#   bash .floppy/run store            wire it up (idempotent)
-#   bash .floppy/run store --check    report only, change nothing
+#   bash <plugin>/scripts/run store            wire it up (idempotent)
+#   bash <plugin>/scripts/run store --check    report only, change nothing
 #
 # Requires public_repo and memory_project_key in .floppy/config. Neither has a
 # default: a repository that never opted in must not silently write into
 # somebody else's store.
 set -uo pipefail
+
+# How a hint spells a floppy command. The consumer's repository holds no runner
+# of its own since 0.26.0, so a message names this plugin's dispatcher by its
+# absolute path — pasteable from wherever the reader is standing. scripts/run
+# exports FLOPPY_RUN; a direct call (the tests make them) derives the same
+# value from this script's own location.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
+floppy_run="${FLOPPY_RUN:-}"
+# Quoted unconditionally, where scripts/run quotes only a path that needs it:
+# this branch is reached only by a direct call, and there quotes are cheaper
+# than the broken command an unquoted path with a space in it produces.
+[[ -n "$floppy_run" ]] || floppy_run="bash \"$(cd "$(dirname "$0")" && pwd)/run\""
 cd "${FLOPPY_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 repo="$(pwd)"
 
@@ -193,10 +205,10 @@ fi
 # ---------- what is not pushed ----------
 ahead="$(git -C "$dir" rev-list --count '@{u}..HEAD' 2>/dev/null || echo '?')"
 dirty="$(git -C "$dir" status --porcelain | wc -l | tr -d ' ')"
-[[ "$dirty" != "0" ]] && echo "! $dirty uncommitted change(s) in $dir — bash .floppy/run commit closes them"
+[[ "$dirty" != "0" ]] && echo "! $dirty uncommitted change(s) in $dir — $floppy_run commit closes them"
 [[ "$ahead" != "0" && "$ahead" != "?" ]] && echo "! $ahead commit(s) not pushed in $dir — the next machine cannot see them"
 echo
-echo "next: bash .floppy/run link   (the harness's memory directory, per machine and per worktree)"
+echo "next: $floppy_run link   (the harness's memory directory, per machine and per worktree)"
 # The project scope is wired and proven above; a common scope that refused is
 # reported by its own message and carried out in the exit code, so a script
 # calling this verb does not read "ok" over a half-wired memory.

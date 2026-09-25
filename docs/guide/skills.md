@@ -21,18 +21,18 @@ short name. Only the short name is correct in both applications.
   the state file. The agent then finds the half of the memory for this task,
   and reads the guidance and the index of that half. If the repository has no
   memory yet, the agent omits this step. The agent then runs
-  `bash .floppy/run status`, because live facts are more reliable than the
-  documents.
+  `bash <plugin>/scripts/run status`, because live facts are more reliable
+  than the documents.
 - **`workstatus`** — reports the state during a session: git state, difference
   from the remote, background jobs, memory configuration, the workplace memory
   repository, and the age of the state file.
 - **`wrap`** — closes a session. The agent takes the lock. Most facts are notes
   already, written when they appeared; here the agent adds only what is left,
   updates the state file, and records the unfinished work. The agent then runs
-  `bash .floppy/run check`, which changes nothing and shows the lint result,
-  the file-list check, and the diff. Last, the agent runs
-  `bash .floppy/run commit`, which stages, commits, pushes, and releases the
-  lock.
+  `bash <plugin>/scripts/run check`, which changes nothing and shows the lint
+  result, the file-list check, and the diff. Last, the agent runs
+  `bash <plugin>/scripts/run commit`, which stages, commits, pushes, and
+  releases the lock.
 - **`consolidate`** — merges and prunes the memory when a size warning fires,
   or before a limit in `quota.lock` is raised. The agent reads one half of
   the memory, proposes merges, rewrites, and deletions, each with its reason,

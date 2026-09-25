@@ -37,6 +37,18 @@ the reason it is not part of `wrap`: closing is the costliest place to think.
 
 ## The pass
 
+The commands below call floppy's dispatcher, which ships with the plugin and
+has no copy in this repository. The harness names this skill's own base
+directory when it loads it — `Base directory for this skill:
+<plugin>/skills/consolidate` — and the dispatcher is `scripts/run` two
+directories above that. Write that absolute path wherever a command says
+`<plugin>`.
+
+If that line is not there — a harness that does not print it — do not guess a
+cache path. `$CLAUDE_PLUGIN_ROOT` and `$CURSOR_PLUGIN_ROOT` are worth trying
+first, and a checkout the human can name is worth asking for; a guess whose
+failure mode is running the wrong copy of the plugin is worse than stopping.
+
 1. **Pick one half.** The one `lint` warned about, or the largest in its
    by-half breakdown. One half is a bounded read and a bounded diff; "the
    whole memory" is how a consolidation session becomes the bloat it was
@@ -45,7 +57,7 @@ the reason it is not part of `wrap`: closing is the costliest place to think.
    frame every proposal below must fit.
 
 2. **Read the half whole**: its `INDEX.md` (and sub-indexes), then every note
-   it points to. Log the reads honestly — `bash .floppy/run heat <slugs...>`
+   it points to. Log the reads honestly — `bash <plugin>/scripts/run heat <slugs...>`
    in one call — this rite is the one reader for which "I opened everything"
    is true.
 
@@ -78,18 +90,18 @@ the reason it is not part of `wrap`: closing is the costliest place to think.
 5. **Apply what was approved**, by the standing rules: one fact per file;
    the index pointer moves in the same edit as its note; `[[links]]` to a
    merged-away slug are re-pointed at the survivor; the whole-index rewrite
-   happens under the wrap lock (`bash .floppy/run lock acquire consolidate`,
+   happens under the wrap lock (`bash <plugin>/scripts/run lock acquire consolidate`,
    release after), because an index rewrite is where a second writer
    silently loses work.
 
-6. **Re-run `bash .floppy/run lint`.** If the corpus now fits its ceiling,
+6. **Re-run `bash <plugin>/scripts/run lint`.** If the corpus now fits its ceiling,
    the ceiling stays where it is — a successful consolidation that still
    ends in a raise is two contradictory claims in one commit. If nothing
    fit-worthy was found and the ceiling still binds, the raise follows the
    ratchet rule: same commit as the material that needs the room, reason in
    the message, this rite's empty-handed pass named in it.
 
-7. **Close through the shim** — `check`, then `commit` — the same as any
+7. **Close through the dispatcher** — `check`, then `commit` — the same as any
    session that touched the memory. In a store layout the notes move with
    the store section, and a clean `git status` here proves nothing.
 

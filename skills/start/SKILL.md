@@ -1,6 +1,6 @@
 ---
 name: start
-description: Orient a fresh session before touching any file — read the current-state file, the relevant half's own guidance, and that half's memory index, then verify live facts with `bash .floppy/run status` instead of trusting the documents. Use at the start of a session, when picking up a new task or branch of work, or when the user asks to start, orient, or "what's next".
+description: Orient a fresh session before touching any file — read the current-state file, the relevant half's own guidance, and that half's memory index, then verify live facts with the plugin's own `status` verb instead of trusting the documents. Use at the start of a session, when picking up a new task or branch of work, or when the user asks to start, orient, or "what's next".
 ---
 
 # Start
@@ -12,6 +12,17 @@ reads.
 
 See `agent-memory` for what a note, an index, and evidence mean; this skill
 only says which of them to open and in what order.
+
+The commands below call floppy's dispatcher, which ships with the plugin and
+has no copy in this repository. The harness names this skill's own base
+directory when it loads it — `Base directory for this skill:
+<plugin>/skills/start` — and the dispatcher is `scripts/run` two directories
+above that. Write that absolute path wherever a command says `<plugin>`.
+
+If that line is not there — a harness that does not print it — do not guess a
+cache path. `$CLAUDE_PLUGIN_ROOT` and `$CURSOR_PLUGIN_ROOT` are worth trying
+first, and a checkout the human can name is worth asking for; a guess whose
+failure mode is running the wrong copy of the plugin is worse than stopping.
 
 ## Order
 
@@ -57,7 +68,7 @@ only says which of them to open and in what order.
    sub-index within it), not the whole memory tree. Read the one or two notes
    that plainly relate to this task; skip the rest.
 
-   **Log each note you actually open**: `bash .floppy/run heat <slug>`, the
+   **Log each note you actually open**: `bash <plugin>/scripts/run heat <slug>`, the
    slug being the filename without `.md` (several at once is fine). The log
    is what lets pruning lean on "was this ever read" instead of on dates —
    the one time usage was counted by hand, fourteen of twenty notes had
@@ -77,7 +88,7 @@ only says which of them to open and in what order.
 5. **Check live facts instead of trusting the documents:**
 
    ```bash
-   bash .floppy/run status
+   bash <plugin>/scripts/run status
    ```
 
    Documents can be stale in a way that looks identical to being current — a
@@ -93,7 +104,7 @@ only says which of them to open and in what order.
    worktrees, recent process edits:
 
    ```bash
-   bash .floppy/run status --flow
+   bash <plugin>/scripts/run status --flow
    ```
 
    Run one or the other, never both: `--flow` is the plain report with the

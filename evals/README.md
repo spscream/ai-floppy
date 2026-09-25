@@ -17,7 +17,7 @@ have scored unaided.
 | case | the rule it measures | where the rule is written |
 |---|---|---|
 | `wrap-rewrites-the-status-file` | the current-state file is rewritten once, not patched | `skills/wrap/SKILL.md` §5 |
-| `workstatus-checks-instead-of-recalling` | live state is reported from `bash .floppy/run status`, never from the documents | `skills/workstatus/SKILL.md` |
+| `workstatus-checks-instead-of-recalling` | live state is reported from floppy's `status` verb, never from the documents | `skills/workstatus/SKILL.md` |
 | `a-fact-becomes-one-note-with-an-index-line` | one fact per file, one pointer line, never the note's text in the index | `skills/agent-memory/SKILL.md` |
 
 The first is the one worth having. The rewrite-once rule was measured at 2.6
@@ -131,9 +131,23 @@ Worth knowing before a red score gets read as a broken skill.
 
 ## A note on the fixtures
 
-Each `scaffold.sh` writes a stand-in `.floppy/run` rather than wiring up the
-real shim. The real one resolves the installed plugin through the harness's
-cache, and an eval run gets a temporary `HOME` where no such cache exists — so
-the real shim would print "plugin not found" and every case would be measuring
-its own fixture. The stand-ins answer the verbs their rite calls and change
-nothing, which leaves the graded behaviour where it belongs.
+Each `scaffold.sh` writes a stand-in runner at `.floppy/run` rather than wiring
+up the real one. Two reasons, and only the first went away in 0.26.0. The shim
+resolved the installed plugin through the harness's cache, and an eval run gets
+a temporary `HOME` where no such cache exists — so the real shim printed
+"plugin not found" and every case measured its own fixture. The second reason
+stands: a stand-in is an **oracle**. It answers the verbs its rite calls with
+the invented state the case is built around — a background job at 41%, a branch
+that is two commits ahead — which a real dispatcher, pointed at a scratch
+directory, would correctly refuse to say.
+
+**What 0.26.0 left open here.** Skills now call the plugin's own
+`<plugin>/scripts/run`, so a model following them lands on the real dispatcher
+and never reaches the stand-in at `.floppy/run`. These cases are unrun by
+decision (2026-09-17, above), so nothing turned red; what is true is that the
+oracle now sits at a path the skills no longer name.
+Putting it back in the path of the call is the fixture work the first real run
+will have to start with: the supported seam is the repository's own
+`.floppy/workstatus-project.sh` hook, which the real `status` executes and
+prints, and which the fixture can therefore use to state an invented fact the
+scratch directory cannot produce on its own.

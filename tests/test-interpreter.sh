@@ -7,7 +7,7 @@
 # Four levels of indirection stand between the command line and a verb:
 #   1. the workflow calls /bin/bash tests/run.sh          — always was pinned
 #   2. run.sh hands each test file "$BASH"                 — pinned since 0.16
-#   3. a test file calls `bash .floppy/run ...`            — ~180 call sites
+#   3. a test file calls `bash <plugin>/scripts/run ...`  — ~180 call sites
 #   4. shim/run and scripts/run `exec bash` the next file  — in the product
 # Levels 3 and 4 are covered by run.sh putting a `bash` that IS the interpreter
 # under test at the front of PATH, and by both execs using "$BASH". This file
@@ -32,9 +32,13 @@ assert_eq "a bare \`bash\` resolves to the interpreter under test" \
 
 # ---------- level 4: both dispatchers pass their interpreter on ----------
 # Behavioural, not textual: build a plugin whose `lint` verb reports the
-# interpreter it was given, then call the shim with a SECOND bash and require
-# the verb to report that second one. A dispatcher that says `exec bash` sends
-# back whatever PATH offers, which is the pinned one, and the assert fails.
+# interpreter it was given, then call it with a SECOND bash and require the
+# verb to report that second one. A dispatcher that says `exec bash` sends back
+# whatever PATH offers, which is the pinned one, and the assert fails.
+#
+# Both hops are exercised, shim included: the shim is no longer on the path a
+# skill takes (0.26.0), but it still ships and a consumer who kept their copy
+# still runs both. The dispatcher's own hop is covered by the same call.
 #
 # It needs two different bashes on the machine. The macOS runner has exactly
 # that — /bin/bash 3.2 and Homebrew 5.x — which is the environment the defect
