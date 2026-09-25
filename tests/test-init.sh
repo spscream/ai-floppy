@@ -270,6 +270,39 @@ assert_eq "init leaves the leftover file where it is" "0" \
   "$([[ -f "$repoM/.floppy/run" ]] && echo 0 || echo 1)"
 rm -rf "$repoM"
 
+# ---------- a watch list that still names the runner ----------
+# The third leftover of the pre-0.26.0 layout, and the one that survives the
+# `git rm`: the entry is in .floppy/config, which init must name and must not
+# edit. Checked with no .floppy/run in the tree on purpose — that is the state
+# a reader reaches by following the migration, and the state in which the
+# reminder is the only thing that can still tell them.
+repoW="$(sandbox)"
+printf '%s\n' 'memory_dir=.agent-memory' 'memory_language=en' \
+  'watched_files=AGENTS.md,.floppy/run,.floppy/config' > "$repoW/.floppy/config"
+cfg_before="$(cat "$repoW/.floppy/config")"
+
+outW="$(bash scripts/init.sh --repo "$repoW" 2>&1)"
+assert_contains "a watched_files entry for the runner is named" \
+  "watched_files" "$outW"
+assert_contains "and the reader is told to drop that entry" \
+  "Drop that one entry" "$outW"
+assert_eq "and init edits nobody's config" "$cfg_before" "$(cat "$repoW/.floppy/config")"
+rm -rf "$repoW"
+
+# The same run against a config with no such entry says nothing: a reminder
+# that prints for everyone is a reminder nobody reads.
+repoX="$(sandbox)"
+printf '%s\n' 'memory_dir=.agent-memory' 'watched_files=AGENTS.md,.floppy/config' \
+  > "$repoX/.floppy/config"
+outX="$(bash scripts/init.sh --repo "$repoX" 2>&1)"
+case "$outX" in
+  *"Drop that one entry"*)
+    fail "a clean watch list is not warned about" "no reminder" "$outX" ;;
+  *)
+    ok   "a clean watch list is not warned about" ;;
+esac
+rm -rf "$repoX"
+
 # The AGENTS.md reminder does not hang off the section marker: a repository
 # whose stale mention sits anywhere else in the file gets a fresh section
 # appended and still carries the old instruction above it.

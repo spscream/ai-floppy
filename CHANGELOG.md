@@ -77,6 +77,16 @@ the entry point — the verbs are run from the plugin now:
 the base directory the harness states. A later `init` prints a reminder when it
 sees the old line, and prints one more when it finds the leftover file.
 
+**And the third leftover, which the first version of this entry missed:**
+`.floppy/config` written by an older `init` carries
+`watched_files=AGENTS.md,.floppy/run,.floppy/config`. Removing the file does
+not remove that entry. Nothing breaks if you leave it — measured on a
+repository carrying it with no `.floppy/run` in the tree, `guard` and `check`
+both run clean — but the path is printed back at you in the scope line `guard`
+ends with, "nothing else changed under … `.floppy/run` …", so the summary
+claims a file that is not there. Drop the one entry; `init` names it from then
+on, and edits nothing, because `.floppy/config` is yours.
+
 ### The command a human typed
 
 There isn't one, and that is the measurement: the operator of the six

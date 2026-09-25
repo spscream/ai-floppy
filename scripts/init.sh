@@ -518,5 +518,24 @@ if [[ -f "$repo/.floppy/run" ]]; then
   echo "   something of yours calls it. To drop it: git rm .floppy/run"
 fi
 
+# ---------- a watch list that still names the runner ----------
+# Checked apart from the block above and whether or not the file is there: the
+# config is what `wrap` reads, and an entry in it outlives a `git rm`. Nothing
+# fails — measured 2026-09-25 on a repository carrying the pre-0.26.0 entry
+# with no .floppy/run in it: `guard` and `check` both ran clean. What the entry
+# does do is put a path nothing in the layout has any more into the scope line
+# `guard` prints on every run ("nothing else changed under … .floppy/run …"),
+# which is a line the reader is being asked to trust.
+#
+# Named, never edited. .floppy/config is the consumer's file, hand-tuned as
+# often as not, and init rewrites no file it did not write itself.
+if [[ -f "$cfg" ]] && grep -q '^watched_files=.*\.floppy/run' "$cfg"; then
+  echo
+  echo "!  .floppy/config still lists .floppy/run under watched_files."
+  echo "   Left over from the pre-0.26.0 layout. Nothing breaks — wrap matches"
+  echo "   it against a path that is not there — but every guard run prints it"
+  echo "   in the scope it claims to have covered. Drop that one entry."
+fi
+
 echo
 echo "done"
