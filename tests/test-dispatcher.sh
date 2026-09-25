@@ -80,4 +80,42 @@ out="$(cd "$repo" && bash "$ROOT/scripts/run" check 2>&1)"
 assert_contains "the wrap hint carries a runnable command" \
   "bash $ROOT/scripts/run check <file>" "$out"
 
+# ---------- 5. a root with no plugin in it is a failure, not a value ----------
+# Rooting in its own path is only ever as good as the path a call came
+# through, and the one that goes wrong is a link to THIS FILE rather than to
+# the checkout: ${BASH_SOURCE[0]} is the link, so the root comes out as the
+# link's grandparent. Measured 2026-09-25 (review of PR #95, finding 5): the
+# `.` of lib-config.sh printed one raw "No such file or directory" and, with
+# no `set -e`, the dispatcher went on to print that invented root under `env`
+# and exit 0 — the "a script that had just been fixed was reported as still
+# broken" failure wearing a success. run_script already guarded the same class
+# for the verbs; this is the line above it.
+#
+# A tmpdir of its own, not $work: the case only means anything while the
+# derived root holds no scripts/, and $work is shared with case 3 above. A
+# future case that put a scripts/ there would leave this one green for the
+# wrong reason without breaking anything visible.
+linkdir="$(cd "$(mktemp -d)" && pwd -P)"
+mkdir -p "$linkdir/bin"
+ln -sf "$ROOT/scripts/run" "$linkdir/bin/run"
+
+out="$(cd "$repo" && bash "$linkdir/bin/run" env 2>&1)"; rc=$?
+assert_rc       "a root with no lib-config.sh fails"       1 "$rc"
+# The guard's own wording, not a substring the bare `.` failure also prints:
+# "…/scripts/lib-config.sh: No such file or directory" contains both the root
+# and the file name, so asserting either alone passes on the unguarded code
+# too (measured 2026-09-26 by reverting the guard: only the rc and the
+# FLOPPY_ROOT check below went red).
+assert_contains "and says so in its own words" \
+  "x the plugin root this call resolves to has no scripts/lib-config.sh" "$out"
+assert_contains "and names the root it resolved" \
+  "Resolved plugin root: $linkdir" "$out"
+case "$out" in
+  *"FLOPPY_ROOT=$linkdir"*)
+    fail "an invented root is not reported as a plugin" "no FLOPPY_ROOT=$linkdir line" "$out" ;;
+  *)
+    ok   "an invented root is not reported as a plugin" ;;
+esac
+rm -rf "$linkdir"
+
 summary
