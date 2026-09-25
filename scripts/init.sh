@@ -100,6 +100,7 @@ repo="$(cd "$repo_arg" && pwd)"
 # that already points at the right checkout, so nothing is searched for here.
 # It is also what the target repository gets told to call: the dispatcher
 # beside this file.
+unset CDPATH   # see scripts/run: it would print into the substitutions below
 self_dir="$(cd "$(dirname "$0")" && pwd)"
 plugin_root="$(cd "$self_dir/.." && pwd)"
 floppy_run="bash $plugin_root/scripts/run"
@@ -311,18 +312,6 @@ marker="<!-- floppy:agents-section -->"
 touch "$agents"
 if grep -qF "$marker" "$agents"; then
   echo "ok AGENTS.md already has the floppy section, left untouched"
-  # Left untouched, and said out loud when it is out of date: a section written
-  # before 0.26.0 tells the agent the entry point is `.floppy/run`, which is
-  # the habit this release removes. Rewriting somebody's AGENTS.md from a
-  # script is not init's business — idempotence here means leaving prose alone
-  # — but a silent stale instruction is how the old path survives the change.
-  if grep -q '\.floppy/run' "$agents"; then
-    echo "!  that section still names .floppy/run as the entry point."
-    echo "   The verbs are run from the plugin now:"
-    echo "     bash <plugin>/scripts/run <verb>"
-    echo "   <plugin> being two directories above the base directory the harness"
-    echo "   states when it loads a floppy skill. Update the section by hand."
-  fi
 else
   if [[ -s "$agents" ]] && [[ "$(tail -c1 "$agents")" != "" ]]; then
     printf '\n' >> "$agents"
@@ -344,6 +333,22 @@ three rites built on top of it. Settings live in \`.floppy/config\`; the
 memory itself is under \`$mem_dir\`.
 EOF
   echo "ok AGENTS.md: floppy section added"
+fi
+
+# Checked after both branches, and phrased for the whole file, because that is
+# what the grep can see: prose written before 0.26.0 names `.floppy/run` as the
+# entry point, and a section appended just now does not correct a mention
+# somewhere else in the file. Rewriting somebody's AGENTS.md from a script is
+# not init's business — idempotence here means leaving prose alone — but a
+# silent stale instruction is how the old path survives the change. `<plugin>`
+# is printed literally: this is text for a file that travels between machines,
+# not a command to run now, and the agent resolves it when it reads the line.
+if grep -q '\.floppy/run' "$agents"; then
+  echo "!  AGENTS.md still names .floppy/run, which nothing calls since 0.26.0."
+  echo "   The verbs are run from the plugin now:"
+  echo "     bash <plugin>/scripts/run <verb>"
+  echo "   <plugin> being two directories above the base directory the harness"
+  echo "   states when it loads a floppy skill. Update the text by hand."
 fi
 
 # ---------- an existing corpus: measure it, never rewrite it ----------

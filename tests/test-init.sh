@@ -248,4 +248,37 @@ assert_contains "and init says why it wrote nothing" "already ignored whole" "$o
 # by the exact-line assertion near the top of this file, against $repo.
 rm -rf "$repoI"
 
+# ---------- a repository initialized before 0.26.0 ----------
+# Both reminders are promised in prose — docs/guide/install.md for the stale
+# AGENTS.md line, the changelog for the leftover file — and neither had a test,
+# so either could stop printing without anything going red. init also has to
+# leave the file alone: it is committed, and something of the reader's may
+# still call it.
+repoM="$(sandbox)"
+rmdir "$repoM/.floppy" 2>/dev/null || true
+mkdir -p "$repoM/.floppy"
+printf '#!/usr/bin/env bash\n' > "$repoM/.floppy/run"
+printf '%s\n' '<!-- floppy:agents-section -->' '## Agent memory' \
+  'The entry point is `.floppy/run`.' > "$repoM/AGENTS.md"
+
+outM="$(bash scripts/init.sh --repo "$repoM" 2>&1)"
+assert_contains "a leftover runner is named"          ".floppy/run is left over" "$outM"
+assert_contains "and the command that drops it"       "git rm .floppy/run"       "$outM"
+assert_contains "a stale AGENTS.md line is named"     "AGENTS.md still names .floppy/run" "$outM"
+assert_contains "and the call to write in its place"  "bash <plugin>/scripts/run <verb>"  "$outM"
+assert_eq "init leaves the leftover file where it is" "0" \
+  "$([[ -f "$repoM/.floppy/run" ]] && echo 0 || echo 1)"
+rm -rf "$repoM"
+
+# The AGENTS.md reminder does not hang off the section marker: a repository
+# whose stale mention sits anywhere else in the file gets a fresh section
+# appended and still carries the old instruction above it.
+repoN="$(sandbox)"
+rmdir "$repoN/.floppy" 2>/dev/null || true
+printf '%s\n' '# Notes' 'Run `bash .floppy/run status` first.' > "$repoN/AGENTS.md"
+outN="$(bash scripts/init.sh --repo "$repoN" 2>&1)"
+assert_contains "a mention outside the floppy section is caught too" \
+  "AGENTS.md still names .floppy/run" "$outN"
+rm -rf "$repoN"
+
 summary
