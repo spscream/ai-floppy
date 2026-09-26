@@ -21,6 +21,156 @@ One column mattered more than the rest and is called out per release:
 
 Dates are the day the version was tagged in `.claude-plugin/plugin.json`.
 
+## 0.27.0 — 2026-09-26
+
+**Refresh `.floppy/run`: no.** The shim is untouched. `scripts/run` did change,
+and that copy arrives with `plugin update`.
+
+### A worktree of a correctly wired repository had no memory
+
+`git worktree add` produced a checkout with no memory in it at all. The memory
+was reached through a symbolic link at `<repo>/<memory_dir>`, gitignored, and
+git carries neither ignored files nor symbolic links into a worktree — so
+`lint` exited 2 with "this repository does not use this memory layout", `check`
+printed `MEMORY LINT COULD NOT RUN`, and `commit` stopped at "memory lint is
+red" before it ever reached the file-list gate. The whole corpus was on the
+machine, complete, and unreachable from the tree the session was working in.
+
+**The address is computed now, not stored.** A repository whose
+`.floppy/config` carries `public_repo` and `project_key` resolves its memory to
+`<agents_memory_dir>/<project_key>/shared`, and nothing of that name is created
+in a working copy at all. `project_key` is tracked, so every worktree of a
+repository computes the same address. `memory_dir` stays the name you type —
+`.agent-memory/…` is what you write in a file list and what every report calls
+it.
+
+What follows from that:
+
+- **`store` runs once per machine, not once per working copy.** A worktree
+  needs no step of its own.
+- **`link` is no longer a step.** The agent application's own pointer is
+  `<claude-config>/projects/<encoded cwd>/memory`, one per working *directory*,
+  so it cannot be addressed by repository. The config parser creates it on any
+  verb, announces it once, and skips it for `--check`. The verb still ships,
+  for a pointer you want to rewire by hand.
+- **The configuration decides, not the file system.** Resolution no longer
+  falls back to the working copy when nothing stands at the store's address.
+  That fallback read as caution and was not: this plugin's own skills tell an
+  agent to write `.agent-memory/<file>`, so one note from an agent that
+  followed them recreated the directory, took the address back, and put the
+  repository into exactly the state above.
+- **A real directory at `memory_dir` is a fork of the corpus** and is now
+  treated as one. `guard` refuses while it stands, and `store --migrate` moves
+  it — printing every file before it moves it, refusing the whole run on a name
+  that exists on both sides or on a private scope it has no right to publish,
+  and deleting nothing, not even the directory it empties.
+- **The fence between the two repositories holds.** The public scope commits
+  from the public store and the private one from the workplace store; `git add
+  -A` in a code worktree stages no memory path at all.
+
+A symbolic link an earlier `store` left in your working copy costs you nothing:
+it points at exactly the address that is computed now, so the configuration
+gives it the answer it already had. It is not *followed*, though — nothing in a
+working copy is an address any more, so a link that was repointed somewhere else
+by hand is ignored from this release on, and the notes behind it stop being read.
+Nothing deletes such a link; what to do with it is yours to decide.
+
+A repository whose `memory_dir` was pointed at a store **by hand**, with no
+`public_repo` and no `project_key`, has nothing to compose an address from: its
+worktrees
+fall back to asking the main working copy of the same clone, which needs `git`
+2.31 or newer for `rev-parse --path-format=absolute`. On an older `git` that
+fallback does not engage and such a worktree behaves as it did before this
+release, reporting no memory. The repair is the same in both cases — set
+`public_repo` and `project_key`, then run `store` once.
+
+### Four defects that work uncovered on the way
+
+- **`ln -s` now has its exit status read.** Every `ok linked` line in this
+  plugin was printed unconditionally after an `ln` nobody checked. In a git
+  worktree whose target directory did not exist, the truth and the lie came out
+  two lines apart on two streams: `ln: failed to create symbolic link …: No such
+  file or directory`, then `ok linked: .agent-memory/private -> …`. It was the
+  only place in the whole verb matrix where this tool said yes about something
+  that had not happened. `store`, `workplace` and `link` all report the failure
+  and stop now; `ln`'s own message is left on stderr, because it names the errno.
+- **`workplace` says which verb comes first, and refuses before it clones.**
+  Run with no memory for the private scope to sit in, it used to create a real
+  directory there — after which `store` refused to touch it, which is how the
+  order the tool suggested bricked a tree. It now stops with `x no memory at …
+  — there is nothing for the private scope to sit in`, says to run the `store`
+  verb first, and ends with `Nothing was cloned, linked or written.`
+- **`check` and `status` judge the wiring with one piece of code.** They had
+  drifted: `status` carried an arm for a private scope that is not a symbolic
+  link, and the gate never had it. Measured one second apart in a worktree of
+  this plugin's own repository — `status: repository exists, but
+  .agent-memory/private is not a symlink` against `check: clean and pushed`. The
+  gate was the optimistic one of the pair, which is the wrong way round for a
+  gate.
+- **`link` stopped calling a correct worktree the wrong repository.** Its
+  refusal was `x no <path>/.agent-memory — wrong repository`, rc 2, for a
+  worktree wired exactly as intended. It names what is actually missing now, and
+  the verb that makes it.
+
+### `init` wrote where `CDPATH` pointed, not where you pointed it
+
+An exported `CDPATH` with a relative entry makes `cd` print the directory it
+found on stdout, and that print landed inside the command substitution that
+resolves `--repo`. With `CDPATH=.:<dir>` and a relative `--repo target`, the
+path came out two lines long: `init` created a directory whose name ends in a
+newline *beside* the target, printed `ok` at every step, exited 0 — and the
+repository it had been pointed at kept nothing but its `.git`.
+
+The `unset CDPATH` was already in the file, seven lines below where it had to
+be: above the `cd` that finds the plugin, rather than above the one that
+resolves the argument. `--repo .` and an absolute `--repo` are both immune,
+because `cd` consults `CDPATH` for neither, which is why every call the suite
+and the `init` skill make missed this.
+
+### The dispatcher stops inventing a plugin root
+
+`scripts/run` roots itself in its own path and then sourced the config parser
+out of that root without asking whether it was there. `.` on a missing file
+prints one raw `No such file or directory`, and with `set -u` but no `-e` the
+dispatcher carried on: called through a symbolic link that points at that file
+alone rather than at a checkout, `env` printed a `FLOPPY_ROOT` naming no plugin
+and exited 0 — an invented root wearing a success. It now names the resolved
+root, names what is missing in it, and says the two things that can mean: an
+incomplete install, or a call that came through a link to the dispatcher alone,
+which carries none of the plugin with it.
+
+### Three documentation claims that measured false
+
+- **`.floppy/heat.log` is excluded, not gitignored.** Both language versions of
+  the install guide said `.gitignore` covers it. It does not, deliberately:
+  `memory-heat.sh` writes its ignore line into `.git/info/exclude`, and its
+  header records why. The first release of the verb appended to `.gitignore`
+  itself, so the first `heat` on every machine left that file modified — and
+  `wrap`'s guard refuses to commit it, so a wrap that named the file stopped on
+  a change the human had not made. The log is machine-local, and so is the rule
+  that hides it.
+- **`.floppy/` does hold code — just never the plugin's.** The section `init`
+  appends to a consumer's `AGENTS.md`, and the install guide with it, said the
+  directory holds `config` and nothing else. `workstatus` runs
+  `.floppy/workstatus-project.sh` when a project defines one, which is an
+  executable in that directory. Both now say what is true: the plugin puts no
+  code there, that hook is the project's own, and `heat.log` sits beside
+  `config`.
+- **A `watched_files` entry naming `.floppy/run` was typed by hand.** No
+  released `init` ever wrote one: every version from 0.11.0 to 0.26.0 writes
+  `watched_files` commented out and without the runner in it. The 0.26.0
+  migration notes said nothing about the entry at all, which left a reader who
+  had followed the migration to the letter with a line they could not date. The
+  `0.26.0` section of this file now carries it, with the measurement — the
+  release page for `v0.26.0` was published before that and is not rewritten. And
+  `init` names the entry
+  when it sees one — read with the config parser's own key pattern and matched
+  between commas, so an indented or spaced copy is found and `.floppy/runner.md`
+  is not — splitting its advice by whether `.floppy/run` is still in the tree,
+  because dropping the entry while the file is tracked takes `guard
+  .floppy/run` from rc 0 to rc 1. It edits nothing either way: `.floppy/config`
+  is yours.
+
 ## 0.26.0 — 2026-09-25
 
 **Refresh `.floppy/run`: no — there is nothing left to refresh.** A repository
